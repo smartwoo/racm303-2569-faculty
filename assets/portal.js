@@ -1,11 +1,12 @@
 /* ==========================================================================
-   RACM 303 (ปีการศึกษา 2569) — Interactive Course & Guided Learning Controller
-   Supports window.PORTAL_ROLE = "student" | "faculty"
+   RACM 303 (ปีการศึกษา 2569) — Faculty & Course Coordinator Controller
+   Includes Google Calendar & Apple Calendar (iCal) Views, Dual .ics + .csv
+   Downloads with Embedded Zoom Links, Photo Roster Print, Audit & Teacher Guides
    ========================================================================== */
 (function () {
   "use strict";
 
-  const ROLE = window.PORTAL_ROLE === "faculty" ? "faculty" : "student";
+  const ROLE = "faculty";
   const SCHED = window.RACM_SCHEDULE_DATA || {};
   const ROSTER = window.RACM_ROSTER_DATA || { students: [], courseTeachers: [], appsScriptReconciliation: [] };
   const MANUAL = window.RACM_MANUAL_DATA || { chapters: [] };
@@ -15,19 +16,44 @@
   const $ = (id) => document.getElementById(id);
   const compareTH = (a, b) => String(a || "").localeCompare(String(b || ""), "th", { numeric: true });
 
+  const WEEK_BOUNDS = [
+    { week: 1, start: "2026-11-23", end: "2026-11-29", label: "สัปดาห์ที่ 1 · 23–29 พ.ย. 2569 (เปิดรายวิชา · HS1 · EP1–3)" },
+    { week: 2, start: "2026-11-30", end: "2026-12-06", label: "สัปดาห์ที่ 2 · 30 พ.ย. – 6 ธ.ค. 2569 (HS2–HS6 · EP4–9)" },
+    { week: 3, start: "2026-12-07", end: "2026-12-13", label: "สัปดาห์ที่ 3 · 7–13 ธ.ค. 2569 (สอบ EP · เตรียมออกภาคสนาม)" },
+    { week: 4, start: "2026-12-14", end: "2026-12-20", label: "สัปดาห์ที่ 4 · 14–20 ธ.ค. 2569 (ฝึกปฏิบัติงานภาคสนาม 9 พื้นที่)" },
+    { week: 5, start: "2026-12-21", end: "2026-12-27", label: "สัปดาห์ที่ 5 · 21–27 ธ.ค. 2569 (สอบ HS · สังเคราะห์ข้อมูลภาคสนาม)" },
+    { week: 6, start: "2026-12-28", end: "2027-01-03", label: "สัปดาห์ที่ 6 · 28 ธ.ค. 2569 – 3 ม.ค. 2570 (นำเสนอภาคสนาม & ปิดรายวิชา)" }
+  ];
+
+  const TH_MONTHS_SHORT = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const TH_DOW_SHORT = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
+  const TH_DOW_FULL = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+
+  const CAT_NAMES = {
+    HS: "วิทยาศาสตร์ระบบสุขภาพ (HS)",
+    EP: "ระบาดวิทยาคลินิกและชุมชน (EP)",
+    SG: "กลุ่มย่อย & ภาคสนาม",
+    PANEL: "เสวนา / ปฏิบัติการเชิงระบบ",
+    EXAM: "การสอบ & กำหนดส่งงาน",
+    HOLIDAY: "วันหยุด / เดินทางภาคสนาม",
+    STAFF: "เตรียมความพร้อมภาควิชาฯ"
+  };
+
   const state = {
     activeTab: "schedule",
-    schedSub: "daily", // daily | master | spec
+    schedSub: "month", // month | week | daily | spec
+    calWeek: 1,
     practiceSub: "rapid", // rapid | flashcards | qa
-    facultySub: "guides", // guides | links
+    facultySub: "guides",
     myStudent: null,
     classContext: null,
     showPhotos: ROLE === "faculty",
     showSitesOverview: false,
+    showZoomDrawer: false,
     visibleStudents: [],
     manualChapterId: "ALL",
     activeDocId: "HS1",
-    activeFacultyDocId: (FACULTY.docs[0] && FACULTY.docs[0].id) || "hs1-tg",
+    activeFacultyDocId: "hs1-tg",
     readerFontPx: Number(localStorage.getItem("racm303_font_px")) || 16.5,
     masteredCards: new Set(JSON.parse(localStorage.getItem("racm303_mastered_fc") || "[]")),
     fcShuffleSeed: null
@@ -48,7 +74,65 @@
     return el;
   }
 
-  /* ---------- Lazy Photo Observer (Drive Thumbnail + Monogram Fallback) ---------- */
+  /* ---------- Date & Time Helpers ---------- */
+  function parseISODate(iso) {
+    const [y, m, d] = String(iso).split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+
+  function formatISODate(dt) {
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function addDaysISO(iso, delta) {
+    const dt = parseISODate(iso);
+    dt.setUTCDate(dt.getUTCDate() + delta);
+    return formatISODate(dt);
+  }
+
+  function formatThaiShortDate(iso, forceMonth) {
+    const [y, m, d] = String(iso).split("-").map(Number);
+    if (forceMonth || d === 1 || (m === 11 && d === 25)) {
+      return `${d} ${TH_MONTHS_SHORT[m]}${y === 2027 ? " 70" : ""}`;
+    }
+    return String(d);
+  }
+
+  function timeToMinutes(hhmm) {
+    const [h, m] = String(hhmm || "09:00").split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  function to12HourAmPm(hhmm) {
+    const [hRaw, mRaw] = String(hhmm || "09:00").split(":").map(Number);
+    const h = Number.isFinite(hRaw) ? hRaw : 9;
+    const m = Number.isFinite(mRaw) ? mRaw : 0;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
+
+  function isoToUsDate(iso) {
+    const [y, m, d] = String(iso).split("-");
+    return `${m}/${d}/${y}`;
+  }
+
+  function copyTextWithFeedback(text, btn, doneLabel = "คัดลอกแล้ว ✓") {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(text).then(() => {
+      if (!btn) return;
+      const prev = btn.textContent;
+      btn.textContent = doneLabel;
+      setTimeout(() => {
+        btn.textContent = prev;
+      }, 1500);
+    });
+  }
+
+  /* ---------- Lazy Photo Observer ---------- */
   function studentInitials(s) {
     const parts = String(s.name || "").trim().split(/\s+/);
     const a = parts[0] ? [...parts[0]][0] : "น";
@@ -122,7 +206,7 @@
         if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
         if ($("schedAreaFilter")) $("schedAreaFilter").value = "";
         updatePersonalBanner();
-        renderScheduleDaily();
+        renderScheduleCurrent();
       });
     }
   }
@@ -153,14 +237,13 @@
       if ($("schedAreaFilter")) $("schedAreaFilter").value = student.area;
     }
 
-    // Pre-fill SRN Filename Generator
     if ($("srnAreaSelect")) $("srnAreaSelect").value = student.area;
     if ($("srnStudentId")) $("srnStudentId").value = student.id;
     if ($("srnStudentName")) $("srnStudentName").value = student.fullName;
     updateSrnFilename();
 
     updatePersonalBanner();
-    renderScheduleDaily();
+    renderScheduleCurrent();
   }
 
   function updatePersonalBanner() {
@@ -170,7 +253,7 @@
     summary.replaceChildren();
     if (!state.myStudent) {
       summary.appendChild(
-        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อกรองห้องเรียน กลุ่มอภิปราย พื้นที่ภาคสนาม และตั้งชื่อไฟล์ SRN อัตโนมัติ")
+        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้องกลุ่มย่อย วันเดินทางภาคสนาม และดาวน์โหลดปฏิทินส่วนตัว (.ics / .csv)")
       );
       if (clearBtn) clearBtn.hidden = true;
       return;
@@ -188,8 +271,9 @@
 
   /* ---------- Primary Tab Routing ---------- */
   function switchTab(tabId, pushHash = true) {
-    const validTabs = ["schedule", "students", "manual", "textbooks", "practice"];
-    if (ROLE === "faculty") validTabs.push("audit", "faculty-docs");
+    const validTabs = ROLE === "faculty"
+      ? ["schedule", "students", "audit", "faculty-docs", "manual", "textbooks", "practice"]
+      : ["schedule", "students", "manual", "textbooks", "practice"];
     if (!validTabs.includes(tabId)) tabId = "schedule";
 
     state.activeTab = tabId;
@@ -212,11 +296,11 @@
     if (tabId === "manual") renderManualReader();
     if (tabId === "textbooks") renderTextbookReader();
     if (tabId === "practice") renderPracticeCurrent();
-    if (tabId === "audit" && ROLE === "faculty") renderAuditView();
-    if (tabId === "faculty-docs" && ROLE === "faculty") renderFacultyDocsView();
+    if (ROLE === "faculty" && tabId === "audit" && typeof renderAuditView === "function") renderAuditView();
+    if (ROLE === "faculty" && tabId === "faculty-docs" && typeof renderFacultyDocsView === "function") renderFacultyDocsView();
   }
 
-  /* ---------- Per-Session Group Assignments Helper (Apps Script UX) ---------- */
+  /* ---------- Per-Session Group Assignments & Personalization ---------- */
   function getSessionAssignments(session) {
     if (session.hsModule) {
       const mod = session.hsModule;
@@ -266,8 +350,140 @@
     return assignments.some((a) => String(a.lecturer || "").includes(teacherKey));
   }
 
-  /* ---------- Tab 1: Teaching Schedule ---------- */
+  function getActivePersonalContext() {
+    const discVal = ($("schedDiscFilter") && $("schedDiscFilter").value) || (state.myStudent ? String(state.myStudent.disc) : "");
+    const areaVal = ($("schedAreaFilter") && $("schedAreaFilter").value) || (state.myStudent ? state.myStudent.area : "");
+    const teacherVal = ($("schedTeacherFilter") && $("schedTeacherFilter").value) || "";
+    const siteObj = areaVal ? (SCHED.fieldworkSites || []).find((x) => x.shortName === areaVal) : null;
+    return { discVal, areaVal, teacherVal, siteObj };
+  }
+
+  function resolveEffectiveSessionDetails(session, ctx) {
+    const assignments = getSessionAssignments(session);
+    let room = session.room || "";
+    let lecturer = session.lecturers || "";
+    let personalLabel = "";
+    let startISO = session.dateISO;
+    let endISO = session.endDateISO || session.dateISO;
+
+    if (session.hsModule && ctx.discVal) {
+      const m = assignments.find((a) => a.shortGroup === ctx.discVal);
+      if (m) {
+        room = `${m.room} (${m.label})`;
+        lecturer = m.lecturer;
+        personalLabel = `ห้อง ${m.room}`;
+      }
+    } else if (session.isFieldGroupSession && ctx.areaVal) {
+      const m = assignments.find((a) => a.shortGroup === ctx.areaVal);
+      if (m) {
+        room = `${m.room} (${m.label})`;
+        lecturer = m.lecturer;
+        personalLabel = m.room.split(" ")[0];
+      }
+      if (session.code === "FIELD" && ctx.siteObj && ctx.siteObj.startDateISO && ctx.siteObj.endDateISO) {
+        startISO = ctx.siteObj.startDateISO;
+        endISO = ctx.siteObj.endDateISO;
+      }
+    } else if (ctx.teacherVal && assignments.length) {
+      const tm = assignments.find((a) => String(a.lecturer).includes(ctx.teacherVal));
+      if (tm) {
+        room = `${tm.room} (${tm.label})`;
+        lecturer = tm.lecturer;
+        personalLabel = `${tm.shortGroup} · ${tm.room.split(" ")[0]}`;
+      }
+    }
+
+    const isAllDay = session.code === "FIELD" || session.category === "HOLIDAY";
+    return { assignments, room, lecturer, personalLabel, startISO, endISO, isAllDay };
+  }
+
+  function getFilteredSessions(ignoreWeekDropdown = false) {
+    const weekVal = ignoreWeekDropdown ? "" : (($("schedWeekFilter") && $("schedWeekFilter").value) || "");
+    const catVal = ($("schedCatFilter") && $("schedCatFilter").value) || "";
+    const ctx = getActivePersonalContext();
+    const q = (($("schedSearchInput") && $("schedSearchInput").value) || "").trim().toLocaleLowerCase("th");
+
+    return (SCHED.sessions || []).filter((s) => {
+      if (ROLE === "student" && s.studentVisible === false) return false;
+      if (weekVal && String(s.week) !== weekVal) return false;
+      if (catVal && s.category !== catVal) return false;
+
+      const assignments = getSessionAssignments(s);
+      if (!sessionMatchesTeacher(s, ctx.teacherVal, assignments)) return false;
+
+      if (ctx.areaVal && s.allowedSites && ctx.siteObj) {
+        if (!s.allowedSites.includes(ctx.siteObj.id)) return false;
+      }
+
+      if (q) {
+        const zoomHay = s.zoom ? `zoom ${s.zoom.id} ${s.zoom.pass} ${s.zoom.url}` : "";
+        const hay = [
+          s.code,
+          s.title,
+          s.objectives,
+          s.lecturers,
+          s.room,
+          s.dateTH,
+          zoomHay,
+          ROLE === "faculty" ? (s.facultyNote || "") : "",
+          ...assignments.map((a) => `${a.label} ${a.lecturer} ${a.room}`)
+        ]
+          .join(" ")
+          .toLocaleLowerCase("th");
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  /* ---------- Tab 1: Schedule & Calendar Controls ---------- */
+  function renderZoomHubAndMilestones() {
+    const msWrap = $("milestoneStrip");
+    if (msWrap && !msWrap.dataset.rendered) {
+      msWrap.dataset.rendered = "1";
+      (SCHED.milestones || []).forEach((m) => {
+        const card = make("div", null, "milestone-card");
+        card.append(
+          make("div", m.date, "ms-date"),
+          make("div", m.title, "ms-title"),
+          make("div", m.channel, "ms-channel")
+        );
+        msWrap.appendChild(card);
+      });
+    }
+
+    const zoomList = $("zoomRoomsHubList");
+    if (zoomList && !zoomList.dataset.rendered) {
+      zoomList.dataset.rendered = "1";
+      const rooms = (SCHED.courseMeta && SCHED.courseMeta.zoomRooms) || [];
+      rooms.forEach((zr) => {
+        const card = make("div", null, "zoom-room-card");
+        const info = make("div", null, "zoom-room-info");
+        info.appendChild(make("strong", zr.label));
+        info.appendChild(make("div", `Meeting ID: ${zr.id}  ·  Passcode: ${zr.pass}`, "zoom-room-meta"));
+
+        const acts = make("div", null, "header-actions");
+        const joinLink = make("a", "เข้าห้องเรียน Zoom ↗", "btn sm primary");
+        joinLink.href = zr.url;
+        joinLink.target = "_blank";
+        joinLink.rel = "noopener";
+
+        const copyBtn = make("button", "คัดลอกลิงก์ & รหัส", "btn sm");
+        copyBtn.type = "button";
+        copyBtn.addEventListener("click", () =>
+          copyTextWithFeedback(`${zr.label}\nZoom Link: ${zr.url}\nMeeting ID: ${zr.id}\nPasscode: ${zr.pass}`, copyBtn)
+        );
+
+        acts.append(joinLink, copyBtn);
+        card.append(info, acts);
+        zoomList.appendChild(card);
+      });
+    }
+  }
+
   function initScheduleControls() {
+    renderZoomHubAndMilestones();
+
     const teacherSel = $("schedTeacherFilter");
     if (teacherSel) {
       ROSTER.courseTeachers.forEach((t) => {
@@ -287,19 +503,28 @@
       });
     }
 
-    ["schedWeekFilter", "schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter"].forEach((id) => {
+    if ($("schedWeekFilter")) {
+      $("schedWeekFilter").addEventListener("change", () => {
+        const w = Number($("schedWeekFilter").value);
+        if (w >= 1 && w <= 6) state.calWeek = w;
+        renderScheduleCurrent();
+      });
+    }
+
+    ["schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter"].forEach((id) => {
       const el = $(id);
-      if (el) el.addEventListener("change", renderScheduleDaily);
+      if (el) el.addEventListener("change", renderScheduleCurrent);
     });
     if ($("schedSearchInput")) {
-      $("schedSearchInput").addEventListener("input", renderScheduleDaily);
+      $("schedSearchInput").addEventListener("input", renderScheduleCurrent);
     }
     if ($("resetSchedFiltersBtn")) {
       $("resetSchedFiltersBtn").addEventListener("click", () => {
         ["schedWeekFilter", "schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter", "schedSearchInput"].forEach((id) => {
           if ($(id)) $(id).value = "";
         });
-        renderScheduleDaily();
+        state.calWeek = 1;
+        renderScheduleCurrent();
       });
     }
 
@@ -313,88 +538,318 @@
       });
     });
 
+    // Calendar week stepper (◀ / สัปดาห์เปิดวิชา / ▶)
+    if ($("calPrevBtn")) {
+      $("calPrevBtn").addEventListener("click", () => {
+        if (state.schedSub === "month") state.schedSub = "week";
+        state.calWeek = Math.max(1, state.calWeek - 1);
+        if ($("schedWeekFilter") && $("schedWeekFilter").value) $("schedWeekFilter").value = String(state.calWeek);
+        syncSegButtons();
+        renderScheduleCurrent();
+      });
+    }
+    if ($("calNextBtn")) {
+      $("calNextBtn").addEventListener("click", () => {
+        if (state.schedSub === "month") state.schedSub = "week";
+        state.calWeek = Math.min(6, state.calWeek + 1);
+        if ($("schedWeekFilter") && $("schedWeekFilter").value) $("schedWeekFilter").value = String(state.calWeek);
+        syncSegButtons();
+        renderScheduleCurrent();
+      });
+    }
+    if ($("calStartWeekBtn")) {
+      $("calStartWeekBtn").addEventListener("click", () => {
+        state.calWeek = 1;
+        if ($("schedWeekFilter")) $("schedWeekFilter").value = "";
+        renderScheduleCurrent();
+      });
+    }
+
+    const zoomDrawerBtn = $("toggleZoomDrawerBtn");
+    const zoomDrawer = $("zoomSyncDrawer");
+    if (zoomDrawerBtn && zoomDrawer) {
+      zoomDrawerBtn.addEventListener("click", () => {
+        state.showZoomDrawer = !state.showZoomDrawer;
+        zoomDrawer.hidden = !state.showZoomDrawer;
+        zoomDrawerBtn.setAttribute("aria-expanded", state.showZoomDrawer ? "true" : "false");
+      });
+    }
+
     if ($("exportIcsBtn")) $("exportIcsBtn").addEventListener("click", downloadScheduleIcs);
+    if ($("exportGcalCsvBtn")) $("exportGcalCsvBtn").addEventListener("click", downloadScheduleGoogleCsv);
     if ($("printScheduleBtn")) {
       $("printScheduleBtn").addEventListener("click", () => {
         document.body.classList.remove("print-students-mode");
         window.print();
       });
     }
+
+    // Event Modal dismiss handlers
+    const modal = $("calendarEventModal");
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeEventModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !modal.hidden) closeEventModal();
+      });
+    }
+  }
+
+  function syncSegButtons() {
+    document.querySelectorAll("[data-sched-sub]").forEach((b) =>
+      b.setAttribute("aria-pressed", b.dataset.schedSub === state.schedSub ? "true" : "false")
+    );
+  }
+
+  function updateScheduleStatusBar(sessionsCount) {
+    const statusEl = $("schedStatusText");
+    const titleEl = $("calPeriodTitle");
+    const ctx = getActivePersonalContext();
+    const weekVal = ($("schedWeekFilter") && $("schedWeekFilter").value) || "";
+
+    if (titleEl) {
+      if (state.schedSub === "week") {
+        const wb = WEEK_BOUNDS.find((w) => w.week === state.calWeek) || WEEK_BOUNDS[0];
+        titleEl.textContent = wb.label;
+      } else if (state.schedSub === "spec") {
+        titleEl.textContent = "ตารางหมุนเวียนกลุ่มอภิปราย HS1–HS6 และสัดส่วนข้อสอบ";
+      } else if (weekVal) {
+        const wb = WEEK_BOUNDS.find((w) => String(w.week) === weekVal);
+        titleEl.textContent = wb ? wb.label : "พฤศจิกายน – ธันวาคม 2569";
+      } else {
+        titleEl.textContent = "พฤศจิกายน – ธันวาคม 2569 (ปฏิทินรายวิชาครบ 6 สัปดาห์)";
+      }
+    }
+
+    if ($("calPrevBtn")) $("calPrevBtn").disabled = state.schedSub === "week" && state.calWeek <= 1;
+    if ($("calNextBtn")) $("calNextBtn").disabled = state.schedSub === "week" && state.calWeek >= 6;
+
+    if (statusEl) {
+      const parts = [
+        `พบ ${sessionsCount} คาบกิจกรรม`,
+        ctx.teacherVal ? `อาจารย์: ${ctx.teacherVal}` : "",
+        ctx.discVal ? `Discussion ${ctx.discVal}` : "",
+        ctx.areaVal ? `พื้นที่ ${ctx.areaVal}` : "",
+        "คลิกที่คาบเรียนเพื่อดูรายละเอียด ลิงก์ Zoom หรือเพิ่มเข้าปฏิทิน"
+      ].filter(Boolean);
+      statusEl.textContent = parts.join(" · ");
+    }
   }
 
   function renderScheduleCurrent() {
-    $("schedDailyWrap").hidden = state.schedSub !== "daily";
-    $("schedMasterWrap").hidden = state.schedSub !== "master";
-    $("schedSpecWrap").hidden = state.schedSub !== "spec";
-    if (state.schedSub === "daily") renderScheduleDaily();
-    if (state.schedSub === "master") renderScheduleMaster();
-    if (state.schedSub === "spec") renderScheduleSpec();
+    if ($("schedMonthWrap")) $("schedMonthWrap").hidden = state.schedSub !== "month";
+    if ($("schedWeekWrap")) $("schedWeekWrap").hidden = state.schedSub !== "week";
+    if ($("schedDailyWrap")) $("schedDailyWrap").hidden = state.schedSub !== "daily";
+    if ($("schedSpecWrap")) $("schedSpecWrap").hidden = state.schedSub !== "spec";
+
+    if (state.schedSub === "month") renderScheduleMonth();
+    else if (state.schedSub === "week") renderScheduleWeek();
+    else if (state.schedSub === "daily") renderScheduleDaily();
+    else if (state.schedSub === "spec") renderScheduleSpec();
   }
 
-  function renderScheduleDaily() {
-    // Milestones strip
-    const msWrap = $("milestoneStrip");
-    if (msWrap && !msWrap.dataset.rendered) {
-      msWrap.dataset.rendered = "1";
-      (SCHED.milestones || []).forEach((m) => {
-        const card = make("div", null, "milestone-card");
-        card.append(
-          make("div", m.date, "ms-date"),
-          make("div", m.title, "ms-title"),
-          make("div", m.channel, "ms-channel")
-        );
-        msWrap.appendChild(card);
+  /* ---------- View 1: Month Calendar Matrix (Google Calendar / Apple iCal Style) ---------- */
+  function expandSessionsByDate(sessions, ctx) {
+    const map = new Map();
+    sessions.forEach((s) => {
+      const eff = resolveEffectiveSessionDetails(s, ctx);
+      let cur = eff.startISO;
+      const last = eff.endISO || eff.startISO;
+      let guard = 0;
+      while (cur <= last && guard < 20) {
+        if (!map.has(cur)) map.set(cur, []);
+        map.get(cur).push({ session: s, eff, isSpanContinuation: cur !== eff.startISO });
+        cur = addDaysISO(cur, 1);
+        guard++;
+      }
+    });
+    return map;
+  }
+
+  function renderScheduleMonth() {
+    const wrap = $("schedMonthContent");
+    if (!wrap) return;
+    const ctx = getActivePersonalContext();
+    const sessions = getFilteredSessions(false);
+    updateScheduleStatusBar(sessions.length);
+
+    const byDate = expandSessionsByDate(sessions, ctx);
+    const weekFilterVal = ($("schedWeekFilter") && $("schedWeekFilter").value) || "";
+    const visibleWeeks = weekFilterVal
+      ? WEEK_BOUNDS.filter((wb) => String(wb.week) === weekFilterVal)
+      : WEEK_BOUNDS;
+
+    const shell = make("div", null, "cal-month-shell");
+    const minWrap = make("div", null, "cal-month-min");
+
+    // Header row
+    const head = make("div", null, "cal-dow-header");
+    head.appendChild(make("div", "สัปดาห์", "cal-dow-cell"));
+    TH_DOW_FULL.forEach((dName) => head.appendChild(make("div", dName, "cal-dow-cell")));
+    minWrap.appendChild(head);
+
+    visibleWeeks.forEach((wb) => {
+      const row = make("div", null, "cal-month-row");
+      const wCell = make("div", null, "cal-week-num");
+      wCell.title = `คลิกเพื่อเปิดตารางรายสัปดาห์ที่ ${wb.week}`;
+      wCell.innerHTML = `<span>W${wb.week}</span><small style="font-size:10px;opacity:0.8">รายชั่วโมง</small>`;
+      wCell.addEventListener("click", () => {
+        state.calWeek = wb.week;
+        state.schedSub = "week";
+        syncSegButtons();
+        renderScheduleCurrent();
       });
-    }
+      row.appendChild(wCell);
 
-    const weekVal = ($("schedWeekFilter") && $("schedWeekFilter").value) || "";
-    const catVal = ($("schedCatFilter") && $("schedCatFilter").value) || "";
-    const teacherVal = ($("schedTeacherFilter") && $("schedTeacherFilter").value) || "";
-    const discVal = ($("schedDiscFilter") && $("schedDiscFilter").value) || "";
-    const areaVal = ($("schedAreaFilter") && $("schedAreaFilter").value) || "";
-    const q = (($("schedSearchInput") && $("schedSearchInput").value) || "").trim().toLocaleLowerCase("th");
+      for (let dIdx = 0; dIdx < 7; dIdx++) {
+        const iso = addDaysISO(wb.start, dIdx);
+        const isOutside = iso < "2026-11-24" || iso > "2026-12-30";
+        const cell = make("div", null, `cal-day-cell${dIdx >= 5 ? " is-weekend" : ""}${isOutside ? " is-outside" : ""}`);
 
-    const sessions = (SCHED.sessions || []).filter((s) => {
-      if (ROLE === "student" && s.studentVisible === false) return false;
-      if (weekVal && String(s.week) !== weekVal) return false;
-      if (catVal && s.category !== catVal) return false;
+        const dayHead = make("div", null, "cal-day-head");
+        const isMonthStart = iso.endsWith("-01") || iso === "2026-11-25";
+        const dNum = make("span", formatThaiShortDate(iso, dIdx === 0), `cal-day-num${isMonthStart ? " is-month-start" : ""}`);
+        dayHead.appendChild(dNum);
+        cell.appendChild(dayHead);
 
-      const assignments = getSessionAssignments(s);
-      if (!sessionMatchesTeacher(s, teacherVal, assignments)) return false;
+        const evWrap = make("div", null, "cal-day-events");
+        const dayItems = byDate.get(iso) || [];
+        dayItems.forEach(({ session: s, eff }) => {
+          const chip = make("button", null, `cal-chip cat-${s.category}${eff.isAllDay ? " is-allday" : ""}`);
+          chip.type = "button";
+          const shortTime = eff.isAllDay ? "ทั้งวัน" : (s.startTime || "");
+          const labelTitle = s.code === "FIELD" && ctx.areaVal
+            ? `ภาคสนาม: ${ctx.areaVal}`
+            : `${s.code}: ${s.title.replace(/^\*?HS\d:\s*|^EP\d.*:\s*/i, "")}`;
+          chip.title = `${s.timeLabel} · ${s.title}${eff.personalLabel ? " (" + eff.personalLabel + ")" : ""}`;
 
-      // If filtering by specific fieldwork area, check Friday 11 Dec 4-group restriction
-      if (areaVal && s.allowedSites) {
-        const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === areaVal);
-        if (siteObj && !s.allowedSites.includes(siteObj.id)) return false;
+          chip.appendChild(make("span", shortTime, "chip-time"));
+          chip.appendChild(make("span", labelTitle, "chip-title"));
+          if (s.zoom) {
+            chip.appendChild(make("span", "Zoom", "chip-zoom"));
+          }
+          chip.addEventListener("click", () => openEventModal(s));
+          evWrap.appendChild(chip);
+        });
+
+        cell.appendChild(evWrap);
+        row.appendChild(cell);
       }
 
-      if (q) {
-        const hay = [
-          s.code,
-          s.title,
-          s.objectives,
-          s.lecturers,
-          s.room,
-          s.dateTH,
-          ...assignments.map((a) => `${a.label} ${a.lecturer} ${a.room}`)
-        ]
-          .join(" ")
-          .toLocaleLowerCase("th");
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+      minWrap.appendChild(row);
     });
 
-    const statusEl = $("schedStatusText");
-    if (statusEl) {
-      const filtersDesc = [
-        weekVal ? `สัปดาห์ที่ ${weekVal}` : "ครบทั้ง 6 สัปดาห์",
-        teacherVal ? `อาจารย์: ${teacherVal}` : "",
-        discVal ? `Discussion ${discVal}` : "",
-        areaVal ? `พื้นที่ ${areaVal}` : ""
-      ].filter(Boolean);
-      statusEl.textContent = `แสดง ${sessions.length} คาบกิจกรรม · ${filtersDesc.join(" · ")}`;
+    shell.appendChild(minWrap);
+    wrap.replaceChildren(shell);
+  }
+
+  /* ---------- View 2: Week Time-Grid View (08:00–18:00 Google Calendar / iCal) ---------- */
+  function renderScheduleWeek() {
+    const wrap = $("schedWeekContent");
+    if (!wrap) return;
+
+    const weekDropdownVal = Number(($("schedWeekFilter") && $("schedWeekFilter").value) || 0);
+    if (weekDropdownVal >= 1 && weekDropdownVal <= 6) {
+      state.calWeek = weekDropdownVal;
     }
+
+    const wb = WEEK_BOUNDS.find((w) => w.week === state.calWeek) || WEEK_BOUNDS[0];
+    const ctx = getActivePersonalContext();
+    const allFiltered = getFilteredSessions(true);
+    const byDate = expandSessionsByDate(allFiltered, ctx);
+
+    // Count unique sessions occurring in this week
+    const weekSet = new Set();
+    for (let i = 0; i < 7; i++) {
+      (byDate.get(addDaysISO(wb.start, i)) || []).forEach((x) => weekSet.add(x.session.id));
+    }
+    updateScheduleStatusBar(weekSet.size);
+
+    const HOUR_START = 8;
+    const HOUR_END = 18;
+    const HOUR_PX = 56;
+
+    const shell = make("div", null, "cal-week-shell");
+    const minWrap = make("div", null, "cal-week-min");
+
+    // 1. Day column headers
+    const head = make("div", null, "cal-week-head");
+    head.appendChild(make("div", `W${wb.week}`, "cal-gutter-label"));
+    for (let i = 0; i < 7; i++) {
+      const iso = addDaysISO(wb.start, i);
+      const hc = make("div", null, "cal-week-head-cell");
+      hc.innerHTML = `<span class="wd-name">${TH_DOW_SHORT[i]}</span><span class="wd-num">${escapeHtml(formatThaiShortDate(iso, true))}</span>`;
+      head.appendChild(hc);
+    }
+    minWrap.appendChild(head);
+
+    // 2. All-Day row
+    const allDayRow = make("div", null, "cal-allday-row");
+    allDayRow.appendChild(make("div", "ตลอดวัน", "cal-gutter-label"));
+    for (let i = 0; i < 7; i++) {
+      const iso = addDaysISO(wb.start, i);
+      const adCell = make("div", null, "cal-allday-cell");
+      (byDate.get(iso) || [])
+        .filter((x) => x.eff.isAllDay)
+        .forEach(({ session: s }) => {
+          const chip = make("button", null, `cal-chip is-allday cat-${s.category}`);
+          chip.type = "button";
+          const txt = s.code === "FIELD" && ctx.areaVal ? `ฝึกภาคสนาม (${ctx.areaVal})` : s.title;
+          chip.appendChild(make("span", txt, "chip-title"));
+          chip.addEventListener("click", () => openEventModal(s));
+          adCell.appendChild(chip);
+        });
+      allDayRow.appendChild(adCell);
+    }
+    minWrap.appendChild(allDayRow);
+
+    // 3. Hourly Time-Grid (08:00 - 18:00)
+    const body = make("div", null, "cal-timegrid-body");
+    const gutter = make("div", null, "cal-time-gutter");
+    for (let h = HOUR_START; h < HOUR_END; h++) {
+      gutter.appendChild(make("div", `${String(h).padStart(2, "0")}:00`, "cal-hour-tick"));
+    }
+    body.appendChild(gutter);
+
+    for (let i = 0; i < 7; i++) {
+      const iso = addDaysISO(wb.start, i);
+      const col = make("div", null, `cal-day-col${i >= 5 ? " is-weekend" : ""}`);
+      (byDate.get(iso) || [])
+        .filter((x) => !x.eff.isAllDay)
+        .forEach(({ session: s, eff }) => {
+          const sMin = Math.max(HOUR_START * 60, timeToMinutes(s.startTime || "09:00"));
+          const eMin = Math.min(HOUR_END * 60, Math.max(sMin + 30, timeToMinutes(s.endTime || "12:00")));
+          const topPx = ((sMin - HOUR_START * 60) / 60) * HOUR_PX;
+          const heightPx = Math.max(30, ((eMin - sMin) / 60) * HOUR_PX - 2);
+
+          const block = make("button", null, `cal-timed-event cat-${s.category}`);
+          block.type = "button";
+          block.style.top = `${topPx}px`;
+          block.style.height = `${heightPx}px`;
+          block.title = `${s.timeLabel} · ${s.title} · ${eff.room}`;
+
+          const timeLine = `${s.startTime}–${s.endTime}${s.zoom ? " · 🎥 Zoom" : ""}`;
+          block.appendChild(make("span", timeLine, "ev-time"));
+          block.appendChild(make("span", `${s.code}: ${s.title}`, "ev-title"));
+          if (heightPx >= 58) {
+            block.appendChild(make("span", eff.personalLabel || s.room, "ev-room"));
+          }
+          block.addEventListener("click", () => openEventModal(s));
+          col.appendChild(block);
+        });
+      body.appendChild(col);
+    }
+
+    minWrap.appendChild(body);
+    shell.appendChild(minWrap);
+    wrap.replaceChildren(shell);
+  }
+
+  /* ---------- View 3: Detailed Agenda / Daily Cards ---------- */
+  function renderScheduleDaily() {
+    const sessions = getFilteredSessions(false);
+    updateScheduleStatusBar(sessions.length);
 
     const listEl = $("scheduleSessionsContainer");
     if (!listEl) return;
@@ -405,16 +860,7 @@
       return;
     }
 
-    const catNames = {
-      HS: "วิทยาศาสตร์ระบบสุขภาพ (HS)",
-      EP: "ระบาดวิทยาคลินิกและชุมชน (EP)",
-      SG: "กลุ่มย่อย & ภาคสนาม",
-      PANEL: "เสวนา / ปฏิบัติการเชิงระบบ",
-      EXAM: "การสอบ & กำหนดส่งงาน",
-      HOLIDAY: "วันหยุด / เดินทางภาคสนาม",
-      STAFF: "ภาควิชาฯ เตรียมความพร้อม"
-    };
-
+    const ctx = getActivePersonalContext();
     let lastWeek = null;
     let lastDate = "";
 
@@ -440,9 +886,12 @@
       const bodyCol = make("div", null, "session-topic");
       const badges = make("div", null, "session-badges");
       badges.append(
-        make("span", catNames[s.category] || s.category, `badge cat-${s.category}`),
+        make("span", CAT_NAMES[s.category] || s.category, `badge cat-${s.category}`),
         make("span", s.format, "badge")
       );
+      if (s.zoom) {
+        badges.appendChild(make("span", `Zoom ID: ${s.zoom.id}`, "badge cat-EP"));
+      }
       bodyCol.appendChild(badges);
       bodyCol.appendChild(make("h3", s.title));
       if (s.objectives) {
@@ -450,16 +899,12 @@
       }
 
       const assignments = getSessionAssignments(s);
-      const visibleAssignments = teacherVal
-        ? assignments.filter((a) => String(a.lecturer).includes(teacherVal))
+      const visibleAssignments = ctx.teacherVal
+        ? assignments.filter((a) => String(a.lecturer).includes(ctx.teacherVal))
         : assignments;
 
-      // Personal / Filter highlight banner inside card
-      const activeDisc = discVal || (state.myStudent ? String(state.myStudent.disc) : "");
-      const activeArea = areaVal || (state.myStudent ? state.myStudent.area : "");
-
-      if (s.hsModule && activeDisc) {
-        const myA = assignments.find((a) => a.shortGroup === activeDisc);
+      if (s.hsModule && ctx.discVal) {
+        const myA = assignments.find((a) => a.shortGroup === ctx.discVal);
         if (myA) {
           const pbox = make("div", null, "personal-match-box");
           pbox.innerHTML = `<div><strong>ห้องเรียนของคุณ (${escapeHtml(myA.label)}):</strong> ห้อง <strong>${escapeHtml(myA.room)}</strong> · อาจารย์ประจำกลุ่ม: ${escapeHtml(myA.lecturer)}</div>`;
@@ -469,8 +914,8 @@
           pbox.appendChild(btn);
           bodyCol.appendChild(pbox);
         }
-      } else if (s.isFieldGroupSession && activeArea) {
-        const myA = assignments.find((a) => a.shortGroup === activeArea);
+      } else if (s.isFieldGroupSession && ctx.areaVal) {
+        const myA = assignments.find((a) => a.shortGroup === ctx.areaVal);
         if (myA) {
           const pbox = make("div", null, "personal-match-box");
           pbox.innerHTML = `<div><strong>กลุ่มพื้นที่ของคุณ (${escapeHtml(myA.shortGroup)}):</strong> ${escapeHtml(myA.room)} · อ.ที่ปรึกษา: ${escapeHtml(myA.lecturer)}</div>`;
@@ -482,47 +927,62 @@
         }
       }
 
+      // Embedded Zoom Classroom Box
+      if (s.zoom) {
+        const zBox = make("div", null, "zoom-inline-box");
+        const zMeta = make("div", null, "zoom-inline-meta");
+        zMeta.innerHTML = `<strong>ห้องเรียนออนไลน์ Zoom:</strong> Meeting ID <code>${escapeHtml(s.zoom.id)}</code> · Passcode <code>${escapeHtml(s.zoom.pass)}</code>`;
+        const zActs = make("div", null, "header-actions");
+        const zJoin = make("a", "เข้าร่วมห้องเรียน Zoom ↗", "btn sm primary");
+        zJoin.href = s.zoom.url;
+        zJoin.target = "_blank";
+        zJoin.rel = "noopener";
+        const zCopy = make("button", "คัดลอกลิงก์", "btn sm");
+        zCopy.type = "button";
+        zCopy.addEventListener("click", () => copyTextWithFeedback(s.zoom.url, zCopy));
+        zActs.append(zJoin, zCopy);
+        zBox.append(zMeta, zActs);
+        bodyCol.appendChild(zBox);
+      }
+
       const meta = make("div", null, "session-meta");
       meta.appendChild(make("span", `ผู้สอน: ${s.lecturers}`));
       const roomSpan = make("span", `ห้อง/สถานที่: ${s.room}`, "room-pill");
-      bodyCol.appendChild(meta);
-      bodyCol.appendChild(roomSpan);
+      bodyCol.append(meta, roomSpan);
 
       if (ROLE === "faculty" && s.facultyNote) {
         bodyCol.appendChild(make("div", `[บันทึกสำหรับอาจารย์/ผู้ประสานงาน] ${s.facultyNote}`, "faculty-flag-box"));
       }
 
-      // Action buttons
+      // Action buttons (Concise textbook, Full textbook, Workbook, Single-event Google Calendar & .ics)
       const actions = make("div", null, "session-actions");
+      if (s.conciseLink) {
+        const bConcise = make("button", `อ่านฉบับย่อ (${s.hsModule || s.docLink})`, "btn sm teal");
+        bConcise.type = "button";
+        bConcise.addEventListener("click", () => openTextbookDoc(s.conciseLink));
+        actions.appendChild(bConcise);
+      }
       if (s.docLink) {
-        const bDoc = make("button", `อ่านเอกสารคำสอน ${s.docLink}`, "btn sm teal");
+        const bDoc = make("button", `อ่านฉบับเต็ม ${s.docLink}`, s.conciseLink ? "btn sm" : "btn sm teal");
         bDoc.type = "button";
         bDoc.addEventListener("click", () => openTextbookDoc(s.docLink));
         actions.appendChild(bDoc);
       }
       if (s.wbLink) {
-        const bWb = make("button", `เปิดสมุดแบบฝึกหัด (${s.wbLink})`, "btn sm");
+        const bWb = make("button", `สมุดแบบฝึกหัด (${s.wbLink})`, "btn sm");
         bWb.type = "button";
         bWb.addEventListener("click", () => openTextbookDoc(s.wbLink));
         actions.appendChild(bWb);
       }
-      if (s.zoom) {
-        const zLink = make("a", `เข้าห้อง Zoom (${s.zoom.id} · รหัส ${s.zoom.pass})`, "btn sm primary");
-        zLink.href = s.zoom.url;
-        zLink.target = "_blank";
-        zLink.rel = "noopener";
-        actions.appendChild(zLink);
-      }
-      if (!assignments.length && s.category !== "HOLIDAY" && s.category !== "STAFF") {
-        const bAll = make("button", "ดูรายชื่อนักศึกษาทั้งชั้น (169 คน)", "btn sm");
-        bAll.type = "button";
-        bAll.addEventListener("click", () =>
-          jumpToClassRoster(s, { type: "all", groupId: "", label: "นักศึกษาแพทย์ชั้นปีที่ 3 ทั้งชั้น (169 คน)", lecturer: s.lecturers, room: s.room })
-        );
-        actions.appendChild(bAll);
+      if (s.actionUrl) {
+        const bExt = make("a", s.actionLabel || "เปิดลิงก์ส่งงาน", "btn sm primary");
+        bExt.href = s.actionUrl;
+        bExt.target = "_blank";
+        bExt.rel = "noopener";
+        actions.appendChild(bExt);
       }
       if (s.code === "SRN 1" || s.code === "SRN 2 & SLIDES") {
-        const bSrn = make("button", "ตั้งชื่อไฟล์ PDF สำหรับส่ง SRN", "btn sm");
+        const bSrn = make("button", "ตั้งชื่อไฟล์ PDF ส่ง SRN", "btn sm");
         bSrn.type = "button";
         bSrn.addEventListener("click", () => {
           switchTab("students");
@@ -531,23 +991,42 @@
         });
         actions.appendChild(bSrn);
       }
-      if (actions.childElementCount > 0) bodyCol.appendChild(actions);
 
+      const gcalSingle = make("a", "+ Google Calendar", "btn sm");
+      gcalSingle.href = buildGoogleCalendarTemplateUrl(s);
+      gcalSingle.target = "_blank";
+      gcalSingle.rel = "noopener";
+      actions.appendChild(gcalSingle);
+
+      const icsSingle = make("button", "บันทึก .ics คาบนี้", "btn sm");
+      icsSingle.type = "button";
+      icsSingle.addEventListener("click", () => downloadSingleSessionIcs(s));
+      actions.appendChild(icsSingle);
+
+      if (!assignments.length && s.category !== "HOLIDAY" && s.category !== "STAFF") {
+        const bAll = make("button", "ดูรายชื่อทั้งชั้น (169 คน)", "btn sm");
+        bAll.type = "button";
+        bAll.addEventListener("click", () =>
+          jumpToClassRoster(s, { type: "all", groupId: "", label: "นักศึกษาแพทย์ชั้นปีที่ 3 ทั้งชั้น (169 คน)", lecturer: s.lecturers, room: s.room })
+        );
+        actions.appendChild(bAll);
+      }
+
+      bodyCol.appendChild(actions);
       main.appendChild(bodyCol);
       card.appendChild(main);
 
-      // Expandable Per-Group Assignments Accordion (ported & enhanced from Apps Script)
       if (visibleAssignments.length > 0) {
         const details = make("details", null, "assignments");
-        details.open = Boolean(teacherVal || q);
+        details.open = Boolean(ctx.teacherVal);
         const kindText = s.hsModule ? "กลุ่มอภิปราย Discussion" : "กลุ่มพื้นที่ภาคสนาม";
         details.appendChild(
           make("summary", `ดูรายละเอียดแยกตาม${kindText} (${visibleAssignments.length} กลุ่ม) · อาจารย์ · ห้องเรียน · รายชื่อนักศึกษา`)
         );
         visibleAssignments.forEach((item) => {
           const isMine =
-            (item.type === "discussion" && activeDisc === item.shortGroup) ||
-            (item.type === "area" && activeArea === item.shortGroup);
+            (item.type === "discussion" && ctx.discVal === item.shortGroup) ||
+            (item.type === "area" && ctx.areaVal === item.shortGroup);
           const row = make("div", null, `assignment-row${isMine ? " is-my-group" : ""}`);
           row.appendChild(make("div", item.label, "assignment-group"));
           const lecDiv = make("div", item.lecturer, "assignment-lecturer");
@@ -569,51 +1048,12 @@
     });
   }
 
-  function renderScheduleMaster() {
-    const wrap = $("schedMasterContent");
-    if (!wrap || wrap.dataset.rendered) return;
-    wrap.dataset.rendered = "1";
-
-    const rowsHtml = (SCHED.masterGrid || [])
-      .map(
-        (w) => `
-      <tr>
-        <td><strong>สัปดาห์ที่ ${w.week}</strong><br><small>${escapeHtml(w.range)}</small></td>
-        <td>${escapeHtml(w.mon)}</td>
-        <td>${escapeHtml(w.tue)}</td>
-        <td>${escapeHtml(w.wed)}</td>
-        <td>${escapeHtml(w.thu)}</td>
-        <td>${escapeHtml(w.fri)}</td>
-        <td>${escapeHtml(w.wknd)}</td>
-      </tr>`
-      )
-      .join("");
-
-    wrap.innerHTML = `
-      <div class="data-card">
-        <h3>ผังตารางภาพรวมตลอด 6 สัปดาห์ (25 พฤศจิกายน – 30 ธันวาคม 2569)</h3>
-        <div class="clean-table-wrap">
-          <table class="clean-table">
-            <thead>
-              <tr>
-                <th>สัปดาห์</th>
-                <th>จันทร์</th>
-                <th>อังคาร</th>
-                <th>พุธ</th>
-                <th>พฤหัสบดี</th>
-                <th>ศุกร์</th>
-                <th>เสาร์–อาทิตย์</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>
-      </div>`;
-  }
-
+  /* ---------- View 4: HS1–HS6 Rotation & Exam Table Spec ---------- */
   function renderScheduleSpec() {
     const wrap = $("schedSpecContent");
-    if (!wrap || wrap.dataset.rendered) return;
+    if (!wrap) return;
+    updateScheduleStatusBar((SCHED.sessions || []).filter((s) => ROLE === "faculty" || s.studentVisible !== false).length);
+    if (wrap.dataset.rendered) return;
     wrap.dataset.rendered = "1";
 
     const rotRows = (SCHED.hsRotation || [])
@@ -684,56 +1124,386 @@
       </div>`;
   }
 
-  /* ---------- .ics Calendar Export ---------- */
-  function downloadScheduleIcs() {
+  /* ---------- Interactive Calendar Event Detail Popover Modal ---------- */
+  function openEventModal(session) {
+    const modal = $("calendarEventModal");
+    const card = $("calendarEventModalCard");
+    if (!modal || !card) return;
+
+    const ctx = getActivePersonalContext();
+    const eff = resolveEffectiveSessionDetails(session, ctx);
+    card.replaceChildren();
+
+    const top = make("div", null, "cal-modal-top");
+    const badges = make("div", null, "session-badges");
+    badges.append(
+      make("span", CAT_NAMES[session.category] || session.category, `badge cat-${session.category}`),
+      make("span", session.code, "badge"),
+      make("span", session.format || "", "badge")
+    );
+    const closeBtn = make("button", "×", "cal-modal-close");
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "ปิดหน้าต่างรายละเอียด");
+    closeBtn.addEventListener("click", closeEventModal);
+    top.append(badges, closeBtn);
+    card.appendChild(top);
+
+    const h3 = make("h3", session.title);
+    h3.id = "calModalTitle";
+    card.appendChild(h3);
+
+    const details = make("div", null, "cal-modal-detail-list");
+    details.innerHTML = `
+      <div><strong>วัน-เวลา:</strong> ${escapeHtml(session.dateTH)} · ${escapeHtml(session.timeLabel)}${session.checkIn ? " (" + escapeHtml(session.checkIn) + ")" : ""}</div>
+      <div><strong>สถานที่ / ห้องเรียน:</strong> <span class="room-pill">${escapeHtml(eff.room)}</span></div>
+      <div><strong>อาจารย์ผู้สอน / วิทยากร:</strong> ${escapeHtml(eff.lecturer)}</div>
+    `;
+    card.appendChild(details);
+
+    if (session.zoom) {
+      const zBox = make("div", null, "zoom-inline-box");
+      const zMeta = make("div", null, "zoom-inline-meta");
+      zMeta.innerHTML = `<strong>ลิงก์เข้าห้องเรียน Zoom:</strong><br>Meeting ID: <code>${escapeHtml(session.zoom.id)}</code> · Passcode: <code>${escapeHtml(session.zoom.pass)}</code>`;
+      const zActs = make("div", null, "header-actions");
+      const zJoin = make("a", "เข้าร่วมประชุม Zoom ↗", "btn sm primary");
+      zJoin.href = session.zoom.url;
+      zJoin.target = "_blank";
+      zJoin.rel = "noopener";
+      const zCopy = make("button", "คัดลอกลิงก์ Zoom", "btn sm");
+      zCopy.type = "button";
+      zCopy.addEventListener("click", () => copyTextWithFeedback(session.zoom.url, zCopy));
+      zActs.append(zJoin, zCopy);
+      zBox.append(zMeta, zActs);
+      card.appendChild(zBox);
+    }
+
+    if (session.objectives) {
+      const objP = make("p", session.objectives, "session-objectives");
+      objP.style.marginTop = "10px";
+      card.appendChild(objP);
+    }
+
+    if (ROLE === "faculty" && session.facultyNote) {
+      card.appendChild(make("div", `[บันทึกผู้ประสานงาน] ${session.facultyNote}`, "faculty-flag-box"));
+    }
+
+    // Lesson & Roster shortcuts inside modal
+    const studyRow = make("div", null, "session-actions");
+    if (session.conciseLink) {
+      const bc = make("button", `อ่านบทเรียนฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
+      bc.type = "button";
+      bc.addEventListener("click", () => {
+        closeEventModal();
+        openTextbookDoc(session.conciseLink);
+      });
+      studyRow.appendChild(bc);
+    }
+    if (session.docLink) {
+      const bd = make("button", `อ่านฉบับเต็ม (${session.docLink})`, session.conciseLink ? "btn sm" : "btn sm teal");
+      bd.type = "button";
+      bd.addEventListener("click", () => {
+        closeEventModal();
+        openTextbookDoc(session.docLink);
+      });
+      studyRow.appendChild(bd);
+    }
+    if (session.wbLink) {
+      const bw = make("button", `สมุดแบบฝึกหัด (${session.wbLink})`, "btn sm");
+      bw.type = "button";
+      bw.addEventListener("click", () => {
+        closeEventModal();
+        openTextbookDoc(session.wbLink);
+      });
+      studyRow.appendChild(bw);
+    }
+    if (session.actionUrl) {
+      const ba = make("a", session.actionLabel || "เปิดลิงก์ส่งงาน", "btn sm primary");
+      ba.href = session.actionUrl;
+      ba.target = "_blank";
+      ba.rel = "noopener";
+      studyRow.appendChild(ba);
+    }
+    if (studyRow.childElementCount > 0) card.appendChild(studyRow);
+
+    // Footer: Per-event Google Calendar & iCal (.ics) export
+    const footer = make("div", null, "cal-modal-footer");
+    const leftExport = make("div", null, "header-actions");
+    const gcalBtn = make("a", "+ เพิ่มเข้า Google Calendar ทันที ↗", "btn sm cal-gcal-btn");
+    gcalBtn.href = buildGoogleCalendarTemplateUrl(session);
+    gcalBtn.target = "_blank";
+    gcalBtn.rel = "noopener";
+
+    const icsBtn = make("button", "ดาวน์โหลดเฉพาะคาบนี้ (.ics)", "btn sm cal-ics-btn");
+    icsBtn.type = "button";
+    icsBtn.addEventListener("click", () => downloadSingleSessionIcs(session));
+
+    leftExport.append(gcalBtn, icsBtn);
+
+    const viewAgendaBtn = make("button", "ดูในมุมมองกำหนดการเต็ม", "btn sm");
+    viewAgendaBtn.type = "button";
+    viewAgendaBtn.addEventListener("click", () => {
+      closeEventModal();
+      state.schedSub = "daily";
+      syncSegButtons();
+      renderScheduleCurrent();
+    });
+
+    footer.append(leftExport, viewAgendaBtn);
+    card.appendChild(footer);
+
+    modal.hidden = false;
+  }
+
+  function closeEventModal() {
+    const modal = $("calendarEventModal");
+    if (modal) modal.hidden = true;
+  }
+
+  /* ---------- Dual-Format Calendar Downloads: iCalendar (.ics) & Google Calendar (.csv) ---------- */
+  function escapeIcsText(str) {
+    return String(str == null ? "" : str)
+      .replace(/\\/g, "\\\\")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,")
+      .replace(/\r?\n/g, "\\n");
+  }
+
+  function buildEventDescriptionAndLocation(session, eff) {
+    const descParts = [];
+    if (session.zoom) {
+      descParts.push(
+        `🎥 ลิงก์เข้าห้องเรียน Zoom: ${session.zoom.url}`,
+        `Meeting ID: ${session.zoom.id} | Passcode: ${session.zoom.pass}`,
+        ""
+      );
+    }
+    if (session.actionUrl) {
+      descParts.push(`🔗 ลิงก์ส่งงาน/แบบฟอร์ม: ${session.actionUrl}`, "");
+    }
+    if (session.objectives) {
+      descParts.push(`วัตถุประสงค์: ${session.objectives}`);
+    }
+    descParts.push(
+      `อาจารย์ผู้สอน: ${eff.lecturer}`,
+      `สถานที่/ห้องเรียน: ${eff.room}`,
+      `รูปแบบ: ${session.format || ""}${session.checkIn ? " (" + session.checkIn + ")" : ""}`
+    );
+
+    const locationStr = session.zoom
+      ? `${eff.room} | Zoom: ${session.zoom.url}`
+      : eff.room;
+
+    return {
+      description: descParts.filter((x) => x !== undefined).join("\n").trim(),
+      location: locationStr
+    };
+  }
+
+  function getSessionsForExport() {
+    const ctx = getActivePersonalContext();
+    return (SCHED.sessions || []).filter((s) => {
+      if (ROLE === "student" && s.studentVisible === false) return false;
+      if (!s.dateISO) return false;
+      const assignments = getSessionAssignments(s);
+      if (!sessionMatchesTeacher(s, ctx.teacherVal, assignments)) return false;
+      if (ctx.areaVal && s.allowedSites && ctx.siteObj) {
+        if (!s.allowedSites.includes(ctx.siteObj.id)) return false;
+      }
+      return true;
+    });
+  }
+
+  function buildIcsCalendarString(sessions, calName) {
+    const ctx = getActivePersonalContext();
+    const stamp = "20261118T060000Z";
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "PRODID:-//Ramathibodi Community Medicine//RACM 303 2569//TH",
       "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:RACM 303 (ปีการศึกษา 2569)"
+      "METHOD:PUBLISH",
+      `X-WR-CALNAME:${escapeIcsText(calName)}`,
+      "X-WR-TIMEZONE:Asia/Bangkok",
+      "BEGIN:VTIMEZONE",
+      "TZID:Asia/Bangkok",
+      "BEGIN:STANDARD",
+      "DTSTART:19700101T000000",
+      "TZOFFSETFROM:+0700",
+      "TZOFFSETTO:+0700",
+      "TZNAME:+07",
+      "END:STANDARD",
+      "END:VTIMEZONE"
     ];
-    const stamp = "20261118T040000Z";
-    (SCHED.sessions || []).forEach((s) => {
-      if (s.studentVisible === false || !s.dateISO) return;
-      if (state.myStudent && s.allowedSites) {
-        const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === state.myStudent.area);
-        if (siteObj && !s.allowedSites.includes(siteObj.id)) return;
+
+    sessions.forEach((s) => {
+      const eff = resolveEffectiveSessionDetails(s, ctx);
+      const { description, location } = buildEventDescriptionAndLocation(s, eff);
+      const summary = `[RACM 303] ${s.title}`;
+
+      lines.push("BEGIN:VEVENT");
+      lines.push(`UID:${s.id}@racm303-2569.mahidol.ac.th`);
+      lines.push(`DTSTAMP:${stamp}`);
+
+      if (eff.isAllDay) {
+        const dStart = eff.startISO.replace(/-/g, "");
+        const dEndExclusive = addDaysISO(eff.endISO || eff.startISO, 1).replace(/-/g, "");
+        lines.push(`DTSTART;VALUE=DATE:${dStart}`);
+        lines.push(`DTEND;VALUE=DATE:${dEndExclusive}`);
+      } else {
+        const dStart = eff.startISO.replace(/-/g, "");
+        const dEnd = (eff.endISO || eff.startISO).replace(/-/g, "");
+        const tStart = (s.startTime || "09:00").replace(":", "") + "00";
+        const tEnd = (s.endTime || "12:00").replace(":", "") + "00";
+        lines.push(`DTSTART;TZID=Asia/Bangkok:${dStart}T${tStart}`);
+        lines.push(`DTEND;TZID=Asia/Bangkok:${dEnd}T${tEnd}`);
       }
-      const dStart = s.dateISO.replace(/-/g, "");
-      const dEnd = (s.endDateISO || s.dateISO).replace(/-/g, "");
-      const tStart = (s.startTime || "09:00").replace(":", "") + "00";
-      const tEnd = (s.endTime || "12:00").replace(":", "") + "00";
-      let loc = s.room || "";
-      if (state.myStudent) {
-        const assigns = getSessionAssignments(s);
-        const myA = assigns.find(
-          (a) =>
-            (a.type === "discussion" && a.shortGroup === String(state.myStudent.disc)) ||
-            (a.type === "area" && a.shortGroup === state.myStudent.area)
+
+      lines.push(`SUMMARY:${escapeIcsText(summary)}`);
+      lines.push(`LOCATION:${escapeIcsText(location)}`);
+      lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
+      if (s.zoom && s.zoom.url) {
+        lines.push(`URL:${s.zoom.url}`);
+        lines.push(`X-GOOGLE-CONFERENCE:${s.zoom.url}`);
+      } else if (s.actionUrl) {
+        lines.push(`URL:${s.actionUrl}`);
+      }
+
+      if (!eff.isAllDay && s.category !== "HOLIDAY") {
+        lines.push(
+          "BEGIN:VALARM",
+          "TRIGGER:-PT15M",
+          "ACTION:DISPLAY",
+          `DESCRIPTION:${escapeIcsText("เตรียมเข้าเรียน " + summary)}`,
+          "END:VALARM"
         );
-        if (myA) loc = `${myA.room} (${myA.label})`;
       }
-      const desc = `${s.objectives || ""}\\nผู้สอน: ${s.lecturers || ""}`.replace(/\r?\n/g, "\\n");
-      lines.push(
-        "BEGIN:VEVENT",
-        `UID:${s.id}@racm303-2569.mahidol`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART;TZID=Asia/Bangkok:${dStart}T${tStart}`,
-        `DTEND;TZID=Asia/Bangkok:${dEnd}T${tEnd}`,
-        `SUMMARY:[RACM 303] ${s.title.replace(/[,;]/g, " ")}`,
-        `LOCATION:${loc.replace(/[,;]/g, " ")}`,
-        `DESCRIPTION:${desc.replace(/[,;]/g, " ")}`,
-        "END:VEVENT"
-      );
+
+      lines.push("END:VEVENT");
     });
+
     lines.push("END:VCALENDAR");
-    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    return lines.join("\r\n") + "\r\n";
+  }
+
+  function getExportFilenameSuffix() {
+    const ctx = getActivePersonalContext();
+    if (state.myStudent) return `_${state.myStudent.id}`;
+    if (ctx.teacherVal) return `_${ctx.teacherVal.replace(/\s+/g, "_")}`;
+    if (ctx.areaVal) return `_${ctx.areaVal}`;
+    if (ctx.discVal) return `_Disc${ctx.discVal}`;
+    return "";
+  }
+
+  function triggerBlobDownload(content, mimeType, filename) {
+    const blob = new Blob([content], { type: mimeType });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = state.myStudent ? `RACM303_2569_${state.myStudent.id}.ics` : "RACM303_2569_Schedule.ics";
+    a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function downloadScheduleIcs() {
+    const sessions = getSessionsForExport();
+    const ctx = getActivePersonalContext();
+    const calName = state.myStudent
+      ? `RACM 303 (2569) · ${state.myStudent.fullName}`
+      : ctx.teacherVal
+      ? `RACM 303 (2569) · อาจารย์ ${ctx.teacherVal}`
+      : "RACM 303 (ปีการศึกษา 2569)";
+    const ics = buildIcsCalendarString(sessions, calName);
+    triggerBlobDownload(ics, "text/calendar;charset=utf-8", `RACM303_2569_Calendar${getExportFilenameSuffix()}.ics`);
+  }
+
+  function downloadSingleSessionIcs(session) {
+    const ics = buildIcsCalendarString([session], `RACM 303 · ${session.code}`);
+    triggerBlobDownload(ics, "text/calendar;charset=utf-8", `RACM303_2569_${session.id}.ics`);
+  }
+
+  function csvCell(val) {
+    const s = String(val == null ? "" : val).replace(/"/g, '""');
+    return `"${s}"`;
+  }
+
+  function downloadScheduleGoogleCsv() {
+    const sessions = getSessionsForExport();
+    const ctx = getActivePersonalContext();
+    const header = [
+      "Subject",
+      "Start Date",
+      "Start Time",
+      "End Date",
+      "End Time",
+      "All Day Event",
+      "Description",
+      "Location",
+      "Private"
+    ].join(",");
+
+    const rows = [header];
+    sessions.forEach((s) => {
+      const eff = resolveEffectiveSessionDetails(s, ctx);
+      const { description, location } = buildEventDescriptionAndLocation(s, eff);
+      const subject = `[RACM 303] ${s.title}`;
+      const startDate = isoToUsDate(eff.startISO);
+      const endDate = isoToUsDate(eff.endISO || eff.startISO);
+      const startTime = eff.isAllDay ? "" : to12HourAmPm(s.startTime || "09:00");
+      const endTime = eff.isAllDay ? "" : to12HourAmPm(s.endTime || "12:00");
+      const allDay = eff.isAllDay ? "True" : "False";
+
+      rows.push(
+        [
+          csvCell(subject),
+          csvCell(startDate),
+          csvCell(startTime),
+          csvCell(endDate),
+          csvCell(endTime),
+          csvCell(allDay),
+          csvCell(description),
+          csvCell(location),
+          csvCell("False")
+        ].join(",")
+      );
+    });
+
+    // UTF-8 BOM ensures Thai characters import cleanly into Google Calendar & Excel
+    const csvContent = "\uFEFF" + rows.join("\r\n") + "\r\n";
+    triggerBlobDownload(
+      csvContent,
+      "text/csv;charset=utf-8",
+      `RACM303_2569_GoogleCalendar${getExportFilenameSuffix()}.csv`
+    );
+  }
+
+  function buildGoogleCalendarTemplateUrl(session) {
+    const ctx = getActivePersonalContext();
+    const eff = resolveEffectiveSessionDetails(session, ctx);
+    const { description, location } = buildEventDescriptionAndLocation(session, eff);
+
+    let datesParam = "";
+    if (eff.isAllDay) {
+      const d1 = eff.startISO.replace(/-/g, "");
+      const d2 = addDaysISO(eff.endISO || eff.startISO, 1).replace(/-/g, "");
+      datesParam = `${d1}/${d2}`;
+    } else {
+      const d1 = eff.startISO.replace(/-/g, "");
+      const d2 = (eff.endISO || eff.startISO).replace(/-/g, "");
+      const t1 = (session.startTime || "09:00").replace(":", "") + "00";
+      const t2 = (session.endTime || "12:00").replace(":", "") + "00";
+      datesParam = `${d1}T${t1}/${d2}T${t2}`;
+    }
+
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: `[RACM 303] ${session.title}`,
+      dates: datesParam,
+      ctz: "Asia/Bangkok",
+      location: location,
+      details: description
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
   }
 
   /* ---------- Tab 2: Student Roster, Fieldwork Sites & SRN Filename Generator ---------- */
@@ -820,7 +1590,6 @@
       $("printStudentsBtn").addEventListener("click", printStudentRosterOnePage);
     }
 
-    // SRN Filename Generator
     ["srnRoundSelect", "srnAreaSelect", "srnStudentId", "srnStudentName"].forEach((id) => {
       if ($(id)) $(id).addEventListener("input", updateSrnFilename);
       if ($(id)) $(id).addEventListener("change", updateSrnFilename);
@@ -828,12 +1597,7 @@
     if ($("copySrnFilenameBtn")) {
       $("copySrnFilenameBtn").addEventListener("click", () => {
         const text = ($("srnFilenamePreview") && $("srnFilenamePreview").textContent) || "";
-        navigator.clipboard.writeText(text).then(() => {
-          const b = $("copySrnFilenameBtn");
-          const prev = b.textContent;
-          b.textContent = "คัดลอกชื่อไฟล์แล้ว";
-          setTimeout(() => (b.textContent = prev), 1600);
-        });
+        copyTextWithFeedback(text, $("copySrnFilenameBtn"), "คัดลอกชื่อไฟล์แล้ว");
       });
     }
     updateSrnFilename();
@@ -874,7 +1638,6 @@
     const discVal = ($("studentDiscFilter") && $("studentDiscFilter").value) || "";
     const q = (($("studentSearchInput") && $("studentSearchInput").value) || "").trim().toLocaleLowerCase("th");
 
-    // Render 9 Fieldwork Sites overview cards once
     const sitesGrid = $("sitesOverviewGrid");
     if (sitesGrid && !sitesGrid.dataset.rendered) {
       sitesGrid.dataset.rendered = "1";
@@ -909,7 +1672,6 @@
       });
     }
 
-    // Context Banner from Schedule click
     const ctxBox = $("classContextBanner");
     if (ctxBox) {
       ctxBox.replaceChildren();
@@ -923,10 +1685,10 @@
           make("p", `ผู้สอน: ${c.lecturer} · กลุ่ม: ${c.label}`)
         );
         const right = make("div", null, "header-actions");
-        const backBtn = make("button", "กลับไปคาบเรียน", "btn sm");
+        const backBtn = make("button", "กลับไปปฏิทินสอน", "btn sm");
         backBtn.type = "button";
         backBtn.addEventListener("click", () => switchTab("schedule"));
-        const gasLink = make("a", "เปิดดูรูปถ่ายใน Apps Script ต้นฉบับ", "btn sm teal");
+        const gasLink = make("a", "เปิดดูรูปถ่ายใน Apps Script", "btn sm teal");
         gasLink.href = buildAppsScriptDeepLink(areaVal, discVal);
         gasLink.target = "_blank";
         gasLink.rel = "noopener";
@@ -935,13 +1697,9 @@
       }
     }
 
-    // Update top Apps Script deep-link button
     const topGasBtn = $("openAppsScriptRosterBtn");
-    if (topGasBtn) {
-      topGasBtn.href = buildAppsScriptDeepLink(areaVal, discVal);
-    }
+    if (topGasBtn) topGasBtn.href = buildAppsScriptDeepLink(areaVal, discVal);
 
-    // Filter students
     const list = ROSTER.students.filter((s) => {
       if (areaVal && s.area !== areaVal) return false;
       if (discVal && String(s.disc) !== discVal) return false;
@@ -968,7 +1726,6 @@
       $("printStudentsBtn").disabled = list.length === 0;
     }
 
-    // Print Heading (matches Apps Script 1-page A4 print header)
     const printHeading = $("printHeading");
     if (printHeading) {
       printHeading.replaceChildren(make("strong", `RACM 303 (ปีการศึกษา 2569) · ${selectionLabel} · ${list.length} คน`));
@@ -1025,7 +1782,6 @@
     });
   }
 
-  /* 1-Page A4 Auto-Fitting Print Layout (ported directly from Apps Script) */
   function computePrintLayout(count) {
     const cols = count <= 20 ? 4 : count <= 40 ? 5 : count <= 60 ? 6 : Math.ceil(Math.sqrt(count * 0.76));
     const rows = Math.max(1, Math.ceil(count / cols));
@@ -1086,7 +1842,6 @@
 
   function attachProseEnhancements(proseContainer, tocContainer) {
     if (!proseContainer) return;
-    // Build heading TOC
     if (tocContainer) {
       tocContainer.replaceChildren();
       const headings = proseContainer.querySelectorAll("h2, h3");
@@ -1104,7 +1859,6 @@
       });
     }
 
-    // Attach Lightbox to images
     proseContainer.querySelectorAll("img").forEach((img) => {
       img.loading = "lazy";
       img.classList.add("zoomable-img");
@@ -1124,6 +1878,14 @@
   function initManualControls() {
     const search = $("manualSearchInput");
     if (search) search.addEventListener("input", renderManualReader);
+    ["printManualBtn", "facPrintManualBtn"].forEach((id) => {
+      if ($(id)) {
+        $(id).addEventListener("click", () => {
+          document.body.classList.remove("print-students-mode");
+          window.print();
+        });
+      }
+    });
   }
 
   function renderManualReader() {
@@ -1180,7 +1942,7 @@
     attachProseEnhancements(prose, null);
   }
 
-  /* ---------- Tab 4: HS1–HS6 Guided Learning Textbooks & Workbooks ---------- */
+  /* ---------- Tab 4: HS1–HS6 Guided Learning Textbooks, Concise Summaries & Workbooks ---------- */
   function openTextbookDoc(docId) {
     state.activeDocId = docId;
     switchTab("textbooks");
@@ -1199,6 +1961,14 @@
         expandAllBtn.textContent = anyClosed ? "ซ่อนแนวคำตอบทั้งหมด" : "เปิดแนวคำตอบทั้งหมด";
       });
     }
+    ["printTextbookBtn", "fPrintTextbookBtn"].forEach((id) => {
+      if ($(id)) {
+        $(id).addEventListener("click", () => {
+          document.body.classList.remove("print-students-mode");
+          window.print();
+        });
+      }
+    });
   }
 
   function renderTextbookReader() {
@@ -1207,6 +1977,7 @@
     const prose = $("textbookProseContainer");
     const metaTitle = $("activeTextbookMeta");
     const gdocBtn = $("activeTextbookGdocBtn");
+    const mdBtn = $("activeTextbookMdBtn");
     if (!picker || !prose) return;
 
     const docs = HS.docs || [];
@@ -1236,6 +2007,14 @@
 
     if (metaTitle) {
       metaTitle.textContent = `${current.badge} — ${current.sessionInfo || current.subtitle || ""}`;
+    }
+    if (mdBtn) {
+      if (current.mdPath) {
+        mdBtn.href = current.mdPath;
+        mdBtn.hidden = false;
+      } else {
+        mdBtn.hidden = true;
+      }
     }
     if (gdocBtn) {
       if (current.docUrl) {
@@ -1434,7 +2213,8 @@
     if (!wrap || wrap.dataset.rendered) return;
     wrap.dataset.rendered = "1";
 
-    const auditCards = (SCHED.auditItems || [])
+    const items = SCHED.auditItems || [];
+    const auditCards = items
       .map(
         (a, idx) => `
       <div class="audit-card">
@@ -1468,7 +2248,7 @@
 
     wrap.innerHTML = `
       <div class="data-card" style="border-color:var(--amber-line);background:#fffdf8">
-        <h3>ส่วนที่ 1: ประเด็น [รอยืนยัน] ก่อนประกาศใช้ตารางสอนและคู่มือปีการศึกษา 2569 (7 รายการ)</h3>
+        <h3>ส่วนที่ 1: ประเด็น [รอยืนยัน] ก่อนประกาศใช้ตารางสอนและคู่มือปีการศึกษา 2569 (${items.length} รายการ)</h3>
         <div class="audit-grid">${auditCards}</div>
       </div>
 
@@ -1476,7 +2256,7 @@
         <div class="section-header" style="margin-bottom:12px">
           <div>
             <h3 style="margin:0">ส่วนที่ 2: การเชื่อมโยงและอัปเดตฐานข้อมูล Google Apps Script (schedule-racm303-v1)</h3>
-            <p style="margin:4px 0 0;font-size:14px;color:var(--muted)">เปรียบเทียบข้อมูลในชีต <code>schedule-racm303-v1</code> กับตารางฉบับปรับปรุง พร้อมไฟล์ CSV โครงสร้าง 16 คอลัมน์ที่แก้ครบทุกจุดแล้วสำหรับนำไปวางทับใน Google Sheet ได้ทันที</p>
+            <p style="margin:4px 0 0;font-size:14px;color:var(--muted)">เปรียบเทียบข้อมูลในชีต <code>schedule-racm303-v1</code> กับตารางฉบับปรับปรุง พร้อมไฟล์ CSV โครงสร้าง 16 คอลัมน์ที่อัปเดตลิงก์ Zoom และยืนยัน อ. นพ.ปวินท์ วันที่ 1 ธ.ค. 2569 เรียบร้อยแล้ว</p>
           </div>
           <div class="header-actions">
             <a class="btn teal sm" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>ดาวน์โหลด CSV อัปเดตชีต (v2)</a>
@@ -1508,6 +2288,9 @@
 
   /* ---------- Faculty Tab 7: Teacher Guides, Revision Notes & Canonical Drive Directory ---------- */
   function initFacultyDocsControls() {
+    if (FACULTY.docs && FACULTY.docs[0]) {
+      state.activeFacultyDocId = FACULTY.docs[0].id;
+    }
     document.querySelectorAll("[data-fac-sub]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.facultySub = btn.dataset.facSub;
@@ -1517,6 +2300,12 @@
         renderFacultyDocsView();
       });
     });
+    if ($("printAuditBtn")) {
+      $("printAuditBtn").addEventListener("click", () => {
+        document.body.classList.remove("print-students-mode");
+        window.print();
+      });
+    }
   }
 
   function renderFacultyDocsView() {
@@ -1608,9 +2397,8 @@
     initManualControls();
     initTextbooksControls();
     initPracticeControls();
-    if (ROLE === "faculty") initFacultyDocsControls();
+    initFacultyDocsControls();
 
-    // Parse URL hash or query parameters (compatible with Apps Script ?page=students&type=...&group=...)
     const params = new URLSearchParams(window.location.search);
     if (params.get("page") === "students") {
       const t = params.get("type");
