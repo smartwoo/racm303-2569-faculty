@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RACM 303 (ปีการศึกษา 2569) · พอร์ทัลอาจารย์และผู้ประสานงานรายวิชา — ตารางสอน ใบรายชื่อรูปถ่าย และคู่มือผู้สอน</title>
+  <meta name="description" content="พอร์ทัลสำหรับคณาจารย์และผู้ประสานงานรายวิชา RACM 303 ปีการศึกษา 2569 รวมตารางสอนรายอาจารย์ ใบรายชื่อรูปถ่ายนักศึกษาพิมพ์ 1 หน้า A4 แผงตรวจสอบตารางสอน คู่มือผู้สอน HS1–HS2 และลิงก์ต้นฉบับ">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="masthead faculty-masthead">
+    <div class="head-inner">
+      <div class="head-top">
+        <div>
+          <p class="dept-line">FACULTY &amp; COURSE COORDINATOR PORTAL · RACM 303 · ปีการศึกษา 2569</p>
+          <h1>พอร์ทัลอาจารย์และผู้จัดรายวิชา RACM 303 (ปีการศึกษา 2569)</h1>
+          <p class="head-subtitle">ตารางสอนกรองตามอาจารย์ · พิมพ์ใบรูปถ่ายนักศึกษา 1 หน้า A4 · ตรวจสอบตารางสอน &amp; ซิงค์ Apps Script · คู่มือผู้สอน HS1–HS6</p>
+        </div>
+        <div class="head-links">
+          <a class="ghost-link" id="facOpenStudentSiteLink" href="https://smartwoo.github.io/racm303-2569/" target="_blank" rel="noopener">เปิดเว็บฝั่งนักศึกษา ↗</a>
+          <a class="ghost-link" id="facAppsScriptLink" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec" target="_blank" rel="noopener">Apps Script ต้นฉบับ</a>
+          <a class="ghost-link" id="facDriveFolderLink" href="https://drive.google.com/drive/folders/1cO9EivLFWYYbhAWzXRtqzlViYqEnvtKr" target="_blank" rel="noopener">โฟลเดอร์ Drive 2569</a>
+        </div>
+      </div>
+
+      <div class="personal-bar" aria-label="ค้นหารายชื่อนักศึกษาอย่างรวดเร็ว">
+        <label for="personalStudentInput">ค้นหานักศึกษารายบุคคล:</label>
+        <div class="personal-input-wrap">
+          <input id="personalStudentInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลัก หรือชื่อ-นามสกุลเพื่อดูสังกัดกลุ่ม…">
+          <datalist id="studentLookupList"></datalist>
+        </div>
+        <div class="personal-summary" id="personalSummary"></div>
+        <button class="personal-clear" id="clearPersonalBtn" type="button" hidden>ล้างค่า</button>
+      </div>
+
+      <nav class="nav-tabs" role="tablist" aria-label="หมวดเนื้อหาสำหรับคณาจารย์">
+        <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ตารางสอน &amp; ภาระงานสอน</button>
+        <button class="nav-tab" id="fTabStudents" role="tab" data-tab="students" aria-selected="false" type="button">ใบรูปถ่ายนักศึกษา <span class="tab-count">169</span></button>
+        <button class="nav-tab" id="fTabAudit" role="tab" data-tab="audit" aria-selected="false" type="button">ตรวจตาราง &amp; ซิงค์ชีต <span class="tab-count">7 จุด</span></button>
+        <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" aria-selected="false" type="button">คู่มือผู้สอน &amp; ลิงก์ต้นฉบับ</button>
+        <button class="nav-tab" id="fTabManual" role="tab" data-tab="manual" aria-selected="false" type="button">คู่มือรายวิชา 2569</button>
+        <button class="nav-tab" id="fTabTextbooks" role="tab" data-tab="textbooks" aria-selected="false" type="button">เอกสารคำสอน HS1–HS6</button>
+        <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" aria-selected="false" type="button">คลังคำศัพท์ &amp; โจทย์ 82 ข้อ</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <!-- TAB 1: SCHEDULE (WITH FACULTY AUDIT ANNOTATIONS) -->
+    <section class="tab-panel" id="panel-schedule" aria-labelledby="fTabSchedule">
+      <div class="section-header">
+        <div>
+          <h2>ตารางกิจกรรมการเรียนการสอนและภาระงานอาจารย์ (ฉบับปรับปรุง ปี 2569)</h2>
+          <p>เลือกชื่ออาจารย์เพื่อกรองเฉพาะคาบบรรยาย กลุ่มอภิปราย HS และกลุ่มพื้นที่ภาคสนามที่รับผิดชอบ พร้อมเปิดใบรายชื่อรูปถ่ายได้ทันที</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="exportIcsBtn" type="button">ส่งออกปฏิทิน (.ics)</button>
+          <a class="btn" id="facDlXlsxBtn" href="downloads/ตารางเรียนปี_3-2569_ฉบับปรับปรุง.xlsx" download>ดาวน์โหลด Excel (.xlsx)</a>
+          <a class="btn teal" id="facDlCsvBtn" href="downloads/schedule_racm303_v2_revised.csv" download>ดาวน์โหลด CSV อัปเดตชีต</a>
+          <button class="btn primary" id="printScheduleBtn" type="button">พิมพ์ตารางสอน</button>
+        </div>
+      </div>
+
+      <div class="subnav" role="group" aria-label="รูปแบบการแสดงตารางสอน">
+        <button class="subnav-btn" id="fSchedSubDaily" data-sched-sub="daily" aria-pressed="true" type="button">คาบเรียนรายวัน (พร้อมบันทึกผู้ประสานงาน)</button>
+        <button class="subnav-btn" id="fSchedSubMaster" data-sched-sub="master" aria-pressed="false" type="button">ผังภาพรวม 6 สัปดาห์</button>
+        <button class="subnav-btn" id="fSchedSubSpec" data-sched-sub="spec" aria-pressed="false" type="button">ตารางหมุนเวียน HS1–HS6 &amp; Table Spec</button>
+      </div>
+
+      <div id="schedDailyWrap">
+        <div class="milestone-strip" id="milestoneStrip"></div>
+
+        <div class="filter-panel">
+          <div class="filter-field">
+            <label for="schedTeacherFilter">กรองตามอาจารย์ผู้สอน / วิทยากร</label>
+            <select id="schedTeacherFilter">
+              <option value="">อาจารย์ทุกท่าน (แสดงทั้งหมด)</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="schedWeekFilter">สัปดาห์การเรียน</label>
+            <select id="schedWeekFilter">
+              <option value="">ทุกสัปดาห์ (สัปดาห์ที่ 1–6)</option>
+              <option value="1">สัปดาห์ที่ 1 (24–27 พ.ย. 69)</option>
+              <option value="2">สัปดาห์ที่ 2 (30 พ.ย. – 4 ธ.ค. 69)</option>
+              <option value="3">สัปดาห์ที่ 3 (7–12 ธ.ค. 69)</option>
+              <option value="4">สัปดาห์ที่ 4 (14–20 ธ.ค. 69 · ภาคสนาม)</option>
+              <option value="5">สัปดาห์ที่ 5 (21–25 ธ.ค. 69)</option>
+              <option value="6">สัปดาห์ที่ 6 (28–30 ธ.ค. 69)</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="schedCatFilter">หมวดกิจกรรม</label>
+            <select id="schedCatFilter">
+              <option value="">ทุกหมวดกิจกรรม</option>
+              <option value="HS">วิทยาศาสตร์ระบบสุขภาพ (HS1–HS6)</option>
+              <option value="EP">ระบาดวิทยาและสถิติ (EP1–EP9)</option>
+              <option value="SG">กลุ่มย่อย &amp; ภาคสนาม (ครั้งที่ 1–13)</option>
+              <option value="PANEL">เวทีเสวนา &amp; Workshop เชิงระบบ</option>
+              <option value="EXAM">การสอบ &amp; กำหนดส่งงาน</option>
+              <option value="STAFF">วันเตรียมความพร้อมภาควิชาฯ</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="schedDiscFilter">กลุ่มอภิปราย HS (1–6)</label>
+            <select id="schedDiscFilter">
+              <option value="">ทุกกลุ่ม Discussion</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="schedAreaFilter">กลุ่มพื้นที่ภาคสนาม (9 แห่ง)</label>
+            <select id="schedAreaFilter">
+              <option value="">ทุกกลุ่มพื้นที่ภาคสนาม</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="schedSearchInput">ค้นหาหัวข้อ / ห้องเรียน / บันทึก</label>
+            <input id="schedSearchInput" type="search" placeholder="เช่น รอยืนยัน, 2C2-03, นิเทศปี 5…">
+          </div>
+        </div>
+
+        <div class="toolbar-row">
+          <span class="status-text" id="schedStatusText" role="status">กำลังโหลดตารางสอน…</span>
+          <button class="btn sm" id="resetSchedFiltersBtn" type="button">ล้างตัวกรอง</button>
+        </div>
+
+        <div id="scheduleSessionsContainer"></div>
+      </div>
+
+      <div id="schedMasterWrap" hidden>
+        <div id="schedMasterContent"></div>
+      </div>
+
+      <div id="schedSpecWrap" hidden>
+        <div id="schedSpecContent"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: STUDENT PHOTO ROSTER & A4 ONE-PAGE PRINT -->
+    <section class="tab-panel" id="panel-students" aria-labelledby="fTabStudents" hidden>
+      <div class="section-header">
+        <div>
+          <h2>ใบรายชื่อและรูปถ่ายนักศึกษาแพทย์ชั้นปีที่ 3 (169 คน)</h2>
+          <p>เลือกกลุ่ม Discussion 1–6 หรือกลุ่มพื้นที่ภาคสนาม 9 แห่ง แล้วกด “พิมพ์ใบรายชื่อ 1 หน้า A4” เพื่อจัดขนาดตารางลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="toggleSitesOverviewBtn" type="button">ดูรายละเอียดและเจ้าหน้าที่ 9 พื้นที่</button>
+          <a class="btn teal" id="openAppsScriptRosterBtn" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec?page=students" target="_blank" rel="noopener">เปิดใน Apps Script ต้นฉบับ</a>
+        </div>
+      </div>
+
+      <div class="context-banner" id="classContextBanner" hidden></div>
+      <div class="sites-grid" id="sitesOverviewGrid" hidden></div>
+
+      <div class="filter-panel">
+        <div class="filter-field">
+          <label for="studentSearchInput">ค้นหานักศึกษา</label>
+          <input id="studentSearchInput" type="search" placeholder="รหัสนักศึกษา ชื่อ-นามสกุล หรืออาจารย์ที่ปรึกษา…">
+        </div>
+        <div class="filter-field">
+          <label for="studentAreaFilter">กลุ่มพื้นที่ · อาจารย์ที่ปรึกษา</label>
+          <select id="studentAreaFilter">
+            <option value="">ทุกกลุ่มพื้นที่ภาคสนาม (9 กลุ่ม)</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="studentDiscFilter">กลุ่มอภิปราย Discussion (HS1–HS6)</label>
+          <select id="studentDiscFilter">
+            <option value="">ทุกกลุ่ม Discussion (1–6)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar-row">
+        <span class="status-text" id="studentStatusText" role="status">กำลังโหลดรายชื่อ…</span>
+        <button class="btn sm" id="togglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
+        <button class="btn sm" id="clearStudentFiltersBtn" type="button">ล้างตัวกรอง</button>
+        <button class="btn sm primary" id="printStudentsBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
+      </div>
+
+      <div class="print-heading" id="printHeading"></div>
+      <div class="student-cards" id="studentCardsContainer"></div>
+
+      <div class="srn-box" id="srnGeneratorBox" style="margin-top:24px">
+        <h3>ตัวอย่างรูปแบบชื่อไฟล์งานนักศึกษา (SRN 1 &amp; SRN 2)</h3>
+        <div class="srn-grid">
+          <div class="filter-field">
+            <label for="srnRoundSelect">ครั้งที่ส่ง</label>
+            <select id="srnRoundSelect">
+              <option value="SRN1">SRN 1 (9 ธ.ค. 69)</option>
+              <option value="SRN2">SRN 2 (30 ธ.ค. 69)</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="srnAreaSelect">กลุ่มพื้นที่</label>
+            <select id="srnAreaSelect"></select>
+          </div>
+          <div class="filter-field">
+            <label for="srnStudentId">รหัสนักศึกษา</label>
+            <input id="srnStudentId" type="text" placeholder="6702006">
+          </div>
+          <div class="filter-field">
+            <label for="srnStudentName">ชื่อ-นามสกุล</label>
+            <input id="srnStudentName" type="text" placeholder="น.ส.จิดาภา ขันทอง">
+          </div>
+          <div>
+            <button class="btn sm" id="copySrnFilenameBtn" type="button" style="height:41px">คัดลอก</button>
+          </div>
+        </div>
+        <div class="srn-output">
+          <span id="srnFilenamePreview">SRN1_กุฉินารายณ์_6702xxx_ชื่อ-นามสกุล.pdf</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6 (FACULTY ONLY): AUDIT, APPS SCRIPT SYNC & SIGN-OFF -->
+    <section class="tab-panel" id="panel-audit" aria-labelledby="fTabAudit" hidden>
+      <div class="section-header">
+        <div>
+          <h2>แผงตรวจสอบตารางสอน · การซิงค์ชีต Apps Script &amp; รายการยืนยันคู่มือปี 2569</h2>
+          <p>สรุปจุดที่ต้องยืนยันขั้นสุดท้ายก่อนเปิดรายวิชา และการเทียบความตรงกันกับฐานข้อมูล Google Sheet (schedule-racm303-v1)</p>
+        </div>
+        <div class="header-actions">
+          <a class="btn teal" id="auditDlCsvBtn" href="downloads/schedule_racm303_v2_revised.csv" download>ดาวน์โหลด schedule_racm303_v2_revised.csv</a>
+          <button class="btn primary" id="printAuditBtn" type="button" onclick="document.body.classList.remove('print-students-mode');window.print();">พิมพ์รายการตรวจสอบ</button>
+        </div>
+      </div>
+      <div id="auditContentContainer"></div>
+    </section>
+
+    <!-- TAB 7 (FACULTY ONLY): TEACHER GUIDES, REVISION NOTES & DRIVE DIRECTORY -->
+    <section class="tab-panel" id="panel-faculty-docs" aria-labelledby="fTabFacultyDocs" hidden>
+      <div class="section-header">
+        <div>
+          <h2>คู่มือผู้สอน (Teacher Guides) · บันทึกการปรับปรุง &amp; สารบัญลิงก์ต้นฉบับ</h2>
+          <p>แนวทางการนำอภิปรายกลุ่มย่อย เฉลยเชิงลึกสำหรับคณาจารย์ แผนการศึกษาหลักสูตร และลิงก์ Google Drive / ข้อสอบปี 2569</p>
+        </div>
+      </div>
+
+      <div class="subnav" role="group" aria-label="หมวดเอกสารสำหรับคณาจารย์">
+        <button class="subnav-btn" id="facSubGuidesBtn" data-fac-sub="guides" aria-pressed="true" type="button">คู่มือผู้สอน HS1–HS2 &amp; บันทึกตรวจทาน HS3–HS6 (7 ฉบับ)</button>
+        <button class="subnav-btn" id="facSubLinksBtn" data-fac-sub="links" aria-pressed="false" type="button">สารบัญลิงก์ Google Drive / Docs / ข้อสอบปี 2569</button>
+      </div>
+
+      <div id="facultyGuidesReaderWrap">
+        <div class="reader-shell">
+          <aside class="reader-sidebar" aria-label="เลือกคู่มือผู้สอน">
+            <p class="sidebar-label">เอกสารสำหรับอาจารย์</p>
+            <ul class="doc-picker-list" id="facultyDocList"></ul>
+            <hr style="border:0;border-top:1px solid var(--line-soft);margin:14px 0">
+            <p class="sidebar-label">หัวข้อในเอกสารนี้</p>
+            <ul class="toc-list" id="facultyDocToc"></ul>
+          </aside>
+          <div class="reader-paper">
+            <div class="reader-toolbar">
+              <span style="font-size:13.5px;color:var(--crimson);font-weight:600">เอกสารเฉพาะคณาจารย์ผู้สอน (ไม่แสดงในหน้าพอร์ทัลนักศึกษา)</span>
+              <div class="font-Controls">
+                <button type="button" id="facFontDecBtn" data-font-delta="-1">ก-</button>
+                <button type="button" id="facFontResetBtn" data-font-delta="0">มาตรฐาน</button>
+                <button type="button" id="facFontIncBtn" data-font-delta="1">ก+</button>
+              </div>
+            </div>
+            <article class="editorial-prose" id="facultyProseContainer"></article>
+          </div>
+        </div>
+      </div>
+
+      <div id="facultyLinksDirectoryWrap" hidden></div>
+    </section>
+
+    <!-- TAB 3: COURSE MANUAL -->
+    <section class="tab-panel" id="panel-manual" aria-labelledby="fTabManual" hidden>
+      <div class="section-header">
+        <div>
+          <h2>คู่มือการจัดการเรียนการสอน RACM 303 ปีการศึกษา 2569</h2>
+          <p>ฉบับบูรณาการตารางเรียนปี 2569 ครบ 17 บท และภาคผนวกแบบฟอร์มการประเมิน 1A–4A</p>
+        </div>
+        <div class="header-actions">
+          <a class="btn" id="facDlManualBtn" href="downloads/คู่มือการเรียนการสอน_RACM303_2569.md" download>ดาวน์โหลดคู่มือ (.md)</a>
+          <button class="btn primary" id="facPrintManualBtn" type="button" onclick="document.body.classList.remove('print-students-mode');window.print();">พิมพ์คู่มือ</button>
+        </div>
+      </div>
+
+      <div class="reader-shell">
+        <aside class="reader-sidebar">
+          <div class="filter-field" style="margin-bottom:12px">
+            <label for="manualSearchInput">ค้นหาในคู่มือ</label>
+            <input id="manualSearchInput" type="search" placeholder="ค้นหาบทเรียน เกณฑ์ประเมิน แบบฟอร์ม…">
+          </div>
+          <p class="sidebar-label">สารบัญบทในคู่มือ</p>
+          <ul class="doc-picker-list" id="manualChapterList"></ul>
+        </aside>
+        <div class="reader-paper">
+          <div class="reader-toolbar">
+            <span style="font-size:13.5px;color:var(--muted)">คู่มือการจัดการเรียนการสอน RACM 303 ปีการศึกษา 2569</span>
+            <div class="font-Controls">
+              <button type="button" id="fManFontDec" data-font-delta="-1">ก-</button>
+              <button type="button" id="fManFontReset" data-font-delta="0">มาตรฐาน</button>
+              <button type="button" id="fManFontInc" data-font-delta="1">ก+</button>
+            </div>
+          </div>
+          <article class="editorial-prose" id="manualProseContainer"></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: HS1-HS6 TEXTBOOKS -->
+    <section class="tab-panel" id="panel-textbooks" aria-labelledby="fTabTextbooks" hidden>
+      <div class="section-header">
+        <div>
+          <h2>คลังเอกสารคำสอนแบบชี้นำ (HS1–HS6) &amp; สมุดแบบฝึกหัด</h2>
+          <p>ฉบับเดียวกับที่นักศึกษาใช้อ่านเตรียมตัวก่อนเข้าอภิปรายกลุ่มย่อย พร้อมปุ่มเปิด Google Docs ต้นฉบับ</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="toggleAllAnswersBtn" type="button">เปิดแนวคำตอบทั้งหมด</button>
+          <a class="btn teal" id="activeTextbookGdocBtn" href="#" target="_blank" rel="noopener" hidden>แก้ไข/ดูใน Google Docs</a>
+          <button class="btn primary" id="fPrintTextbookBtn" type="button" onclick="document.body.classList.remove('print-students-mode');window.print();">พิมพ์บทเรียน</button>
+        </div>
+      </div>
+
+      <div class="reader-shell">
+        <aside class="reader-sidebar">
+          <p class="sidebar-label">เลือกเอกสาร (9 ฉบับ)</p>
+          <ul class="doc-picker-list" id="textbookDocList"></ul>
+          <hr style="border:0;border-top:1px solid var(--line-soft);margin:14px 0">
+          <p class="sidebar-label">หัวข้อย่อยในบทนี้</p>
+          <ul class="toc-list" id="textbookHeadingToc"></ul>
+        </aside>
+        <div class="reader-paper">
+          <div class="reader-toolbar">
+            <span id="activeTextbookMeta" style="font-size:13.5px;color:var(--teal-deep);font-weight:600"></span>
+            <div class="font-Controls">
+              <button type="button" id="fTbFontDec" data-font-delta="-1">ก-</button>
+              <button type="button" id="fTbFontReset" data-font-delta="0">มาตรฐาน</button>
+              <button type="button" id="fTbFontInc" data-font-delta="1">ก+</button>
+            </div>
+          </div>
+          <article class="editorial-prose" id="textbookProseContainer"></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: PRACTICE -->
+    <section class="tab-panel" id="panel-practice" aria-labelledby="fTabPractice" hidden>
+      <div class="section-header">
+        <div>
+          <h2>คลังตารางทบทวนเร็ว · บัตรคำศัพท์ 111 คำ &amp; โจทย์ตรวจสอบความเข้าใจ 82 ข้อ</h2>
+          <p>สำหรับคณาจารย์ใช้ทบทวนประเด็นเน้นย้ำในห้องย่อยและประกอบการออกข้อสอบตาม Table Specification</p>
+        </div>
+      </div>
+
+      <div class="subnav" role="group" aria-label="เครื่องมือทบทวนความรู้">
+        <button class="subnav-btn" id="fPracRapidBtn" data-practice-sub="rapid" aria-pressed="true" type="button">ตารางทบทวนเร็ว (HS1–HS6)</button>
+        <button class="subnav-btn" id="fPracFcBtn" data-practice-sub="flashcards" aria-pressed="false" type="button">บัตรคำศัพท์สำคัญ (111 คำ)</button>
+        <button class="subnav-btn" id="fPracQaBtn" data-practice-sub="qa" aria-pressed="false" type="button">โจทย์และแนวคำตอบ (82 ข้อ)</button>
+      </div>
+
+      <div class="filter-panel">
+        <div class="filter-field">
+          <label for="practiceModuleFilter">กรองตามบทเรียน</label>
+          <select id="practiceModuleFilter">
+            <option value="">ครบทุกบทเรียน (HS1–HS6)</option>
+            <option value="HS1">HS1</option>
+            <option value="HS2">HS2</option>
+            <option value="HS3">HS3</option>
+            <option value="HS4">HS4</option>
+            <option value="HS5">HS5</option>
+            <option value="HS6">HS6</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="practiceSearchInput">ค้นหาคำศัพท์ / โจทย์</label>
+          <input id="practiceSearchInput" type="search" placeholder="พิมพ์คำสำคัญเพื่อค้นหา…">
+        </div>
+      </div>
+
+      <div class="toolbar-row">
+        <span class="status-text" id="practiceStatusText" role="status"></span>
+        <button class="btn sm" id="shuffleFlashcardsBtn" type="button" hidden>สุ่มลำดับบัตรคำ</button>
+      </div>
+
+      <div id="practiceRapidWrap"></div>
+      <div id="practiceFlashcardsWrap" hidden>
+        <div class="flashcard-grid" id="flashcardsGrid"></div>
+      </div>
+      <div id="practiceQaWrap" hidden></div>
+    </section>
+  </main>
+
+  <div class="lightbox" id="imageLightbox" role="dialog" aria-modal="true" aria-label="ขยายภาพประกอบ" hidden>
+    <div class="lightbox-inner">
+      <img id="lightboxImg" src="assets/images/hs1_fig_1.jpg" alt="">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <span id="lightboxCaption" style="font-size:13.5px;color:var(--muted)"></span>
+        <button class="btn sm primary" id="closeLightboxBtn" type="button">ปิดภาพขยาย (Esc)</button>
+      </div>
+    </div>
+  </div>
+
+  <script>window.PORTAL_ROLE = "faculty";</script>
+  <script src="assets/data_schedule.js"></script>
+  <script src="assets/data_roster.js"></script>
+  <script src="assets/data_manual.js"></script>
+  <script src="assets/data_hs_docs.js"></script>
+  <script src="assets/data_faculty.js"></script>
+  <script src="assets/portal.js"></script>
+</body>
+</html>
