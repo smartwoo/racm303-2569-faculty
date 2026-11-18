@@ -1,14 +1,15 @@
 /* ==========================================================================
-   RACM 303 (ปีการศึกษา 2569) — Faculty & Course Coordinator Controller
-   Includes Google Calendar & Apple Calendar (iCal) Views, Dual .ics + .csv
-   Downloads with Embedded Zoom Links, Photo Roster Print, Audit & Teacher Guides
+   RACM 303 (ปีการศึกษา 2569) — Faculty & Coordinator Portal Controller
+   Google Calendar & Apple iCal Views · Per-Group & Per-Student Fieldwork Sync
+   One-Time (.ics / .csv) Downloads & Live Hosted Subscribe (.ics / webcal://)
    ========================================================================== */
 (function () {
   "use strict";
 
   const ROLE = "faculty";
+  const PORTAL_BASE_URL = "https://smartwoo.github.io/racm303-2569-faculty";
   const SCHED = window.RACM_SCHEDULE_DATA || {};
-  const ROSTER = window.RACM_ROSTER_DATA || { students: [], courseTeachers: [], appsScriptReconciliation: [] };
+  const ROSTER = window.RACM_ROSTER_DATA || { students: [], courseTeachers: [] };
   const MANUAL = window.RACM_MANUAL_DATA || { chapters: [] };
   const HS = window.RACM_HS_DATA || { docs: [], rapidReview: [], glossary: [], selfCheck: [] };
   const FACULTY = window.RACM_FACULTY_DATA || { docs: [], links: [] };
@@ -19,7 +20,7 @@
   const WEEK_BOUNDS = [
     { week: 1, start: "2026-11-23", end: "2026-11-29", label: "สัปดาห์ที่ 1 · 23–29 พ.ย. 2569 (เปิดรายวิชา · HS1 · EP1–3)" },
     { week: 2, start: "2026-11-30", end: "2026-12-06", label: "สัปดาห์ที่ 2 · 30 พ.ย. – 6 ธ.ค. 2569 (HS2–HS6 · EP4–9)" },
-    { week: 3, start: "2026-12-07", end: "2026-12-13", label: "สัปดาห์ที่ 3 · 7–13 ธ.ค. 2569 (สอบ EP · เตรียมออกภาคสนาม)" },
+    { week: 3, start: "2026-12-07", end: "2026-12-13", label: "สัปดาห์ที่ 3 · 7–13 ธ.ค. 2569 (สอบ EP · เดินทางสู่ภาคสนามตามกลุ่ม)" },
     { week: 4, start: "2026-12-14", end: "2026-12-20", label: "สัปดาห์ที่ 4 · 14–20 ธ.ค. 2569 (ฝึกปฏิบัติงานภาคสนาม 9 พื้นที่)" },
     { week: 5, start: "2026-12-21", end: "2026-12-27", label: "สัปดาห์ที่ 5 · 21–27 ธ.ค. 2569 (สอบ HS · สังเคราะห์ข้อมูลภาคสนาม)" },
     { week: 6, start: "2026-12-28", end: "2027-01-03", label: "สัปดาห์ที่ 6 · 28 ธ.ค. 2569 – 3 ม.ค. 2570 (นำเสนอภาคสนาม & ปิดรายวิชา)" }
@@ -35,15 +36,16 @@
     SG: "กลุ่มย่อย & ภาคสนาม",
     PANEL: "เสวนา / ปฏิบัติการเชิงระบบ",
     EXAM: "การสอบ & กำหนดส่งงาน",
-    HOLIDAY: "วันหยุด / เดินทางภาคสนาม",
+    HOLIDAY: "วันหยุดราชการ",
     STAFF: "เตรียมความพร้อมภาควิชาฯ"
   };
 
   const state = {
     activeTab: "schedule",
     schedSub: "month", // month | week | daily | spec
+    calScope: "teacher", // student | group | teacher | all
     calWeek: 1,
-    practiceSub: "rapid", // rapid | flashcards | qa
+    practiceSub: "rapid",
     facultySub: "guides",
     myStudent: null,
     classContext: null,
@@ -168,73 +170,95 @@
     box.replaceChildren(img);
   }
 
-  /* ---------- Personalization Bar ---------- */
+  /* ---------- Student Lookup & Personalization Sync ---------- */
+  function findStudentByQuery(rawVal) {
+    const q = String(rawVal || "").trim().toLocaleLowerCase("th");
+    if (!q) return null;
+    const m = q.match(/^(\d{7})\b/);
+    if (m) {
+      const byId = ROSTER.students.find((s) => s.id === m[1]);
+      if (byId) return byId;
+    }
+    return (
+      ROSTER.students.find(
+        (s) =>
+          q.startsWith(s.id) ||
+          s.fullName.toLocaleLowerCase("th") === q ||
+          s.name.toLocaleLowerCase("th") === q ||
+          `${s.id} — ${s.fullName}`.toLocaleLowerCase("th") === q
+      ) || null
+    );
+  }
+
+  function clearAllPersonalization() {
+    state.myStudent = null;
+    localStorage.removeItem("racm303_my_sid");
+    if ($("personalStudentInput")) $("personalStudentInput").value = "";
+    if ($("studioStudentInput")) $("studioStudentInput").value = "";
+    if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
+    if ($("schedAreaFilter")) $("schedAreaFilter").value = "";
+    if ($("schedTeacherFilter")) $("schedTeacherFilter").value = "";
+    if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
+    updatePersonalBanner();
+    refreshCalendarStudioUI();
+    renderScheduleCurrent();
+  }
+
   function initPersonalizer() {
     const list = $("studentLookupList");
     const input = $("personalStudentInput");
-    if (!list || !input) return;
-
-    ROSTER.students.forEach((s) => {
-      const opt = document.createElement("option");
-      opt.value = `${s.id} — ${s.fullName}`;
-      opt.label = `กลุ่มพื้นที่ ${s.area} · Discussion ${s.disc}`;
-      list.appendChild(opt);
-    });
-
-    const savedId = localStorage.getItem("racm303_my_sid");
-    if (savedId) {
-      const found = ROSTER.students.find((s) => s.id === savedId);
-      if (found) applyMyStudent(found, false);
-    }
-
-    input.addEventListener("change", handlePersonalInput);
-    input.addEventListener("input", () => {
-      const val = input.value.trim();
-      const m = val.match(/^(\d{7})\b/);
-      if (m) {
-        const found = ROSTER.students.find((s) => s.id === m[1]);
-        if (found) applyMyStudent(found, true);
-      }
-    });
-
-    const clearBtn = $("clearPersonalBtn");
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        state.myStudent = null;
-        localStorage.removeItem("racm303_my_sid");
-        input.value = "";
-        if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
-        if ($("schedAreaFilter")) $("schedAreaFilter").value = "";
-        updatePersonalBanner();
-        renderScheduleCurrent();
+    if (list) {
+      ROSTER.students.forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = `${s.id} — ${s.fullName}`;
+        opt.label = `กลุ่มพื้นที่ ${s.area} · Discussion ${s.disc}`;
+        list.appendChild(opt);
       });
     }
-  }
 
-  function handlePersonalInput() {
-    const input = $("personalStudentInput");
-    if (!input) return;
-    const q = input.value.trim().toLocaleLowerCase("th");
-    if (!q) return;
-    const found = ROSTER.students.find(
-      (s) =>
-        q.startsWith(s.id) ||
-        s.fullName.toLocaleLowerCase("th") === q ||
-        s.name.toLocaleLowerCase("th") === q ||
-        `${s.id} — ${s.fullName}`.toLocaleLowerCase("th") === q
-    );
-    if (found) applyMyStudent(found, true);
+    const bindStudentInput = (el) => {
+      if (!el) return;
+      el.addEventListener("change", () => {
+        const found = findStudentByQuery(el.value);
+        if (found) {
+          state.calScope = "student";
+          applyMyStudent(found, true);
+        }
+      });
+      el.addEventListener("input", () => {
+        const val = el.value.trim();
+        const m = val.match(/^(\d{7})\b/);
+        if (m) {
+          const found = ROSTER.students.find((s) => s.id === m[1]);
+          if (found) {
+            state.calScope = "student";
+            applyMyStudent(found, true);
+          }
+        }
+      });
+    };
+
+    bindStudentInput(input);
+    bindStudentInput($("studioStudentInput"));
+
+    ["clearPersonalBtn", "studioClearSelectionBtn"].forEach((id) => {
+      const btn = $(id);
+      if (btn) btn.addEventListener("click", clearAllPersonalization);
+    });
   }
 
   function applyMyStudent(student, syncFilters) {
     state.myStudent = student;
     localStorage.setItem("racm303_my_sid", student.id);
-    const input = $("personalStudentInput");
-    if (input) input.value = `${student.id} — ${student.fullName}`;
+    const formatted = `${student.id} — ${student.fullName}`;
+    if ($("personalStudentInput")) $("personalStudentInput").value = formatted;
+    if ($("studioStudentInput")) $("studioStudentInput").value = formatted;
 
     if (syncFilters) {
       if ($("schedDiscFilter")) $("schedDiscFilter").value = String(student.disc);
       if ($("schedAreaFilter")) $("schedAreaFilter").value = student.area;
+      if ($("schedTeacherFilter")) $("schedTeacherFilter").value = "";
+      if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
     }
 
     if ($("srnAreaSelect")) $("srnAreaSelect").value = student.area;
@@ -243,6 +267,22 @@
     updateSrnFilename();
 
     updatePersonalBanner();
+    refreshCalendarStudioUI();
+    renderScheduleCurrent();
+  }
+
+  function selectFieldworkGroupOnly(shortName) {
+    state.myStudent = null;
+    localStorage.removeItem("racm303_my_sid");
+    if ($("personalStudentInput")) $("personalStudentInput").value = "";
+    if ($("studioStudentInput")) $("studioStudentInput").value = "";
+    if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
+    if ($("schedTeacherFilter")) $("schedTeacherFilter").value = "";
+    if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
+    if ($("schedAreaFilter")) $("schedAreaFilter").value = shortName || "";
+    state.calScope = shortName ? "group" : "all";
+    updatePersonalBanner();
+    refreshCalendarStudioUI();
     renderScheduleCurrent();
   }
 
@@ -253,7 +293,7 @@
     summary.replaceChildren();
     if (!state.myStudent) {
       summary.appendChild(
-        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้องกลุ่มย่อย วันเดินทางภาคสนาม และดาวน์โหลดปฏิทินส่วนตัว (.ics / .csv)")
+        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้อง Discussion กลุ่มภาคสนาม และดาวน์โหลดปฏิทินส่วนตัว (.ics / .csv)")
       );
       if (clearBtn) clearBtn.hidden = true;
       return;
@@ -263,7 +303,7 @@
     const hsRot = (SCHED.hsRotation || []).find((x) => x.group === s.disc);
     summary.append(
       make("span", `Discussion ${s.disc} (${hsRot ? hsRot.room : ""})`, "personal-chip"),
-      make("span", `พื้นที่: ${s.area}${site ? " · ห้อง " + site.room.split(" ")[0] : ""}`, "personal-chip"),
+      make("span", `พื้นที่: ${s.area}${site ? " · " + (site.badgeDates || site.datesTH) : ""}`, "personal-chip"),
       make("span", `อ.ที่ปรึกษา: ${s.advisor}`, "personal-chip")
     );
     if (clearBtn) clearBtn.hidden = false;
@@ -300,7 +340,7 @@
     if (ROLE === "faculty" && tabId === "faculty-docs" && typeof renderFacultyDocsView === "function") renderFacultyDocsView();
   }
 
-  /* ---------- Per-Session Group Assignments & Personalization ---------- */
+  /* ---------- Per-Session Group Assignments & Fieldwork Personalization ---------- */
   function getSessionAssignments(session) {
     if (session.hsModule) {
       const mod = session.hsModule;
@@ -329,13 +369,21 @@
           } else if (session.code === "SG4" && site.shortName === "เพชรบูรณ์ 2") {
             extra = " (อ.ที่ปรึกษา Online)";
           }
+          let roomLabel = site.room;
+          if (session.code === "FIELD") {
+            roomLabel = `${site.hospital} ${site.province}`;
+          } else if (session.code === "TRAVEL") {
+            roomLabel = `จุดนัดหมายการเดินทาง กลุ่ม${site.shortName} (${site.departShortTH || ""})`;
+          } else if (session.code === "RETURN") {
+            roomLabel = `${site.hospital} ${site.province} → กรุงเทพฯ / CNMI`;
+          }
           return {
             type: "area",
             groupId: site.shortName,
             label: `กลุ่มพื้นที่ ${site.shortName} (${site.count} คน)`,
             shortGroup: site.shortName,
             lecturer: site.advisors + extra,
-            room: session.code === "FIELD" ? `${site.hospital} ${site.province}` : site.room,
+            room: roomLabel,
             highlightRoom: false,
             facultyFlag: ""
           };
@@ -360,6 +408,7 @@
 
   function resolveEffectiveSessionDetails(session, ctx) {
     const assignments = getSessionAssignments(session);
+    let title = session.title || "";
     let room = session.room || "";
     let lecturer = session.lecturers || "";
     let personalLabel = "";
@@ -369,20 +418,32 @@
     if (session.hsModule && ctx.discVal) {
       const m = assignments.find((a) => a.shortGroup === ctx.discVal);
       if (m) {
+        title = `${session.title} [กลุ่ม ${ctx.discVal} · ห้อง ${m.room.split(" ")[0]}]`;
         room = `${m.room} (${m.label})`;
         lecturer = m.lecturer;
-        personalLabel = `ห้อง ${m.room}`;
+        personalLabel = `ห้อง ${m.room.split(" ")[0]}`;
       }
-    } else if (session.isFieldGroupSession && ctx.areaVal) {
+    } else if (session.isFieldGroupSession && ctx.areaVal && ctx.siteObj) {
+      const site = ctx.siteObj;
       const m = assignments.find((a) => a.shortGroup === ctx.areaVal);
       if (m) {
-        room = `${m.room} (${m.label})`;
+        room = m.room;
         lecturer = m.lecturer;
-        personalLabel = m.room.split(" ")[0];
+        personalLabel = site.room.split(" ")[0];
       }
-      if (session.code === "FIELD" && ctx.siteObj && ctx.siteObj.startDateISO && ctx.siteObj.endDateISO) {
-        startISO = ctx.siteObj.startDateISO;
-        endISO = ctx.siteObj.endDateISO;
+      if (session.code === "FIELD") {
+        startISO = site.startDateISO || session.dateISO;
+        endISO = site.endDateISO || session.endDateISO || session.dateISO;
+        title = `ฝึกปฏิบัติงานภาคสนาม · ${site.hospital} ${site.province} (${site.datesTH})`;
+        personalLabel = site.shortName;
+      } else if (session.code === "TRAVEL") {
+        title = `ออกเดินทางสู่พื้นที่ภาคสนาม · กลุ่ม ${site.hospital} ${site.province} (${site.departShortTH || session.timeLabel})`;
+        personalLabel = `เดินทาง · ${site.shortName}`;
+      } else if (session.code === "RETURN") {
+        title = `เดินทางกลับจากภาคสนาม · กลุ่ม ${site.hospital} ${site.province} (${site.returnShortTH || ""})`;
+        personalLabel = `เดินทางกลับ · ${site.shortName}`;
+      } else {
+        title = `${session.title.replace(/\s*\(เฉพาะ 4 กลุ่ม[^)]*\)|\s*\(4 กลุ่ม[^)]*\)/g, "")} [กลุ่ม${site.shortName} · ห้อง ${site.room.split(" ")[0]}]`;
       }
     } else if (ctx.teacherVal && assignments.length) {
       const tm = assignments.find((a) => String(a.lecturer).includes(ctx.teacherVal));
@@ -393,8 +454,8 @@
       }
     }
 
-    const isAllDay = session.code === "FIELD" || session.category === "HOLIDAY";
-    return { assignments, room, lecturer, personalLabel, startISO, endISO, isAllDay };
+    const isAllDay = session.code === "FIELD" || session.category === "HOLIDAY" || session.category === "STAFF";
+    return { assignments, title, room, lecturer, personalLabel, startISO, endISO, isAllDay };
   }
 
   function getFilteredSessions(ignoreWeekDropdown = false) {
@@ -434,6 +495,184 @@
       }
       return true;
     });
+  }
+
+  /* ---------- Calendar Personalize, Download & Subscribe Studio ---------- */
+  function computeSubscribeRelativePath(ctx) {
+    if (ROLE === "faculty" && ctx.teacherVal) {
+      const idx = (ROSTER.courseTeachers || []).findIndex((t) => t.key === ctx.teacherVal);
+      if (idx >= 0) {
+        return `calendars/teacher_${String(idx + 1).padStart(2, "0")}.ics`;
+      }
+    }
+    if (ctx.discVal && ctx.siteObj && ROLE === "student") {
+      return `calendars/d${ctx.discVal}_g${ctx.siteObj.id}.ics`;
+    }
+    if (ctx.discVal && ctx.siteObj && state.myStudent) {
+      return `calendars/d${ctx.discVal}_g${ctx.siteObj.id}.ics`;
+    }
+    if (ctx.siteObj) {
+      return `calendars/group_${ctx.siteObj.id}_${ctx.siteObj.slug}.ics`;
+    }
+    return "calendars/all.ics";
+  }
+
+  function refreshCalendarStudioUI() {
+    const ctx = getActivePersonalContext();
+    const sessionsToExport = getSessionsForExport();
+
+    // Update scope tabs visual state
+    document.querySelectorAll("[data-cal-scope]").forEach((btn) => {
+      btn.setAttribute("aria-selected", btn.dataset.calScope === state.calScope ? "true" : "false");
+    });
+
+    if ($("calScopeStudentPane")) $("calScopeStudentPane").hidden = state.calScope !== "student";
+    if ($("calScopeGroupPane")) $("calScopeGroupPane").hidden = state.calScope !== "group";
+    if ($("calScopeTeacherPane")) $("calScopeTeacherPane").hidden = state.calScope !== "teacher";
+    if ($("calScopeAllPane")) $("calScopeAllPane").hidden = state.calScope !== "all";
+
+    if ($("studioClearSelectionBtn")) {
+      $("studioClearSelectionBtn").hidden = !(state.myStudent || ctx.areaVal || ctx.discVal);
+    }
+    if ($("studioClearTeacherBtn")) {
+      $("studioClearTeacherBtn").hidden = !ctx.teacherVal;
+    }
+
+    // Highlight active fieldwork group pill
+    document.querySelectorAll(".cal-group-pill").forEach((pill) => {
+      pill.classList.toggle("is-selected", pill.dataset.areaName === ctx.areaVal);
+    });
+
+    // Update summary box & dynamic CTA button labels
+    const sumBox = $("calTargetSummaryBox");
+    const dlIcsBtn = $("studioDownloadIcsBtn");
+    const dlCsvBtn = $("studioDownloadCsvBtn");
+    const topIcsBtn = $("exportIcsBtn");
+    const topCsvBtn = $("exportGcalCsvBtn");
+
+    let shortTarget = "ตารางรวมทั้งรายวิชา";
+    if (state.myStudent && ctx.siteObj) {
+      const s = state.myStudent;
+      const site = ctx.siteObj;
+      shortTarget = `${s.id} (${site.shortName})`;
+      if (sumBox) {
+        sumBox.innerHTML =
+          `<strong>ตารางเฉพาะตัวนักศึกษา:</strong> ${escapeHtml(s.fullName)} (<code>${escapeHtml(s.id)}</code>) · Discussion ${s.disc} · กลุ่ม <strong>${escapeHtml(site.hospital)} ${escapeHtml(site.province)}</strong><br>` +
+          `<strong>เวลาลงภาคสนามของกลุ่มนี้:</strong> ออกเดินทาง ${escapeHtml(site.departShortTH || "")} · ระยะฝึก <strong>${escapeHtml(site.datesTH)}</strong> · ${site.hasFri11Dec ? "มีเรียนกลุ่มย่อย 5–6 วันศุกร์ที่ 11 ธ.ค." : "ไม่มีเรียนวันศุกร์ที่ 11 ธ.ค. (อยู่ระหว่างภาคสนาม)"} · รวม <strong>${sessionsToExport.length} รายการ</strong> (พร้อมลิงก์ Zoom)`;
+      }
+    } else if (ctx.teacherVal) {
+      const tObj = (ROSTER.courseTeachers || []).find((t) => t.key === ctx.teacherVal);
+      shortTarget = `อ.${ctx.teacherVal}`;
+      if (sumBox) {
+        sumBox.innerHTML =
+          `<strong>ปฏิทินภาระงานอาจารย์:</strong> ${escapeHtml(tObj ? tObj.label : ctx.teacherVal)}<br>` +
+          `คัดเฉพาะคาบบรรยาย กลุ่มอภิปราย HS และกลุ่มที่ปรึกษาภาคสนามของท่าน รวม <strong>${sessionsToExport.length} รายการ</strong> (พร้อมฝังลิงก์ Zoom ครบทุกคาบออนไลน์)`;
+      }
+    } else if (ctx.siteObj) {
+      const site = ctx.siteObj;
+      shortTarget = `กลุ่ม${site.shortName}`;
+      if (sumBox) {
+        sumBox.innerHTML =
+          `<strong>ตารางเฉพาะกลุ่มภาคสนาม:</strong> <strong>${escapeHtml(site.hospital)} ${escapeHtml(site.province)}</strong> (${site.count} คน · ห้องกลุ่มย่อย <code>${escapeHtml(site.room.split(" ")[0])}</code> · อ.ที่ปรึกษา: ${escapeHtml(site.advisors)})<br>` +
+          `<strong>เวลาลงภาคสนามของกลุ่มนี้:</strong> ออกเดินทาง ${escapeHtml(site.departShortTH || "")} · ระยะฝึก <strong>${escapeHtml(site.datesTH)}</strong> · ${site.hasFri11Dec ? "รวมคาบกลุ่มย่อย 5–6 วันศุกร์ที่ 11 ธ.ค. แล้ว" : "ตัดคาบวันศุกร์ที่ 11 ธ.ค. ออกอัตโนมัติ (กลุ่มนี้เดินทางแล้ว)"} · รวม <strong>${sessionsToExport.length} รายการ</strong>`;
+      }
+    } else if (ctx.discVal) {
+      shortTarget = `Discussion ${ctx.discVal}`;
+      if (sumBox) {
+        sumBox.innerHTML = `<strong>กรองเฉพาะกลุ่มอภิปราย Discussion ${escapeHtml(ctx.discVal)}:</strong> รวม <strong>${sessionsToExport.length} รายการ</strong> (เลือกกลุ่มพื้นที่ภาคสนามเพิ่มเติมด้านบนเพื่อผูกวันเดินทางภาคสนามได้)`;
+      }
+    } else {
+      if (sumBox) {
+        sumBox.innerHTML =
+          ROLE === "faculty"
+            ? `<strong>กำลังเลือก: ตารางรวมทั้งรายวิชา (${sessionsToExport.length} รายการ)</strong> — เลือกชื่ออาจารย์หรือกลุ่มภาคสนามด้านบนเพื่อแยกดาวน์โหลดเฉพาะภาระงานของท่านหรือเฉพาะกลุ่มได้ทันที`
+            : `<strong>กำลังเลือก: ตารางรวมทั้งชั้นปี 169 คน (${sessionsToExport.length} รายการ)</strong> — พิมพ์รหัสนักศึกษาหรือคลิกเลือกกลุ่มภาคสนามด้านบน เพื่อให้ระบบปรับวันเดินทางไป-กลับภาคสนามและห้องเรียนเฉพาะของตัวเองอัตโนมัติ`;
+      }
+    }
+
+    if (dlIcsBtn) dlIcsBtn.textContent = `ดาวน์โหลด .ics (${shortTarget})`;
+    if (dlCsvBtn) dlCsvBtn.textContent = `ดาวน์โหลด .csv (${shortTarget})`;
+    if (topIcsBtn) topIcsBtn.textContent = `ดาวน์โหลด iCal .ics (${shortTarget})`;
+    if (topCsvBtn) topCsvBtn.textContent = `ดาวน์โหลด Google .csv (${shortTarget})`;
+
+    // Update Subscribe URL (.ics over HTTPS for Google Calendar "From URL" & webcal:// for Apple Calendar)
+    const relFeed = computeSubscribeRelativePath(ctx);
+    const httpsFeedUrl = `${PORTAL_BASE_URL}/${relFeed}`;
+    const webcalFeedUrl = httpsFeedUrl.replace(/^https:\/\//i, "webcal://");
+    if ($("studioSubscribeUrlInput")) $("studioSubscribeUrlInput").value = httpsFeedUrl;
+    if ($("studioWebcalLink")) $("studioWebcalLink").href = webcalFeedUrl;
+  }
+
+  function initCalendarDownloadStudio() {
+    // Render 9 Fieldwork Group quick-select pills
+    const grid = $("studioGroupPillsGrid");
+    if (grid && !grid.dataset.rendered) {
+      grid.dataset.rendered = "1";
+      (SCHED.fieldworkSites || []).forEach((site) => {
+        const pill = make("button", null, "cal-group-pill");
+        pill.type = "button";
+        pill.dataset.areaName = site.shortName;
+        pill.innerHTML = `<strong>${site.id}. ${escapeHtml(site.shortName)} (${site.count} คน)</strong><small>${escapeHtml(site.badgeDates || site.datesTH)}</small>`;
+        pill.addEventListener("click", () => {
+          selectFieldworkGroupOnly(site.shortName);
+        });
+        grid.appendChild(pill);
+      });
+    }
+
+    // Faculty studio teacher dropdown
+    const studioTeacher = $("studioTeacherSelect");
+    if (studioTeacher && !studioTeacher.dataset.rendered) {
+      studioTeacher.dataset.rendered = "1";
+      (ROSTER.courseTeachers || []).forEach((t) => {
+        studioTeacher.add(new Option(t.label, t.key));
+      });
+      studioTeacher.addEventListener("change", () => {
+        const val = studioTeacher.value;
+        if ($("schedTeacherFilter")) $("schedTeacherFilter").value = val;
+        if (val) {
+          state.myStudent = null;
+          if ($("schedAreaFilter")) $("schedAreaFilter").value = "";
+          if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
+          state.calScope = "teacher";
+        }
+        updatePersonalBanner();
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      });
+    }
+
+    if ($("studioClearTeacherBtn")) {
+      $("studioClearTeacherBtn").addEventListener("click", clearAllPersonalization);
+    }
+
+    // Scope mode switching buttons
+    document.querySelectorAll("[data-cal-scope]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const nextScope = btn.dataset.calScope;
+        state.calScope = nextScope;
+        if (nextScope === "all") {
+          clearAllPersonalization();
+          state.calScope = "all";
+        } else if (nextScope === "group" && state.myStudent) {
+          // Keep their fieldwork group selected, clear individual student if they want pure group mode
+          const areaKeep = state.myStudent.area;
+          selectFieldworkGroupOnly(areaKeep);
+        }
+        refreshCalendarStudioUI();
+      });
+    });
+
+    if ($("studioDownloadIcsBtn")) $("studioDownloadIcsBtn").addEventListener("click", downloadScheduleIcs);
+    if ($("studioDownloadCsvBtn")) $("studioDownloadCsvBtn").addEventListener("click", downloadScheduleGoogleCsv);
+    if ($("studioCopySubUrlBtn")) {
+      $("studioCopySubUrlBtn").addEventListener("click", () => {
+        const urlEl = $("studioSubscribeUrlInput");
+        if (urlEl && urlEl.value) {
+          copyTextWithFeedback(urlEl.value, $("studioCopySubUrlBtn"), "คัดลอกลิงก์ .ics แล้ว ✓");
+        }
+      });
+    }
   }
 
   /* ---------- Tab 1: Schedule & Calendar Controls ---------- */
@@ -483,6 +722,7 @@
 
   function initScheduleControls() {
     renderZoomHubAndMilestones();
+    initCalendarDownloadStudio();
 
     const teacherSel = $("schedTeacherFilter");
     if (teacherSel) {
@@ -499,8 +739,18 @@
     const areaSel = $("schedAreaFilter");
     if (areaSel) {
       (SCHED.fieldworkSites || []).forEach((s) => {
-        areaSel.add(new Option(`${s.shortName} (${s.hospital})`, s.shortName));
+        areaSel.add(new Option(`${s.shortName} (${s.badgeDates || s.hospital})`, s.shortName));
       });
+    }
+
+    // Restore saved student after dropdowns exist
+    const savedId = localStorage.getItem("racm303_my_sid");
+    if (savedId) {
+      const found = ROSTER.students.find((s) => s.id === savedId);
+      if (found) {
+        state.calScope = "student";
+        applyMyStudent(found, true);
+      }
     }
 
     if ($("schedWeekFilter")) {
@@ -511,10 +761,44 @@
       });
     }
 
-    ["schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter"].forEach((id) => {
+    if ($("schedAreaFilter")) {
+      $("schedAreaFilter").addEventListener("change", () => {
+        const val = $("schedAreaFilter").value;
+        if (state.myStudent && val !== state.myStudent.area) {
+          state.myStudent = null;
+          localStorage.removeItem("racm303_my_sid");
+          if ($("personalStudentInput")) $("personalStudentInput").value = "";
+          if ($("studioStudentInput")) $("studioStudentInput").value = "";
+          state.calScope = val ? "group" : "all";
+          updatePersonalBanner();
+        } else if (!state.myStudent && val) {
+          state.calScope = "group";
+        }
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      });
+    }
+
+    if ($("schedTeacherFilter")) {
+      $("schedTeacherFilter").addEventListener("change", () => {
+        const val = $("schedTeacherFilter").value;
+        if ($("studioTeacherSelect")) $("studioTeacherSelect").value = val;
+        if (val && ROLE === "faculty") state.calScope = "teacher";
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      });
+    }
+
+    ["schedCatFilter", "schedDiscFilter"].forEach((id) => {
       const el = $(id);
-      if (el) el.addEventListener("change", renderScheduleCurrent);
+      if (el) {
+        el.addEventListener("change", () => {
+          refreshCalendarStudioUI();
+          renderScheduleCurrent();
+        });
+      }
     });
+
     if ($("schedSearchInput")) {
       $("schedSearchInput").addEventListener("input", renderScheduleCurrent);
     }
@@ -523,7 +807,13 @@
         ["schedWeekFilter", "schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter", "schedSearchInput"].forEach((id) => {
           if ($(id)) $(id).value = "";
         });
+        if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
+        if (state.myStudent) {
+          if ($("schedDiscFilter")) $("schedDiscFilter").value = String(state.myStudent.disc);
+          if ($("schedAreaFilter")) $("schedAreaFilter").value = state.myStudent.area;
+        }
         state.calWeek = 1;
+        refreshCalendarStudioUI();
         renderScheduleCurrent();
       });
     }
@@ -531,14 +821,11 @@
     document.querySelectorAll("[data-sched-sub]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.schedSub = btn.dataset.schedSub;
-        document.querySelectorAll("[data-sched-sub]").forEach((b) =>
-          b.setAttribute("aria-pressed", b.dataset.schedSub === state.schedSub ? "true" : "false")
-        );
+        syncSegButtons();
         renderScheduleCurrent();
       });
     });
 
-    // Calendar week stepper (◀ / สัปดาห์เปิดวิชา / ▶)
     if ($("calPrevBtn")) {
       $("calPrevBtn").addEventListener("click", () => {
         if (state.schedSub === "month") state.schedSub = "week";
@@ -584,7 +871,6 @@
       });
     }
 
-    // Event Modal dismiss handlers
     const modal = $("calendarEventModal");
     if (modal) {
       modal.addEventListener("click", (e) => {
@@ -594,6 +880,8 @@
         if (e.key === "Escape" && !modal.hidden) closeEventModal();
       });
     }
+
+    refreshCalendarStudioUI();
   }
 
   function syncSegButtons() {
@@ -630,7 +918,7 @@
         `พบ ${sessionsCount} คาบกิจกรรม`,
         ctx.teacherVal ? `อาจารย์: ${ctx.teacherVal}` : "",
         ctx.discVal ? `Discussion ${ctx.discVal}` : "",
-        ctx.areaVal ? `พื้นที่ ${ctx.areaVal}` : "",
+        ctx.areaVal ? `กลุ่มพื้นที่ ${ctx.areaVal}` : "",
         "คลิกที่คาบเรียนเพื่อดูรายละเอียด ลิงก์ Zoom หรือเพิ่มเข้าปฏิทิน"
       ].filter(Boolean);
       statusEl.textContent = parts.join(" · ");
@@ -683,7 +971,6 @@
     const shell = make("div", null, "cal-month-shell");
     const minWrap = make("div", null, "cal-month-min");
 
-    // Header row
     const head = make("div", null, "cal-dow-header");
     head.appendChild(make("div", "สัปดาห์", "cal-dow-cell"));
     TH_DOW_FULL.forEach((dName) => head.appendChild(make("div", dName, "cal-dow-cell")));
@@ -719,10 +1006,17 @@
           const chip = make("button", null, `cal-chip cat-${s.category}${eff.isAllDay ? " is-allday" : ""}`);
           chip.type = "button";
           const shortTime = eff.isAllDay ? "ทั้งวัน" : (s.startTime || "");
-          const labelTitle = s.code === "FIELD" && ctx.areaVal
-            ? `ภาคสนาม: ${ctx.areaVal}`
-            : `${s.code}: ${s.title.replace(/^\*?HS\d:\s*|^EP\d.*:\s*/i, "")}`;
-          chip.title = `${s.timeLabel} · ${s.title}${eff.personalLabel ? " (" + eff.personalLabel + ")" : ""}`;
+          let labelTitle = "";
+          if (s.code === "FIELD") {
+            labelTitle = ctx.areaVal ? `ภาคสนาม: ${ctx.areaVal}` : "ฝึกภาคสนาม (9 กลุ่ม)";
+          } else if (s.code === "TRAVEL") {
+            labelTitle = ctx.areaVal ? `ออกเดินทาง (${ctx.areaVal})` : eff.title;
+          } else if (s.code === "RETURN") {
+            labelTitle = ctx.areaVal ? `เดินทางกลับ (${ctx.areaVal})` : eff.title;
+          } else {
+            labelTitle = `${s.code}: ${s.title.replace(/^\*?HS\d:\s*|^EP\d.*:\s*/i, "")}`;
+          }
+          chip.title = `${s.timeLabel} · ${eff.title}${eff.personalLabel ? " (" + eff.personalLabel + ")" : ""}`;
 
           chip.appendChild(make("span", shortTime, "chip-time"));
           chip.appendChild(make("span", labelTitle, "chip-title"));
@@ -744,7 +1038,7 @@
     wrap.replaceChildren(shell);
   }
 
-  /* ---------- View 2: Week Time-Grid View (08:00–18:00 Google Calendar / iCal) ---------- */
+  /* ---------- View 2: Week Time-Grid View (08:00–18:00 / Dynamic 24:00 for Evening Travel) ---------- */
   function renderScheduleWeek() {
     const wrap = $("schedWeekContent");
     if (!wrap) return;
@@ -759,21 +1053,25 @@
     const allFiltered = getFilteredSessions(true);
     const byDate = expandSessionsByDate(allFiltered, ctx);
 
-    // Count unique sessions occurring in this week
     const weekSet = new Set();
+    let maxEndMin = 18 * 60;
     for (let i = 0; i < 7; i++) {
-      (byDate.get(addDaysISO(wb.start, i)) || []).forEach((x) => weekSet.add(x.session.id));
+      (byDate.get(addDaysISO(wb.start, i)) || []).forEach((x) => {
+        weekSet.add(x.session.id);
+        if (!x.eff.isAllDay) {
+          maxEndMin = Math.max(maxEndMin, timeToMinutes(x.session.endTime || "12:00"));
+        }
+      });
     }
     updateScheduleStatusBar(weekSet.size);
 
     const HOUR_START = 8;
-    const HOUR_END = 18;
+    const HOUR_END = maxEndMin > 18 * 60 ? Math.min(24, Math.ceil(maxEndMin / 60)) : 18;
     const HOUR_PX = 56;
 
     const shell = make("div", null, "cal-week-shell");
     const minWrap = make("div", null, "cal-week-min");
 
-    // 1. Day column headers
     const head = make("div", null, "cal-week-head");
     head.appendChild(make("div", `W${wb.week}`, "cal-gutter-label"));
     for (let i = 0; i < 7; i++) {
@@ -784,7 +1082,6 @@
     }
     minWrap.appendChild(head);
 
-    // 2. All-Day row
     const allDayRow = make("div", null, "cal-allday-row");
     allDayRow.appendChild(make("div", "ตลอดวัน", "cal-gutter-label"));
     for (let i = 0; i < 7; i++) {
@@ -792,10 +1089,10 @@
       const adCell = make("div", null, "cal-allday-cell");
       (byDate.get(iso) || [])
         .filter((x) => x.eff.isAllDay)
-        .forEach(({ session: s }) => {
+        .forEach(({ session: s, eff }) => {
           const chip = make("button", null, `cal-chip is-allday cat-${s.category}`);
           chip.type = "button";
-          const txt = s.code === "FIELD" && ctx.areaVal ? `ฝึกภาคสนาม (${ctx.areaVal})` : s.title;
+          const txt = s.code === "FIELD" && ctx.areaVal ? `ฝึกภาคสนาม (${ctx.areaVal})` : eff.title;
           chip.appendChild(make("span", txt, "chip-title"));
           chip.addEventListener("click", () => openEventModal(s));
           adCell.appendChild(chip);
@@ -804,7 +1101,6 @@
     }
     minWrap.appendChild(allDayRow);
 
-    // 3. Hourly Time-Grid (08:00 - 18:00)
     const body = make("div", null, "cal-timegrid-body");
     const gutter = make("div", null, "cal-time-gutter");
     for (let h = HOUR_START; h < HOUR_END; h++) {
@@ -815,6 +1111,7 @@
     for (let i = 0; i < 7; i++) {
       const iso = addDaysISO(wb.start, i);
       const col = make("div", null, `cal-day-col${i >= 5 ? " is-weekend" : ""}`);
+      col.style.height = `${(HOUR_END - HOUR_START) * HOUR_PX}px`;
       (byDate.get(iso) || [])
         .filter((x) => !x.eff.isAllDay)
         .forEach(({ session: s, eff }) => {
@@ -827,13 +1124,13 @@
           block.type = "button";
           block.style.top = `${topPx}px`;
           block.style.height = `${heightPx}px`;
-          block.title = `${s.timeLabel} · ${s.title} · ${eff.room}`;
+          block.title = `${s.timeLabel} · ${eff.title} · ${eff.room}`;
 
           const timeLine = `${s.startTime}–${s.endTime}${s.zoom ? " · 🎥 Zoom" : ""}`;
           block.appendChild(make("span", timeLine, "ev-time"));
-          block.appendChild(make("span", `${s.code}: ${s.title}`, "ev-title"));
+          block.appendChild(make("span", `${s.code}: ${eff.title}`, "ev-title"));
           if (heightPx >= 58) {
-            block.appendChild(make("span", eff.personalLabel || s.room, "ev-room"));
+            block.appendChild(make("span", eff.personalLabel || eff.room, "ev-room"));
           }
           block.addEventListener("click", () => openEventModal(s));
           col.appendChild(block);
@@ -865,21 +1162,23 @@
     let lastDate = "";
 
     sessions.forEach((s) => {
+      const eff = resolveEffectiveSessionDetails(s, ctx);
       if (s.week !== lastWeek) {
         lastWeek = s.week;
         lastDate = "";
         const wg = (SCHED.masterGrid || []).find((w) => w.week === s.week);
         listEl.appendChild(make("div", `สัปดาห์ที่ ${s.week}${wg ? " · " + wg.range : ""}`, "week-divider"));
       }
-      if (s.dateTH !== lastDate) {
-        lastDate = s.dateTH;
-        listEl.appendChild(make("h3", s.dateTH, "day-heading"));
+      const dateHeadingText = s.code === "FIELD" && ctx.siteObj ? `ช่วงฝึกภาคสนาม (${ctx.siteObj.datesTH})` : s.dateTH;
+      if (dateHeadingText !== lastDate) {
+        lastDate = dateHeadingText;
+        listEl.appendChild(make("h3", dateHeadingText, "day-heading"));
       }
 
       const card = make("article", null, "session-card");
       const main = make("div", null, "session-main");
 
-      const timeCol = make("div", s.timeLabel, "session-time");
+      const timeCol = make("div", s.code === "FIELD" && ctx.siteObj ? ctx.siteObj.badgeDates || s.timeLabel : s.timeLabel, "session-time");
       timeCol.appendChild(make("small", `${s.code} · ${s.checkIn || ""}`));
       main.appendChild(timeCol);
 
@@ -893,12 +1192,12 @@
         badges.appendChild(make("span", `Zoom ID: ${s.zoom.id}`, "badge cat-EP"));
       }
       bodyCol.appendChild(badges);
-      bodyCol.appendChild(make("h3", s.title));
+      bodyCol.appendChild(make("h3", eff.title));
       if (s.objectives) {
         bodyCol.appendChild(make("p", s.objectives, "session-objectives"));
       }
 
-      const assignments = getSessionAssignments(s);
+      const assignments = eff.assignments;
       const visibleAssignments = ctx.teacherVal
         ? assignments.filter((a) => String(a.lecturer).includes(ctx.teacherVal))
         : assignments;
@@ -927,7 +1226,6 @@
         }
       }
 
-      // Embedded Zoom Classroom Box
       if (s.zoom) {
         const zBox = make("div", null, "zoom-inline-box");
         const zMeta = make("div", null, "zoom-inline-meta");
@@ -946,15 +1244,14 @@
       }
 
       const meta = make("div", null, "session-meta");
-      meta.appendChild(make("span", `ผู้สอน: ${s.lecturers}`));
-      const roomSpan = make("span", `ห้อง/สถานที่: ${s.room}`, "room-pill");
+      meta.appendChild(make("span", `ผู้สอน: ${eff.lecturer}`));
+      const roomSpan = make("span", `ห้อง/สถานที่: ${eff.room}`, "room-pill");
       bodyCol.append(meta, roomSpan);
 
       if (ROLE === "faculty" && s.facultyNote) {
         bodyCol.appendChild(make("div", `[บันทึกสำหรับอาจารย์/ผู้ประสานงาน] ${s.facultyNote}`, "faculty-flag-box"));
       }
 
-      // Action buttons (Concise textbook, Full textbook, Workbook, Single-event Google Calendar & .ics)
       const actions = make("div", null, "session-actions");
       if (s.conciseLink) {
         const bConcise = make("button", `อ่านฉบับย่อ (${s.hsModule || s.docLink})`, "btn sm teal");
@@ -1148,13 +1445,14 @@
     top.append(badges, closeBtn);
     card.appendChild(top);
 
-    const h3 = make("h3", session.title);
+    const h3 = make("h3", eff.title);
     h3.id = "calModalTitle";
     card.appendChild(h3);
 
+    const dateLine = session.code === "FIELD" && ctx.siteObj ? ctx.siteObj.datesTH : `${session.dateTH} · ${session.timeLabel}`;
     const details = make("div", null, "cal-modal-detail-list");
     details.innerHTML = `
-      <div><strong>วัน-เวลา:</strong> ${escapeHtml(session.dateTH)} · ${escapeHtml(session.timeLabel)}${session.checkIn ? " (" + escapeHtml(session.checkIn) + ")" : ""}</div>
+      <div><strong>วัน-เวลา:</strong> ${escapeHtml(dateLine)}${session.checkIn ? " (" + escapeHtml(session.checkIn) + ")" : ""}</div>
       <div><strong>สถานที่ / ห้องเรียน:</strong> <span class="room-pill">${escapeHtml(eff.room)}</span></div>
       <div><strong>อาจารย์ผู้สอน / วิทยากร:</strong> ${escapeHtml(eff.lecturer)}</div>
     `;
@@ -1187,7 +1485,6 @@
       card.appendChild(make("div", `[บันทึกผู้ประสานงาน] ${session.facultyNote}`, "faculty-flag-box"));
     }
 
-    // Lesson & Roster shortcuts inside modal
     const studyRow = make("div", null, "session-actions");
     if (session.conciseLink) {
       const bc = make("button", `อ่านบทเรียนฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
@@ -1225,7 +1522,6 @@
     }
     if (studyRow.childElementCount > 0) card.appendChild(studyRow);
 
-    // Footer: Per-event Google Calendar & iCal (.ics) export
     const footer = make("div", null, "cal-modal-footer");
     const leftExport = make("div", null, "header-actions");
     const gcalBtn = make("a", "+ เพิ่มเข้า Google Calendar ทันที ↗", "btn sm cal-gcal-btn");
@@ -1308,6 +1604,9 @@
       if (!sessionMatchesTeacher(s, ctx.teacherVal, assignments)) return false;
       if (ctx.areaVal && s.allowedSites && ctx.siteObj) {
         if (!s.allowedSites.includes(ctx.siteObj.id)) return false;
+      } else if (!ctx.areaVal && !ctx.teacherVal && (s.code === "TRAVEL" || s.code === "RETURN")) {
+        // In unfiltered whole-class mode, keep w4-fieldwork and avoid duplicating all 9 travel batches unless filtering
+        return true;
       }
       return true;
     });
@@ -1315,7 +1614,7 @@
 
   function buildIcsCalendarString(sessions, calName) {
     const ctx = getActivePersonalContext();
-    const stamp = "20261118T060000Z";
+    const stamp = "20261118T070000Z";
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -1324,6 +1623,8 @@
       "METHOD:PUBLISH",
       `X-WR-CALNAME:${escapeIcsText(calName)}`,
       "X-WR-TIMEZONE:Asia/Bangkok",
+      "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
+      "X-PUBLISHED-TTL:PT12H",
       "BEGIN:VTIMEZONE",
       "TZID:Asia/Bangkok",
       "BEGIN:STANDARD",
@@ -1338,7 +1639,7 @@
     sessions.forEach((s) => {
       const eff = resolveEffectiveSessionDetails(s, ctx);
       const { description, location } = buildEventDescriptionAndLocation(s, eff);
-      const summary = `[RACM 303] ${s.title}`;
+      const summary = `[RACM 303] ${eff.title}`;
 
       lines.push("BEGIN:VEVENT");
       lines.push(`UID:${s.id}@racm303-2569.mahidol.ac.th`);
@@ -1369,11 +1670,12 @@
       }
 
       if (!eff.isAllDay && s.category !== "HOLIDAY") {
+        const alarmTrigger = s.code === "TRAVEL" ? "-PT60M" : "-PT15M";
         lines.push(
           "BEGIN:VALARM",
-          "TRIGGER:-PT15M",
+          `TRIGGER:${alarmTrigger}`,
           "ACTION:DISPLAY",
-          `DESCRIPTION:${escapeIcsText("เตรียมเข้าเรียน " + summary)}`,
+          `DESCRIPTION:${escapeIcsText("แจ้งเตือนกำหนดการ " + summary)}`,
           "END:VALARM"
         );
       }
@@ -1387,11 +1689,25 @@
 
   function getExportFilenameSuffix() {
     const ctx = getActivePersonalContext();
-    if (state.myStudent) return `_${state.myStudent.id}`;
+    if (state.myStudent) return `_${state.myStudent.id}_${state.myStudent.area.replace(/\s+/g, "")}`;
     if (ctx.teacherVal) return `_${ctx.teacherVal.replace(/\s+/g, "_")}`;
-    if (ctx.areaVal) return `_${ctx.areaVal}`;
+    if (ctx.siteObj) return `_กลุ่ม${ctx.siteObj.shortName.replace(/\s+/g, "")}`;
     if (ctx.discVal) return `_Disc${ctx.discVal}`;
     return "";
+  }
+
+  function getActiveCalendarDisplayName() {
+    const ctx = getActivePersonalContext();
+    if (state.myStudent) {
+      return `RACM 303 (2569) · ${state.myStudent.fullName} (${state.myStudent.area})`;
+    }
+    if (ctx.teacherVal) {
+      return `RACM 303 (2569) · อาจารย์ ${ctx.teacherVal}`;
+    }
+    if (ctx.siteObj) {
+      return `RACM 303 (2569) · กลุ่ม ${ctx.siteObj.hospital}`;
+    }
+    return "RACM 303 (ปีการศึกษา 2569)";
   }
 
   function triggerBlobDownload(content, mimeType, filename) {
@@ -1407,13 +1723,7 @@
 
   function downloadScheduleIcs() {
     const sessions = getSessionsForExport();
-    const ctx = getActivePersonalContext();
-    const calName = state.myStudent
-      ? `RACM 303 (2569) · ${state.myStudent.fullName}`
-      : ctx.teacherVal
-      ? `RACM 303 (2569) · อาจารย์ ${ctx.teacherVal}`
-      : "RACM 303 (ปีการศึกษา 2569)";
-    const ics = buildIcsCalendarString(sessions, calName);
+    const ics = buildIcsCalendarString(sessions, getActiveCalendarDisplayName());
     triggerBlobDownload(ics, "text/calendar;charset=utf-8", `RACM303_2569_Calendar${getExportFilenameSuffix()}.ics`);
   }
 
@@ -1446,7 +1756,7 @@
     sessions.forEach((s) => {
       const eff = resolveEffectiveSessionDetails(s, ctx);
       const { description, location } = buildEventDescriptionAndLocation(s, eff);
-      const subject = `[RACM 303] ${s.title}`;
+      const subject = `[RACM 303] ${eff.title}`;
       const startDate = isoToUsDate(eff.startISO);
       const endDate = isoToUsDate(eff.endISO || eff.startISO);
       const startTime = eff.isAllDay ? "" : to12HourAmPm(s.startTime || "09:00");
@@ -1468,7 +1778,6 @@
       );
     });
 
-    // UTF-8 BOM ensures Thai characters import cleanly into Google Calendar & Excel
     const csvContent = "\uFEFF" + rows.join("\r\n") + "\r\n";
     triggerBlobDownload(
       csvContent,
@@ -1497,7 +1806,7 @@
 
     const params = new URLSearchParams({
       action: "TEMPLATE",
-      text: `[RACM 303] ${session.title}`,
+      text: `[RACM 303] ${eff.title}`,
       dates: datesParam,
       ctz: "Asia/Bangkok",
       location: location,
