@@ -21,6 +21,7 @@
         </div>
         <div class="head-links">
           <a class="ghost-link" id="facOpenStudentSiteLink" href="https://smartwoo.github.io/racm303-2569/" target="_blank" rel="noopener">เปิดเว็บฝั่งนักศึกษา ↗</a>
+          <a class="ghost-link" id="facRamedTopLink" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">หลังบ้าน E-learning ↗</a>
           <a class="ghost-link" id="facAppsScriptLink" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec" target="_blank" rel="noopener">Apps Script ต้นฉบับ</a>
           <a class="ghost-link" id="facDriveFolderLink" href="https://drive.google.com/drive/folders/1cO9EivLFWYYbhAWzXRtqzlViYqEnvtKr" target="_blank" rel="noopener">โฟลเดอร์ Drive 2569</a>
         </div>
@@ -37,13 +38,15 @@
       </div>
 
       <nav class="nav-tabs" role="tablist" aria-label="หมวดเนื้อหาสำหรับคณาจารย์">
-        <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ปฏิทินสอน &amp; ภาระงานอาจารย์</button>
-        <button class="nav-tab" id="fTabStudents" role="tab" data-tab="students" aria-selected="false" type="button">ใบรูปถ่ายนักศึกษา <span class="tab-count">169</span></button>
+        <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ปฏิทินสอน &amp; ภาระงาน</button>
+        <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" aria-selected="false" type="button">รายชื่อกลุ่ม Discussion <span class="tab-count">6 กลุ่ม</span></button>
+        <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" aria-selected="false" type="button">9 พื้นที่ภาคสนาม <span class="tab-count">9 พื้นที่</span></button>
+        <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" aria-selected="false" type="button">ระบบรับงาน &amp; E-learning</button>
         <button class="nav-tab" id="fTabAudit" role="tab" data-tab="audit" aria-selected="false" type="button">ตรวจตาราง &amp; ซิงค์ชีต <span class="tab-count">6 จุด</span></button>
-        <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" aria-selected="false" type="button">คู่มือผู้สอน &amp; ลิงก์ต้นฉบับ</button>
+        <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" aria-selected="false" type="button">คู่มือผู้สอน &amp; ต้นฉบับ</button>
         <button class="nav-tab" id="fTabManual" role="tab" data-tab="manual" aria-selected="false" type="button">คู่มือรายวิชา 2569</button>
         <button class="nav-tab" id="fTabTextbooks" role="tab" data-tab="textbooks" aria-selected="false" type="button">เอกสารคำสอน HS1–HS6 <span class="tab-count">11 เล่ม</span></button>
-        <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" aria-selected="false" type="button">คลังคำศัพท์ &amp; โจทย์ 82 ข้อ</button>
+        <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" aria-selected="false" type="button">คำศัพท์ &amp; โจทย์ 82 ข้อ</button>
       </nav>
     </div>
   </header>
@@ -253,79 +256,211 @@
       </div>
     </section>
 
-    <!-- TAB 2: STUDENT PHOTO ROSTER & A4 ONE-PAGE PRINT -->
-    <section class="tab-panel" id="panel-students" aria-labelledby="fTabStudents" hidden>
+    <!-- TAB 2: SEPARATED DISCUSSION GROUP PHOTO ROSTER (HS1–HS6 · 6 GROUPS) -->
+    <section class="tab-panel" id="panel-discussion" aria-labelledby="fTabDiscussion" hidden>
       <div class="section-header">
         <div>
-          <h2>ใบรายชื่อและรูปถ่ายนักศึกษาแพทย์ชั้นปีที่ 3 (169 คน)</h2>
-          <p>เลือกกลุ่ม Discussion 1–6 หรือกลุ่มพื้นที่ภาคสนาม 9 แห่ง แล้วกด “พิมพ์ใบรายชื่อ 1 หน้า A4” เพื่อจัดขนาดตารางลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
+          <h2>ใบรายชื่อและรูปถ่ายกลุ่มอภิปราย Discussion (HS1–HS6 · 6 กลุ่มย่อย)</h2>
+          <p>แยกเฉพาะกลุ่มอภิปรายระบบสุขภาพ 6 กลุ่มย่อย (กลุ่มละ 28–29 คน · รวม 169 คน) พร้อมตารางหมุนเวียนอาจารย์ HS1–HS6 และพิมพ์ใบรายชื่อรูปถ่ายลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
         </div>
         <div class="header-actions">
-          <button class="btn" id="toggleSitesOverviewBtn" type="button">ดูรายละเอียดและเจ้าหน้าที่ 9 พื้นที่</button>
-          <a class="btn teal" id="openAppsScriptRosterBtn" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec?page=students" target="_blank" rel="noopener">เปิดใน Apps Script ต้นฉบับ</a>
+          <a class="btn teal" id="openAppsScriptDiscBtn" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec?page=students&amp;type=discussion" target="_blank" rel="noopener">เปิดใน Apps Script ต้นฉบับ ↗</a>
+          <button class="btn primary" id="discPrintTopBtn" type="button">พิมพ์ใบรายชื่อ Discussion 1 หน้า A4</button>
         </div>
       </div>
 
-      <div class="context-banner" id="classContextBanner" hidden></div>
-      <div class="sites-grid" id="sitesOverviewGrid" hidden></div>
+      <div class="context-banner" id="discContextBanner" hidden></div>
+      <div class="disc-overview-grid" id="discOverviewGrid"></div>
+      <div class="disc-rotation-banner" id="discRotationDetailBox" hidden></div>
 
       <div class="filter-panel">
         <div class="filter-field">
-          <label for="studentSearchInput">ค้นหานักศึกษา</label>
-          <input id="studentSearchInput" type="search" placeholder="รหัสนักศึกษา ชื่อ-นามสกุล หรืออาจารย์ที่ปรึกษา…">
-        </div>
-        <div class="filter-field">
-          <label for="studentAreaFilter">กลุ่มพื้นที่ · อาจารย์ที่ปรึกษา</label>
-          <select id="studentAreaFilter">
-            <option value="">ทุกกลุ่มพื้นที่ภาคสนาม (9 กลุ่ม)</option>
+          <label for="discGroupSelect">เลือกกลุ่มอภิปราย Discussion (HS1–HS6)</label>
+          <select id="discGroupSelect">
+            <option value="">ทุกกลุ่ม Discussion 1–6 (แสดงทั้งหมด 169 คน)</option>
           </select>
         </div>
         <div class="filter-field">
-          <label for="studentDiscFilter">กลุ่มอภิปราย Discussion (HS1–HS6)</label>
-          <select id="studentDiscFilter">
-            <option value="">ทุกกลุ่ม Discussion (1–6)</option>
-          </select>
+          <label for="discSearchInput">ค้นหานักศึกษาในกลุ่ม Discussion</label>
+          <input id="discSearchInput" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลัก ชื่อ-นามสกุล หรือชื่อเล่น…">
         </div>
       </div>
 
       <div class="toolbar-row">
-        <span class="status-text" id="studentStatusText" role="status">กำลังโหลดรายชื่อ…</span>
-        <button class="btn sm" id="togglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
-        <button class="btn sm" id="clearStudentFiltersBtn" type="button">ล้างตัวกรอง</button>
-        <button class="btn sm primary" id="printStudentsBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
+        <span class="status-text" id="discStatusText" role="status">กำลังโหลดรายชื่อสมาชิกกลุ่ม Discussion…</span>
+        <button class="btn sm" id="discTogglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
+        <button class="btn sm" id="discClearFiltersBtn" type="button">ล้างตัวกรอง</button>
+        <button class="btn sm primary" id="discPrintBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
       </div>
 
-      <div class="print-heading" id="printHeading"></div>
-      <div class="student-cards" id="studentCardsContainer"></div>
+      <div class="print-heading" id="discPrintHeading"></div>
+      <div class="student-cards" id="discCardsContainer"></div>
+    </section>
 
-      <div class="srn-box" id="srnGeneratorBox" style="margin-top:24px">
-        <h3>ตัวอย่างรูปแบบชื่อไฟล์งานนักศึกษา (SRN 1 &amp; SRN 2)</h3>
-        <div class="srn-grid">
-          <div class="filter-field">
-            <label for="srnRoundSelect">ครั้งที่ส่ง</label>
-            <select id="srnRoundSelect">
-              <option value="SRN1">SRN 1 (9 ธ.ค. 69)</option>
-              <option value="SRN2">SRN 2 (30 ธ.ค. 69)</option>
-            </select>
+    <!-- TAB 3: SEPARATED 9 FIELDWORK SITES PHOTO ROSTER & STAFF COORDINATORS -->
+    <section class="tab-panel" id="panel-fieldwork" aria-labelledby="fTabFieldwork" hidden>
+      <div class="section-header">
+        <div>
+          <h2>ข้อมูลโรงพยาบาล เจ้าหน้าที่ประสานงาน และใบรายชื่อรูปถ่าย 9 พื้นที่ภาคสนาม</h2>
+          <p>เลือกกลุ่มพื้นที่ภาคสนาม 9 แห่ง เพื่อดูอาจารย์ที่ปรึกษา เจ้าหน้าที่ประสานงาน กำหนดการเดินทาง และพิมพ์ใบรูปถ่ายนักศึกษา 1 หน้า A4</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="toggleSitesOverviewBtn" type="button">ซ่อนการ์ดข้อมูล 9 พื้นที่</button>
+          <a class="btn teal" id="openAppsScriptFieldBtn" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec?page=students" target="_blank" rel="noopener">เปิดใน Apps Script ต้นฉบับ ↗</a>
+          <button class="btn primary" id="fieldPrintTopBtn" type="button">พิมพ์ใบรายชื่อพื้นที่ 1 หน้า A4</button>
+        </div>
+      </div>
+
+      <div class="context-banner" id="fieldContextBanner" hidden></div>
+      <div class="sites-grid" id="sitesOverviewGrid"></div>
+
+      <div class="filter-panel">
+        <div class="filter-field">
+          <label for="fieldAreaSelect">เลือกกลุ่มพื้นที่ภาคสนาม · อาจารย์ที่ปรึกษา</label>
+          <select id="fieldAreaSelect">
+            <option value="">ทุกกลุ่มพื้นที่ภาคสนาม 9 แห่ง (169 คน)</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="fieldSearchInput">ค้นหานักศึกษา / อาจารย์ที่ปรึกษา</label>
+          <input id="fieldSearchInput" type="search" placeholder="พิมพ์รหัสนักศึกษา ชื่อ-นามสกุล พื้นที่ หรืออาจารย์ที่ปรึกษา…">
+        </div>
+      </div>
+
+      <div class="toolbar-row">
+        <span class="status-text" id="fieldStatusText" role="status">กำลังโหลดรายชื่อกลุ่มพื้นที่ภาคสนาม…</span>
+        <button class="btn sm" id="fieldTogglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
+        <button class="btn sm" id="fieldClearFiltersBtn" type="button">ล้างตัวกรอง</button>
+        <button class="btn sm primary" id="fieldPrintBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
+      </div>
+
+      <div class="print-heading" id="fieldPrintHeading"></div>
+      <div class="student-cards" id="fieldCardsContainer"></div>
+    </section>
+
+    <!-- TAB 4: SEPARATED SUBMISSIONS & RAMED E-LEARNING GRADING BACKEND -->
+    <section class="tab-panel" id="panel-submissions" aria-labelledby="fTabSubmissions" hidden>
+      <div class="section-header">
+        <div>
+          <h2>ระบบรับงานนักศึกษา · ตรวจประเมิน SRN &amp; เชื่อมต่อหลังบ้าน RAMED E-learning</h2>
+          <p>เข้าสู่ระบบหลังบ้าน E-learning เพื่อตรวจให้ Feedback งาน SRN 1 (ระหว่างภาคสนาม) และ SRN 2 พร้อมลิงก์ Google Form งานกลุ่มและเกณฑ์ประเมินฟอร์ม 1A–4A</p>
+        </div>
+        <div class="header-actions">
+          <a class="btn primary" id="subHeaderRamedLoginBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">เข้าหลังบ้าน RAMED E-learning ↗</a>
+          <a class="btn teal" id="subHeaderGoogleFormBtn" href="https://forms.gle/1Gsg2SmSfuuEwmcE9" target="_blank" rel="noopener">Google Form สไลด์ &amp; Health Survey ↗</a>
+        </div>
+      </div>
+
+      <!-- RAMED E-learning Backend Connection Bridge (Faculty) -->
+      <div class="elearning-bridge-card" id="ramedBackendBridge">
+        <div class="elearning-bridge-top">
+          <div>
+            <h3 class="elearning-bridge-title">เชื่อมต่อระบบหลังบ้านคณาจารย์ RAMED E-learning (ตรวจงาน SRN 1 &amp; SRN 2)</h3>
+            <p class="elearning-bridge-url">ปลายทางระบบจัดการรายวิชา: https://elearning.ra.mahidol.ac.th/ramed/login/index.php</p>
           </div>
-          <div class="filter-field">
-            <label for="srnAreaSelect">กลุ่มพื้นที่</label>
-            <select id="srnAreaSelect"></select>
+          <span class="elearning-status-pill is-checking" id="ramedBackendStatusBadge">● กำลังตรวจสอบการเชื่อมต่อ elearning.ra.mahidol.ac.th…</span>
+        </div>
+
+        <div class="elearning-cta-row">
+          <a class="btn primary" id="openRamedLoginPrimaryBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">เข้าสู่ระบบอาจารย์ใน RAMED E-learning (login/index.php) ↗</a>
+          <button class="btn teal" id="openRamedPopupWorkspaceBtn" type="button">เปิดหน้าต่างหลังบ้าน E-learning คู่ขนาน (ตรวจงานควบคู่ใบรายชื่อ)</button>
+          <a class="btn" id="openPinnedRamedCourseBtn" href="#" target="_blank" rel="noopener" hidden>เปิดห้องรายวิชา RACM 303 ที่ปักหมุดไว้ ↗</a>
+          <a class="btn" id="openGoogleFormBridgeBtn" href="https://forms.gle/1Gsg2SmSfuuEwmcE9" target="_blank" rel="noopener">เปิด Google Form งานภาคสนาม 2569 ↗</a>
+        </div>
+
+        <div class="elearning-deep-links" aria-label="ทางลัดระบบหลังบ้านอาจารย์ใน RAMED E-learning">
+          <a class="elearning-endpoint-link" id="ramedLinkLogin" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">
+            <strong>1. หน้าเข้าสู่ระบบอาจารย์ (Login)</strong>
+            <small>/ramed/login/index.php · Mahidol Account / RAMED</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkSearchCourse" href="https://elearning.ra.mahidol.ac.th/ramed/course/search.php?search=RACM+303" target="_blank" rel="noopener">
+            <strong>2. ค้นหาห้องจัดการรายวิชา RACM 303</strong>
+            <small>เข้าสู่ระบบผ่าน login/index.php แล้วเปิดหน้าค้นหา RACM 303</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkDashboard" href="https://elearning.ra.mahidol.ac.th/ramed/my/" target="_blank" rel="noopener">
+            <strong>3. แดชบอร์ดรายวิชาที่สอน</strong>
+            <small>/ramed/my/ · ตรวจจำนวนผู้ส่งงาน SRN 1 / SRN 2 รายกลุ่ม</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkUpcoming" href="https://elearning.ra.mahidol.ac.th/ramed/calendar/view.php?view=upcoming" target="_blank" rel="noopener">
+            <strong>4. ปฏิทินกำหนดส่งงานใน Moodle</strong>
+            <small>/ramed/calendar/ · ตรวจสอบกำหนดปิดรับงานในระบบ</small>
+          </a>
+        </div>
+
+        <details class="elearning-pin-details" id="ramedPinDetails">
+          <summary>ปักหมุดลิงก์ตรงของห้องตรวจงาน RACM 303 ใน E-learning (คลิกเดียวเข้าหน้าตรวจงานหลังล็อกอิน)</summary>
+          <div class="elearning-pin-body">
+            <p style="margin:0;font-size:13px;color:var(--muted)">วางลิงก์หน้ารายวิชาหรือหน้าตรวจงาน Assignment ใน Moodle (เช่น <code>https://elearning.ra.mahidol.ac.th/ramed/mod/assign/view.php?id=...&amp;action=grading</code>) เพื่อเปิดตรงในครั้งถัดไป</p>
+            <div class="elearning-pin-row">
+              <input id="ramedCustomCourseUrlInput" type="url" placeholder="วางลิงก์ https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=... หรือ mod/assign/view.php?id=...">
+              <button class="btn sm teal" id="saveRamedCustomUrlBtn" type="button">บันทึกลิงก์ห้องตรวจงาน</button>
+              <button class="btn sm" id="clearRamedCustomUrlBtn" type="button" hidden>ล้างลิงก์ที่ปักหมุด</button>
+            </div>
+            <div id="ramedPinFeedback" style="font-size:12.6px;color:var(--teal-deep)"></div>
           </div>
-          <div class="filter-field">
-            <label for="srnStudentId">รหัสนักศึกษา</label>
-            <input id="srnStudentId" type="text" placeholder="6702006">
-          </div>
-          <div class="filter-field">
-            <label for="srnStudentName">ชื่อ-นามสกุล</label>
-            <input id="srnStudentName" type="text" placeholder="น.ส.จิดาภา ขันทอง">
+        </details>
+      </div>
+
+      <!-- Course Deliverables & Grading Rubrics Summary -->
+      <div class="section-header" style="margin-top:6px;margin-bottom:12px">
+        <div>
+          <h3 style="margin:0;font-family:var(--font-display);font-size:19px;color:var(--brand-deep)">กำหนดการรับงานและการประเมินผลทั้ง 4 ชิ้นงาน (SRN 1 · SRN 2 · สไลด์ภาคสนาม · Health Survey)</h3>
+          <p style="margin:3px 0 0;font-size:13.8px;color:var(--muted)">สรุปช่องทางรับงาน กำหนดเวลา และทางลัดเปิดดูเกณฑ์การประเมินฟอร์ม 1A–4A ในคู่มือรายวิชา</p>
+        </div>
+      </div>
+      <div class="deliverables-grid" id="deliverablesCardsGrid" style="margin-bottom:22px"></div>
+
+      <!-- SRN Filename Reference & PDF Checker for Advisors -->
+      <div class="srn-studio-card" id="srnGeneratorBox">
+        <h3>เครื่องมือตรวจสอบรูปแบบชื่อไฟล์และจำนวนหน้า PDF ของนักศึกษา (SRN 1 &amp; SRN 2)</h3>
+        <p style="margin:0;font-size:13.8px;color:var(--muted)">ใช้ตรวจสอบตัวอย่างรูปแบบชื่อไฟล์มาตรฐาน หรือทดลองตรวจจำนวนหน้าไฟล์ PDF (ไม่เกิน 5 หน้า A4)</p>
+        <div class="srn-two-col">
+          <div>
+            <div class="srn-form-grid">
+              <div class="filter-field span-2">
+                <label for="subStudentQuickInput">ค้นหานักศึกษาเพื่อดูชื่อไฟล์มาตรฐาน</label>
+                <input id="subStudentQuickInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัส 7 หลัก หรือชื่อนักศึกษา…">
+              </div>
+              <div class="filter-field">
+                <label for="srnRoundSelect">ครั้งที่ส่ง</label>
+                <select id="srnRoundSelect">
+                  <option value="SRN1">SRN 1 (9 ธ.ค. 69)</option>
+                  <option value="SRN2">SRN 2 (30 ธ.ค. 69)</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="srnAreaSelect">กลุ่มพื้นที่</label>
+                <select id="srnAreaSelect"></select>
+              </div>
+              <div class="filter-field">
+                <label for="srnStudentId">รหัสนักศึกษา</label>
+                <input id="srnStudentId" type="text" placeholder="6702006">
+              </div>
+              <div class="filter-field">
+                <label for="srnStudentName">ชื่อ-นามสกุล</label>
+                <input id="srnStudentName" type="text" placeholder="น.ส.จิดาภา ขันทอง">
+              </div>
+            </div>
+            <div class="srn-output">
+              <span id="srnFilenamePreview">SRN1_กุฉินารายณ์_6702xxx_ชื่อ-นามสกุล.pdf</span>
+              <div class="header-actions">
+                <button class="btn sm" id="copySrnFilenameBtn" type="button">คัดลอกชื่อไฟล์</button>
+                <button class="btn sm primary" id="copyAndLaunchRamedBtn" type="button">เปิดหลังบ้าน E-learning ↗</button>
+              </div>
+            </div>
           </div>
           <div>
-            <button class="btn sm" id="copySrnFilenameBtn" type="button" style="height:41px">คัดลอก</button>
+            <div class="pdf-dropzone" id="srnPdfDropzone">
+              <p class="pdf-dropzone-title">ตรวจจำนวนหน้าไฟล์ PDF (เกณฑ์ ≤ 5 หน้า A4)</p>
+              <p class="pdf-dropzone-sub">ลากไฟล์ .pdf มาวางเพื่อตรวจจำนวนหน้าและขนาดไฟล์ในเบราว์เซอร์</p>
+              <input id="srnPdfFileInput" type="file" accept=".pdf,application/pdf" hidden>
+              <div class="header-actions" style="justify-content:center">
+                <button class="btn sm" id="pickSrnPdfBtn" type="button">เลือกไฟล์ PDF…</button>
+                <button class="btn sm teal" id="downloadRenamedPdfBtn" type="button" hidden>ดาวน์โหลดไฟล์ที่เปลี่ยนชื่อมาตรฐาน</button>
+              </div>
+              <div class="pdf-check-result" id="srnPdfCheckResult" hidden></div>
+            </div>
           </div>
-        </div>
-        <div class="srn-output">
-          <span id="srnFilenamePreview">SRN1_กุฉินารายณ์_6702xxx_ชื่อ-นามสกุล.pdf</span>
         </div>
       </div>
     </section>
