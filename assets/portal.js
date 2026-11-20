@@ -101,9 +101,19 @@
     ramedLoginId: localStorage.getItem("racm303_login_uid") || "",
     fieldOverviewStyle: "map", // map | cards
     mapHoverSite: "",
+    showDiscOverview: true,
+    discOverviewStyle: "studio", // studio | cards
+    discHoverGroup: "",
+    discInspectorStyle: "formation",
+    lang: localStorage.getItem("racm303_lang") === "en" ? "en" : "th",
+    theme: localStorage.getItem("racm303_theme") === "dark" ? "dark" : "light",
     masteredCards: new Set(JSON.parse(localStorage.getItem("racm303_mastered_fc") || "[]")),
     fcShuffleSeed: null
   };
+
+  function tr(thText, enText) {
+    return state.lang === "en" && enText ? enText : thText;
+  }
 
   function escapeHtml(str) {
     return String(str == null ? "" : str)
@@ -507,6 +517,7 @@
   function cleanNicknameValue(raw) {
     const v = String(raw == null ? "" : raw).trim();
     if (!v || v === "~" || v === "-" || v === "—") return "";
+    if (v === "ชาย" || v === "หญิง" || v === "นาย" || v === "นางสาว" || v === "น.ส.") return "";
     return v;
   }
 
@@ -514,8 +525,8 @@
     if (!s) return "";
     return (
       cleanNicknameValue(nicknameOverridesCache[s.id]) ||
-      cleanNicknameValue(sheetNicknamesCache[s.id]) ||
-      cleanNicknameValue(s.nickname)
+      cleanNicknameValue(s.nickname) ||
+      cleanNicknameValue(sheetNicknamesCache[s.id])
     );
   }
 
@@ -2690,6 +2701,32 @@
     });
   }
 
+  function zoomStudentPhoto(s) {
+    if (!s || (!s.id && !s.photoId)) return;
+    const siteId = getSiteIdByAreaName(s.area);
+    const parts = getStudentNameParts(s);
+    const caption = `${parts.lead}${parts.paren ? " " + parts.paren : ""} · รหัส ${s.id} · Discussion กลุ่มที่ ${s.disc} · พื้นที่ ${siteId}. ${s.area}`;
+    const localSrc = s.id
+      ? `assets/photos/${encodeURIComponent(s.id)}.jpg`
+      : `https://drive.google.com/thumbnail?id=${encodeURIComponent(s.photoId)}&sz=w1000`;
+    openLightbox(localSrc, caption);
+    // Seamlessly upgrade to higher-resolution portrait if Google Drive photoId is available
+    if (s.photoId) {
+      const hdUrl = `https://drive.google.com/thumbnail?id=${encodeURIComponent(s.photoId)}&sz=w1200`;
+      const pre = new Image();
+      pre.referrerPolicy = "no-referrer";
+      pre.onload = () => {
+        const lb = $("imageLightbox");
+        const lbImg = $("lightboxImg");
+        if (lb && !lb.hidden && lbImg && pre.naturalWidth >= 180) {
+          lbImg.referrerPolicy = "no-referrer";
+          lbImg.src = hdUrl;
+        }
+      };
+      pre.src = hdUrl;
+    }
+  }
+
   function renderStudentCardElement(s, mode) {
     const siteId = getSiteIdByAreaName(s.area);
     const parts = getStudentNameParts(s);
@@ -2702,6 +2739,7 @@
     card.setAttribute("aria-label", `${parts.lead} ${parts.paren} รหัส ${s.id} คลิกเพื่อดูรายละเอียดและตารางเรียน`);
 
     const initials = studentInitials(s);
+    const portraitWrap = make("div", null, "student-portrait-wrap");
     const portrait = make("div", null, `student-portrait${state.showPhotos ? "" : " compact-avatar"}`);
     portrait.dataset.studentId = s.id || "";
     portrait.dataset.photoId = s.photoId || "";
@@ -2712,8 +2750,22 @@
       if (photoObserver) photoObserver.observe(portrait);
       else mountStudentPhoto(portrait);
     }
+    portraitWrap.appendChild(portrait);
 
-    card.appendChild(portrait);
+    if (state.showPhotos && (s.id || s.photoId)) {
+      const zoomCornerBtn = make("button", null, "portrait-zoom-corner-btn");
+      zoomCornerBtn.type = "button";
+      zoomCornerBtn.title = tr("ขยายรูปถ่าย (Zoom In)", "Zoom in photo");
+      zoomCornerBtn.setAttribute("aria-label", tr(`ขยายรูปถ่าย ${parts.lead}`, `Zoom photo of ${parts.lead}`));
+      zoomCornerBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`;
+      zoomCornerBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        zoomStudentPhoto(s);
+      });
+      portraitWrap.appendChild(zoomCornerBtn);
+    }
+
+    card.appendChild(portraitWrap);
     card.appendChild(make("h3", parts.lead, "stu-card-lead"));
     if (parts.paren) {
       card.appendChild(make("p", parts.paren, "stu-card-paren"));
@@ -2732,7 +2784,7 @@
       card.appendChild(make("p", `Discussion: กลุ่มที่ ${s.disc}`, "disc-line"));
     }
 
-    const hint = make("span", "ดูข้อมูล & ตาราง ↗", "student-quick-hint");
+    const hint = make("span", tr("ดูข้อมูล & ตาราง ↗", "Profile & Schedule ↗"), "student-quick-hint");
     card.appendChild(hint);
 
     card.addEventListener("click", () => openStudentQuickModal(s));
@@ -2765,7 +2817,10 @@
         if (ev.target === backdrop) backdrop.hidden = true;
       });
       document.addEventListener("keydown", (ev) => {
-        if (ev.key === "Escape" && !backdrop.hidden) backdrop.hidden = true;
+        if (ev.key === "Escape" && !backdrop.hidden) {
+          if ($("imageLightbox") && !$("imageLightbox").hidden) return;
+          backdrop.hidden = true;
+        }
       });
     }
 
@@ -2781,13 +2836,22 @@
 
     const top = make("div", null, "cal-modal-top");
     const profileHead = make("div", null, "stu-quick-head");
-    const portrait = make("div", null, "student-portrait stu-quick-portrait");
+    const portraitCol = make("div", null, "stu-quick-portrait-col");
+    const portrait = make("div", null, "student-portrait stu-quick-portrait is-zoomable");
     portrait.dataset.studentId = s.id || "";
     portrait.dataset.photoId = s.photoId || "";
     portrait.dataset.initials = studentInitials(s);
     portrait.dataset.studentName = s.fullName;
+    portrait.title = tr("คลิกเพื่อขยายรูปถ่าย (Zoom In)", "Click to zoom in photo");
     portrait.innerHTML = `<span class="avatar-monogram">${escapeHtml(studentInitials(s))}</span>`;
     mountStudentPhoto(portrait);
+    portrait.addEventListener("click", () => zoomStudentPhoto(s));
+
+    const zoomPhotoBtn = make("button", null, "btn sm stu-zoom-photo-btn");
+    zoomPhotoBtn.type = "button";
+    zoomPhotoBtn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg><span>${escapeHtml(tr("ขยายรูป", "Zoom In"))}</span>`;
+    zoomPhotoBtn.addEventListener("click", () => zoomStudentPhoto(s));
+    portraitCol.append(portrait, zoomPhotoBtn);
 
     const headInfo = make("div", null, "stu-quick-title-col");
     const badgesRow = make("div", null, "stu-quick-badges");
@@ -2796,8 +2860,8 @@
       `<span class="badge">${escapeHtml(s.program === "MD-M.Eng" ? "พ.บ.–วศ.ม. (MD-M.Eng)" : "หลักสูตร พ.บ. ชั้นปีที่ 3")}</span>` +
       (isMine ? `<span class="badge cat-HS">★ ตารางของฉัน</span>` : "");
     headInfo.appendChild(badgesRow);
-    const h3Title = make("h3", "");
-    h3Title.innerHTML = `${escapeHtml(parts.lead)}${parts.paren ? ` <span class="stu-modal-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
+    const h3Title = make("h3", "", "stu-modal-name-stack");
+    h3Title.innerHTML = `<span class="stu-modal-lead">${escapeHtml(parts.lead)}</span>${parts.paren ? `<span class="stu-modal-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
     headInfo.appendChild(h3Title);
     headInfo.appendChild(
       make("p", `Discussion กลุ่มที่ ${s.disc}${rot.room ? " (ห้อง " + rot.room + ")" : ""} · พื้นที่ภาคสนาม ${siteId}. ${s.area}`, "stu-quick-sub")
@@ -2827,7 +2891,7 @@
     nickBar.append(make("span", "✏️ ชื่อเล่น:", "stu-nick-inline-lbl"), nickInp, nickSaveBtn);
     headInfo.appendChild(nickBar);
 
-    profileHead.append(portrait, headInfo);
+    profileHead.append(portraitCol, headInfo);
 
     const closeBtn = make("button", "✕", "cal-modal-close");
     closeBtn.type = "button";
@@ -3325,7 +3389,7 @@
     }
 
     const label = make("span", null, "gsorter-chip-name");
-    label.innerHTML = `<strong class="chip-nick-lead">${escapeHtml(parts.lead)}</strong>${parts.paren ? ` <span class="chip-fullname-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
+    label.innerHTML = `<strong class="chip-nick-lead">${escapeHtml(parts.lead)}</strong>${parts.paren ? `<span class="chip-fullname-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
     const dot = make("i", null, `gsorter-site-dot chip-dot-site-${siteId}`);
     chip.append(av, label, dot);
     chip.addEventListener("click", (ev) => {
@@ -3904,6 +3968,18 @@
     return arr;
   }
 
+  const SHORT_SITE_COLLAR_LABELS = {
+    1: "1.กุฉิฯ",
+    2: "2.ด่านซ้าย",
+    3: "3.ตะกั่วป่า",
+    4: "4.ท่าวังผา",
+    5: "5.พช.1",
+    6: "6.พช.2",
+    7: "7.อุบลฯ",
+    8: "8.ท่าสองยาง",
+    9: "9.อุ้มผาง"
+  };
+
   function buildFormationPlayerNode(s, mode, rowIdx, colIdx) {
     const siteId = getSiteIdByAreaName(s.area);
     const siteColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff";
@@ -3935,14 +4011,14 @@
 
     const collar = make(
       "span",
-      mode === "discussion" ? `S${siteId}` : `G${s.disc}`,
+      mode === "discussion" ? (SHORT_SITE_COLLAR_LABELS[siteId] || `S${siteId}`) : `G${s.disc}`,
       "fm-collar-badge"
     );
     avWrap.append(ring, collar);
 
     const plate = make("div", null, "fm-nameplate");
     const leadTxt = isMine ? `★ ${parts.lead}` : parts.lead;
-    const subTxt = parts.paren || `${s.id}`;
+    const subTxt = parts.paren || `(${s.name || s.id})`;
     plate.innerHTML =
       `<span class="fm-plate-lead">${escapeHtml(leadTxt)}</span>` +
       `<span class="fm-plate-sub">${escapeHtml(subTxt)}</span>`;
@@ -4027,7 +4103,7 @@
 
     const hTitles = make("div", null, "fm-head-titles");
     hTitles.innerHTML =
-      `<div class="fm-head-eyebrow"><span>${escapeHtml(eyebrowText)} · ${sortedMembers.length} คน</span></div>` +
+      `<div class="fm-head-eyebrow"><span>${escapeHtml(eyebrowText)} · ${sortedMembers.length} ${tr("คน", "students")}</span></div>` +
       `<h3 class="fm-head-name">${escapeHtml(titleText)}</h3>` +
       (subText ? `<p class="fm-head-sub">${escapeHtml(subText)}</p>` : "");
     hLeft.append(crest, hTitles);
@@ -4036,19 +4112,19 @@
     if (mentorValue) {
       const plaque = make("div", null, "fm-mentor-plaque");
       plaque.innerHTML =
-        `<span class="fm-mentor-lbl">${escapeHtml(mentorLabel || "อาจารย์ที่ปรึกษา")}</span>` +
+        `<span class="fm-mentor-lbl">${escapeHtml(mentorLabel || tr("อาจารย์ที่ปรึกษา", "Advisor"))}</span>` +
         `<span class="fm-mentor-val">${escapeHtml(mentorValue)}</span>`;
       hRight.appendChild(plaque);
     }
 
     if (typeof onToggleStyle === "function") {
       const sw = make("div", null, "fm-mode-switch");
-      const bForm = make("button", "⚡ ผังทีม", "fm-mode-btn");
+      const bForm = make("button", tr("⚡ ผังทีม", "⚡ Formation"), "fm-mode-btn");
       bForm.type = "button";
       bForm.setAttribute("aria-pressed", viewStyle === "formation" ? "true" : "false");
       bForm.addEventListener("click", () => onToggleStyle("formation"));
 
-      const bChips = make("button", "☰ รายชื่อ", "fm-mode-btn");
+      const bChips = make("button", tr("☰ รายชื่อ", "☰ Roster"), "fm-mode-btn");
       bChips.type = "button";
       bChips.setAttribute("aria-pressed", viewStyle === "chips" ? "true" : "false");
       bChips.addEventListener("click", () => onToggleStyle("chips"));
@@ -4072,10 +4148,17 @@
 
     if (viewStyle === "chips") {
       const chipBody = make("div", null, "th-inspector-body");
-      chipBody.style.background = "#ffffff";
       chipBody.style.padding = "12px";
-      const mosaic = make("div", null, "gsorter-avatar-mosaic th-ins-mosaic");
-      sortedMembers.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      const mosaic = make(
+        "div",
+        null,
+        `gsorter-avatar-mosaic th-ins-mosaic${mode === "discussion" ? " is-site-grouped" : ""}`
+      );
+      if (mode === "discussion") {
+        renderSiteGroupedMiniChips(sortedMembers, mosaic);
+      } else {
+        sortedMembers.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      }
       chipBody.appendChild(mosaic);
       board.appendChild(chipBody);
     } else {
@@ -4579,10 +4662,23 @@
     if ($("discClearFiltersBtn")) {
       $("discClearFiltersBtn").addEventListener("click", () => {
         state.discContext = null;
+        state.discHoverGroup = "";
         if ($("discSearchInput")) $("discSearchInput").value = "";
         if (discSel) discSel.value = "";
         if (areaSubSel) areaSubSel.value = "";
         renderDiscussionView();
+      });
+    }
+
+    const toggleDiscBtn = $("toggleDiscOverviewBtn");
+    if (toggleDiscBtn) {
+      toggleDiscBtn.textContent = tr("ซ่อนผัง 6 กลุ่ม", "Hide 6-Group Studio");
+      toggleDiscBtn.addEventListener("click", () => {
+        state.showDiscOverview = !state.showDiscOverview;
+        if ($("discOverviewGrid")) $("discOverviewGrid").hidden = !state.showDiscOverview;
+        toggleDiscBtn.textContent = state.showDiscOverview
+          ? tr("ซ่อนผัง 6 กลุ่ม", "Hide 6-Group Studio")
+          : tr("แสดงผัง 6 กลุ่ม", "Show 6-Group Studio");
       });
     }
 
@@ -4637,23 +4733,129 @@
     syncPhotoToggleButtons();
   }
 
+  const DISC_GROUP_COLORS = {
+    1: "#007aff",
+    2: "#0d9488",
+    3: "#5856d6",
+    4: "#ea580c",
+    5: "#af52de",
+    6: "#e11d48"
+  };
+
+  function appendSvg3DAnimatedArc(svgNS, parentGroup, x1, y1, ctrlX, ctrlY, shX, shY, x2, y2, colorHex, dataAttrName, dataAttrVal, durSec) {
+    const arcD = `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`;
+    const shadowD = `M ${x1} ${y1} Q ${shX} ${shY} ${x2} ${y2}`;
+
+    const shadowPath = document.createElementNS(svgNS, "path");
+    shadowPath.setAttribute("d", shadowD);
+    shadowPath.setAttribute("class", "th-route-shadow");
+    if (dataAttrName) shadowPath.dataset[dataAttrName] = dataAttrVal;
+    parentGroup.appendChild(shadowPath);
+
+    const glowPath = document.createElementNS(svgNS, "path");
+    glowPath.setAttribute("d", arcD);
+    glowPath.setAttribute("class", "th-route-glow");
+    glowPath.style.setProperty("--pin-color", colorHex);
+    if (dataAttrName) glowPath.dataset[dataAttrName] = dataAttrVal;
+    parentGroup.appendChild(glowPath);
+
+    const route = document.createElementNS(svgNS, "path");
+    route.setAttribute("d", arcD);
+    route.setAttribute("class", "th-route-arc");
+    route.style.setProperty("--pin-color", colorHex);
+    if (dataAttrName) route.dataset[dataAttrName] = dataAttrVal;
+    parentGroup.appendChild(route);
+
+    const orbG = document.createElementNS(svgNS, "g");
+    orbG.setAttribute("class", "th-route-orb-wrap");
+    orbG.style.setProperty("--pin-color", colorHex);
+    if (dataAttrName) orbG.dataset[dataAttrName] = dataAttrVal;
+
+    const orbOuter = document.createElementNS(svgNS, "circle");
+    orbOuter.setAttribute("r", "4.2");
+    orbOuter.setAttribute("fill", colorHex);
+    orbOuter.setAttribute("opacity", "0.35");
+
+    const orbCore = document.createElementNS(svgNS, "circle");
+    orbCore.setAttribute("r", "2.3");
+    orbCore.setAttribute("fill", "#ffffff");
+    orbCore.setAttribute("stroke", colorHex);
+    orbCore.setAttribute("stroke-width", "1.4");
+
+    const anim = document.createElementNS(svgNS, "animateMotion");
+    anim.setAttribute("dur", `${durSec || 3.4}s`);
+    anim.setAttribute("repeatCount", "indefinite");
+    anim.setAttribute("path", arcD);
+    anim.setAttribute("keyPoints", "0;1");
+    anim.setAttribute("keyTimes", "0;1");
+    anim.setAttribute("calcMode", "linear");
+
+    orbG.append(orbOuter, orbCore, anim);
+    parentGroup.appendChild(orbG);
+  }
+
   function renderDiscussionOverviewCards(activeDiscVal) {
     const grid = $("discOverviewGrid");
     if (!grid) return;
+    grid.hidden = !state.showDiscOverview;
+    delete grid.dataset.rendered;
+    grid.className =
+      state.discOverviewStyle === "studio"
+        ? "th-fieldwork-overview-wrap is-disc-studio"
+        : "th-fieldwork-overview-wrap is-cards-mode";
+    grid.replaceChildren();
 
-    if (!grid.dataset.rendered) {
-      grid.dataset.rendered = "1";
-      (SCHED.hsGroups || []).forEach((g, idx) => {
+    const groups = SCHED.hsGroups || [];
+    if (!groups.length) return;
+
+    const modeHead = make("div", null, "th-map-topbar");
+    const modeInfo = make("div", null, "th-map-topbar-info");
+    modeInfo.innerHTML =
+      `<strong>${escapeHtml(tr("🏛 ผังห้องเรียนกลุ่ม Discussion 1–6 (อาคารพรีคลินิก ชั้น 1) & ผังสมาชิกตามพื้นที่ภาคสนาม", "🏛 Discussion Classrooms (Preclinical Fl. 1) & 6-Group Formation Studio"))}</strong>` +
+      `<span>${escapeHtml(tr("เลื่อนเมาส์ชี้ (Hover) บนห้องเรียน 1C1-02 ถึง 1C1-07 เพื่อดูอาจารย์หมุนเวียน HS1–HS6 และรูปสมาชิกแยกสีตามแหล่งฝึกภาคสนามทันที · คลิกเพื่อล็อกกรองรายชื่อด้านล่าง", "Hover over rooms 1C1-02 to 1C1-07 to inspect rotating HS1–HS6 instructors and members color-coded by fieldwork site · Click to filter below"))}</span>`;
+
+    const seg = make("div", null, "reader-mode-seg");
+    const studioBtn = make("button", tr("🏛 ผังห้องเรียน & ผังทีม (Hover)", "🏛 3D Floorplan & Formation"), "reader-mode-btn");
+    studioBtn.type = "button";
+    studioBtn.setAttribute("aria-pressed", state.discOverviewStyle === "studio" ? "true" : "false");
+    studioBtn.addEventListener("click", () => {
+      state.discOverviewStyle = "studio";
+      renderDiscussionOverviewCards(($("discGroupSelect") && $("discGroupSelect").value) || "");
+    });
+
+    const cardsBtn = make("button", tr("▦ การ์ด 6 กลุ่มแบบเต็ม", "▦ 6 Group Cards"), "reader-mode-btn");
+    cardsBtn.type = "button";
+    cardsBtn.setAttribute("aria-pressed", state.discOverviewStyle === "cards" ? "true" : "false");
+    cardsBtn.addEventListener("click", () => {
+      state.discOverviewStyle = "cards";
+      renderDiscussionOverviewCards(($("discGroupSelect") && $("discGroupSelect").value) || "");
+    });
+    seg.append(studioBtn, cardsBtn);
+    modeHead.append(modeInfo, seg);
+    grid.appendChild(modeHead);
+
+    const myDisc = state.myStudent ? String(state.myStudent.disc) : "";
+
+    if (state.discOverviewStyle === "cards") {
+      const classicGrid = make("div", null, "disc-overview-grid");
+      groups.forEach((g, idx) => {
         const rot = (SCHED.hsRotation || []).find((r) => r.group === g.id) || {};
         const groupMembers = ROSTER.students.filter((st) => st.disc === g.id);
         const siteMixHtml = buildDiscSiteBreakdownHtml(groupMembers, g.id);
-        const card = make("div", null, "disc-card");
+        const isSelected = String(g.id) === activeDiscVal;
+        const isMine = myDisc && String(g.id) === myDisc;
+        const card = make("div", null, `disc-card${isSelected ? " active-disc" : ""}`);
         card.dataset.discId = String(g.id);
         card.setAttribute("role", "button");
         card.tabIndex = 0;
 
         const roomNote = g.id === 6 ? "ห้องหลัก 1C1-07 (ยกเว้น HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03)" : g.defaultRoom;
         const sixHsBulletsHtml = buildHsSixBulletListHtml(rot);
+        const footTxt = isSelected
+          ? `✓ กำลังแสดงสมาชิกกลุ่มที่ ${g.id} (คลิกซ้ำเพื่อดูครบทั้ง 6 กลุ่ม)`
+          : isMine
+            ? `★ กลุ่ม Discussion ของฉัน · ชี้ป้ายสีดูเพื่อน หรือคลิกดูครบกลุ่ม`
+            : `คลิกเพื่อดูสมาชิกกลุ่มที่ ${g.id} · ชี้ที่ป้ายพื้นที่เพื่อดูรูปและชื่อเล่น →`;
 
         card.innerHTML = `
           <div class="disc-card-head">
@@ -4663,10 +4865,9 @@
           <p class="disc-meta"><strong>ห้องเรียน:</strong> ${escapeHtml(roomNote)}</p>
           ${sixHsBulletsHtml}
           <div class="disc-site-mix">${siteMixHtml}</div>
-          <div class="disc-card-foot" data-disc-foot="${g.id}">คลิกเพื่อดูสมาชิกกลุ่มที่ ${g.id} · ชี้ที่ป้ายพื้นที่เพื่อดูรูปและชื่อเล่น →</div>
+          <div class="disc-card-foot" data-disc-foot="${g.id}">${escapeHtml(footTxt)}</div>
         `;
 
-        // Clicking a site sub-pill inside a Discussion card filters straight to that group + site!
         card.querySelectorAll("[data-hover-area]").forEach((pillEl) => {
           pillEl.addEventListener("click", (ev) => {
             ev.stopPropagation();
@@ -4699,27 +4900,372 @@
             selectGroup();
           }
         });
-        grid.appendChild(card);
+        classicGrid.appendChild(card);
       });
+      grid.appendChild(classicGrid);
+      return;
     }
 
-    const myDisc = state.myStudent ? String(state.myStudent.disc) : "";
-    grid.querySelectorAll(".disc-card").forEach((c) => {
-      const id = c.dataset.discId;
-      const isSelected = id === activeDiscVal;
-      const isMine = myDisc && id === myDisc;
-      c.classList.toggle("active-disc", isSelected);
-      const foot = c.querySelector("[data-disc-foot]");
-      if (foot) {
-        if (isSelected) {
-          foot.textContent = `✓ กำลังแสดงสมาชิกกลุ่มที่ ${id} (คลิกซ้ำเพื่อดูครบทั้ง 6 กลุ่ม)`;
-        } else if (isMine) {
-          foot.textContent = `★ กลุ่ม Discussion ของฉัน · ชี้ป้ายสีดูเพื่อน หรือคลิกดูครบกลุ่ม`;
-        } else {
-          foot.textContent = `คลิกเพื่อดูสมาชิกกลุ่มที่ ${id} · ชี้ที่ป้ายพื้นที่เพื่อดูรูปและชื่อเล่น →`;
+    // Interactive 3D Preclinical Floor 1 Classroom Floorplan + Right-Hand Formation Studio
+    const split = make("div", null, "th-map-studio-grid");
+    const mapCard = make("div", null, "th-map-canvas-card disc-floorplan-card");
+    const inspector = make("div", null, "th-map-inspector-card");
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 440 590");
+    svg.setAttribute("class", "th-svg-map disc-floorplan-svg");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "ผังห้องเรียนกลุ่มอภิปราย 1C1-02 ถึง 1C1-07 ชั้น 1 อาคารพรีคลินิก");
+
+    // 3D Building Floor Slab + Extruded Bevel + Central Corridor Spine
+    const bldgShadow = document.createElementNS(svgNS, "rect");
+    bldgShadow.setAttribute("x", "22");
+    bldgShadow.setAttribute("y", "26");
+    bldgShadow.setAttribute("width", "400");
+    bldgShadow.setAttribute("height", "488");
+    bldgShadow.setAttribute("rx", "20");
+    bldgShadow.setAttribute("class", "disc-bldg-extrude");
+
+    const bldgBase = document.createElementNS(svgNS, "rect");
+    bldgBase.setAttribute("x", "18");
+    bldgBase.setAttribute("y", "20");
+    bldgBase.setAttribute("width", "400");
+    bldgBase.setAttribute("height", "488");
+    bldgBase.setAttribute("rx", "20");
+    bldgBase.setAttribute("class", "disc-bldg-slab");
+
+    const hallCorridor = document.createElementNS(svgNS, "rect");
+    hallCorridor.setAttribute("x", "196");
+    hallCorridor.setAttribute("y", "88");
+    hallCorridor.setAttribute("width", "44");
+    hallCorridor.setAttribute("height", "400");
+    hallCorridor.setAttribute("rx", "12");
+    hallCorridor.setAttribute("class", "disc-corridor-lane");
+
+    const bldgTitle = document.createElementNS(svgNS, "text");
+    bldgTitle.setAttribute("x", "218");
+    bldgTitle.setAttribute("y", "48");
+    bldgTitle.setAttribute("text-anchor", "middle");
+    bldgTitle.setAttribute("class", "disc-bldg-heading");
+    bldgTitle.textContent = tr("อาคารพรีคลินิก ชั้น 1 (CNMI)", "PRECLINICAL BLDG · FLOOR 1 (CNMI)");
+
+    const bldgSub = document.createElementNS(svgNS, "text");
+    bldgSub.setAttribute("x", "218");
+    bldgSub.setAttribute("y", "66");
+    bldgSub.setAttribute("text-anchor", "middle");
+    bldgSub.setAttribute("class", "disc-bldg-sub");
+    bldgSub.textContent = tr("ห้องเรียนกลุ่มย่อย 1C1-02 – 1C1-07", "Small-Group Rooms 1C1-02 – 1C1-07");
+
+    svg.append(bldgShadow, bldgBase, hallCorridor, bldgTitle, bldgSub);
+
+    const routesGroup = document.createElementNS(svgNS, "g");
+    const roomsGroup = document.createElementNS(svgNS, "g");
+
+    // Central Atrium Hub
+    const hx = 218;
+    const hy = 96;
+    const hubG = document.createElementNS(svgNS, "g");
+    hubG.setAttribute("class", "th-origin-hub");
+    const hubPulse = document.createElementNS(svgNS, "circle");
+    hubPulse.setAttribute("cx", String(hx));
+    hubPulse.setAttribute("cy", String(hy));
+    hubPulse.setAttribute("r", "12");
+    hubPulse.setAttribute("class", "th-hub-pulse");
+    const hubDot = document.createElementNS(svgNS, "circle");
+    hubDot.setAttribute("cx", String(hx));
+    hubDot.setAttribute("cy", String(hy));
+    hubDot.setAttribute("r", "6");
+    hubDot.setAttribute("fill", "#002d72");
+    hubDot.setAttribute("stroke", "#ffb81c");
+    hubDot.setAttribute("stroke-width", "2.2");
+    hubG.append(hubPulse, hubDot);
+
+    const ROOM_LAYOUT = {
+      1: { x: 32, y: 128, doorX: 186, doorY: 178, wing: "L" },
+      2: { x: 32, y: 252, doorX: 186, doorY: 302, wing: "L" },
+      3: { x: 32, y: 376, doorX: 186, doorY: 426, wing: "L" },
+      4: { x: 250, y: 128, doorX: 250, doorY: 178, wing: "R" },
+      5: { x: 250, y: 252, doorX: 250, doorY: 302, wing: "R" },
+      6: { x: 250, y: 376, doorX: 250, doorY: 426, wing: "R" }
+    };
+
+    const resolveInspectedDiscGroup = () => {
+      const targetId =
+        state.discHoverGroup ||
+        activeDiscVal ||
+        myDisc ||
+        String(groups[0].id);
+      return groups.find((x) => String(x.id) === String(targetId)) || groups[0];
+    };
+
+    const renderDiscInspectorContent = () => {
+      const curG = resolveInspectedDiscGroup();
+      if (!curG) return;
+      const gIdStr = String(curG.id);
+      const isLocked = activeDiscVal === gIdStr;
+      const isMine = myDisc === gIdStr;
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === curG.id) || {};
+      const gColor = DISC_GROUP_COLORS[curG.id] || "#0b4db3";
+
+      svg.querySelectorAll("[data-disc-room]").forEach((el) => {
+        el.classList.toggle("is-focused", el.dataset.discRoom === gIdStr);
+        el.classList.toggle("is-locked", el.dataset.discRoom === activeDiscVal);
+      });
+
+      inspector.replaceChildren();
+      inspector.style.padding = "0";
+      inspector.style.border = "0";
+      inspector.style.background = "transparent";
+      inspector.style.boxShadow = "none";
+
+      const areaFilterVal = ($("discAreaSubFilter") && $("discAreaSubFilter").value) || "";
+      const members = ROSTER.students.filter(
+        (s) => s.disc === curG.id && (!areaFilterVal || s.area === areaFilterVal)
+      );
+
+      const tabs = groups.map((g) => ({
+        id: String(g.id),
+        label: `G${g.id} · ${g.defaultRoom.split(" ")[0]}`,
+        color: DISC_GROUP_COLORS[g.id] || "#007aff",
+        active: g.id === curG.id,
+        onHover: () => {
+          if (state.discHoverGroup !== String(g.id)) {
+            state.discHoverGroup = String(g.id);
+            renderDiscInspectorContent();
+          }
+        },
+        onClick: () => {
+          const sel = $("discGroupSelect");
+          if (sel) sel.value = sel.value === String(g.id) ? "" : String(g.id);
+          state.discHoverGroup = String(g.id);
+          state.discContext = null;
+          renderDiscussionView();
         }
-      }
+      }));
+
+      const actRow = make("div", null, "header-actions");
+      const lockBtn = make(
+        "button",
+        isLocked
+          ? tr(`✓ กำลังกรองกลุ่มที่ ${curG.id}`, `✓ Filtering Group ${curG.id}`)
+          : tr(`กรองรายชื่อกลุ่มที่ ${curG.id} ด้านล่าง`, `Filter Group ${curG.id} Below`),
+        "btn sm primary"
+      );
+      lockBtn.type = "button";
+      lockBtn.addEventListener("click", () => {
+        const sel = $("discGroupSelect");
+        if (sel) sel.value = isLocked ? "" : gIdStr;
+        state.discContext = null;
+        renderDiscussionView();
+        const dockEl = document.querySelector('.roster-sticky-dock[data-scope="discussion"]') || $("discCardsContainer");
+        if (dockEl && !isLocked) dockEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      const pdfBtn = make("a", null, "btn sm pdf-red");
+      pdfBtn.href = `exports/pdf/RACM303_2569_Discussion_G${curG.id}.pdf`;
+      pdfBtn.setAttribute("download", `ใบรายชื่อ_Discussion_กลุ่มที่_${curG.id}_A4.pdf`);
+      pdfBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF`;
+
+      const printBtn = make("button", null, "btn sm print-ink");
+      printBtn.type = "button";
+      printBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (A4)`;
+      printBtn.addEventListener("click", () => printSingleGroupHelper("discussion", curG.id));
+
+      const casesBtn = make("button", tr("เปิดโจทย์ HS1–HS6 →", "Open HS1–HS6 Cases →"), "btn sm teal");
+      casesBtn.type = "button";
+      casesBtn.addEventListener("click", () => openHsDiscussion("ALL"));
+
+      actRow.append(lockBtn, pdfBtn, printBtn, casesBtn);
+
+      const roomSub =
+        curG.id === 6
+          ? tr("ห้องหลัก 1C1-07 (ยกเว้นคาบ HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03) · จัดแถวและติดป้ายสีตามสังกัดพื้นที่ภาคสนาม (1–9)", "Main Room 1C1-07 (HS4 on Dec 1 AM uses 2C2-03) · Sorted & color-coded by fieldwork site (1–9)")
+          : tr(`ห้องประจำกลุ่ม ${rot.room || curG.defaultRoom} ชั้น 1 อาคารพรีคลินิก · จัดแถวและติดป้ายสีตามสังกัดพื้นที่ภาคสนาม (1–9)`, `Room ${rot.room || curG.defaultRoom}, Preclinical Fl. 1 · Sorted & color-coded by fieldwork site (1–9)`);
+
+      inspector.appendChild(
+        renderBroadcastFormationBoard({
+          mode: "discussion",
+          wide: false,
+          tabs,
+          crestKicker: "DISC",
+          crestNum: `G${curG.id}`,
+          teamColor: gColor,
+          eyebrowText: `${tr("กลุ่มอภิปรายระบบสุขภาพ HS1–HS6", "Health Systems Discussion Group")}${isMine ? tr(" · ★ กลุ่มของฉัน", " · ★ My Group") : ""}`,
+          titleText: tr(`Discussion กลุ่มที่ ${curG.id} · ห้อง ${rot.room || curG.defaultRoom}`, `Discussion Group ${curG.id} · Room ${rot.room || curG.defaultRoom}`),
+          subText: roomSub,
+          mentorLabel: tr("อาจารย์หมุนเวียนประจำคาบ", "Rotating Instructors"),
+          mentorValue: tr("ครบ 6 คาบ HS1–HS6 (ตารางด้านล่าง)", "6 Sessions HS1–HS6 (below)"),
+          coachesRot: rot,
+          members,
+          viewStyle: state.discInspectorStyle || "formation",
+          onToggleStyle: (nextStyle) => {
+            state.discInspectorStyle = nextStyle;
+            renderDiscInspectorContent();
+          },
+          footerActions: actRow
+        })
+      );
+    };
+
+    groups.forEach((g) => {
+      const lay = ROOM_LAYOUT[g.id] || { x: 32, y: 128, doorX: 186, doorY: 178, wing: "L" };
+      const gColor = DISC_GROUP_COLORS[g.id] || "#007aff";
+      const gIdStr = String(g.id);
+      const isMine = myDisc === gIdStr;
+      const gMembers = ROSTER.students.filter((st) => st.disc === g.id);
+
+      // 3D curved dashed arc from Central Atrium Hub to Classroom Doorway
+      const midY = (hy + lay.doorY) / 2;
+      const ctrlX = lay.wing === "L" ? hx - 54 : hx + 54;
+      const ctrlY = midY - 34;
+      const shX = (hx + lay.doorX) / 2;
+      const shY = midY + 12;
+      appendSvg3DAnimatedArc(
+        svgNS,
+        routesGroup,
+        hx,
+        hy,
+        ctrlX,
+        ctrlY,
+        shX,
+        shY,
+        lay.doorX,
+        lay.doorY,
+        gColor,
+        "discRoom",
+        gIdStr,
+        2.6 + g.id * 0.22
+      );
+
+      const rmG = document.createElementNS(svgNS, "g");
+      rmG.setAttribute("class", `disc-svg-room-group${isMine ? " is-mine" : ""}`);
+      rmG.dataset.discRoom = gIdStr;
+      rmG.style.setProperty("--pin-color", gColor);
+      rmG.setAttribute("tabindex", "0");
+      rmG.setAttribute("role", "button");
+      rmG.setAttribute("aria-label", `กลุ่มที่ ${g.id} ห้อง ${g.defaultRoom} ${g.count} คน`);
+
+      const rExtrude = document.createElementNS(svgNS, "rect");
+      rExtrude.setAttribute("x", String(lay.x + 3));
+      rExtrude.setAttribute("y", String(lay.y + 5));
+      rExtrude.setAttribute("width", "154");
+      rExtrude.setAttribute("height", "102");
+      rExtrude.setAttribute("rx", "13");
+      rExtrude.setAttribute("class", "disc-room-extrude");
+
+      const rBox = document.createElementNS(svgNS, "rect");
+      rBox.setAttribute("x", String(lay.x));
+      rBox.setAttribute("y", String(lay.y));
+      rBox.setAttribute("width", "154");
+      rBox.setAttribute("height", "102");
+      rBox.setAttribute("rx", "13");
+      rBox.setAttribute("class", "disc-room-box");
+
+      const rStripe = document.createElementNS(svgNS, "rect");
+      rStripe.setAttribute("x", String(lay.x));
+      rStripe.setAttribute("y", String(lay.y));
+      rStripe.setAttribute("width", "154");
+      rStripe.setAttribute("height", "26");
+      rStripe.setAttribute("rx", "13");
+      rStripe.setAttribute("fill", gColor);
+      rStripe.setAttribute("opacity", "0.14");
+
+      const gTitle = document.createElementNS(svgNS, "text");
+      gTitle.setAttribute("x", String(lay.x + 11));
+      gTitle.setAttribute("y", String(lay.y + 18));
+      gTitle.setAttribute("class", "disc-room-glabel");
+      gTitle.textContent = `${isMine ? "★ " : ""}${tr("กลุ่มที่", "Group")} ${g.id}`;
+
+      const cntTxt = document.createElementNS(svgNS, "text");
+      cntTxt.setAttribute("x", String(lay.x + 143));
+      cntTxt.setAttribute("y", String(lay.y + 18));
+      cntTxt.setAttribute("text-anchor", "end");
+      cntTxt.setAttribute("class", "disc-room-cnt");
+      cntTxt.textContent = `${g.count} ${tr("คน", "p.")}`;
+
+      const codeTxt = document.createElementNS(svgNS, "text");
+      codeTxt.setAttribute("x", String(lay.x + 11));
+      codeTxt.setAttribute("y", String(lay.y + 48));
+      codeTxt.setAttribute("class", "disc-room-code");
+      codeTxt.textContent = g.defaultRoom.split(" ")[0];
+
+      const subRoomTxt = document.createElementNS(svgNS, "text");
+      subRoomTxt.setAttribute("x", String(lay.x + 11));
+      subRoomTxt.setAttribute("y", String(lay.y + 65));
+      subRoomTxt.setAttribute("class", "disc-room-subnote");
+      subRoomTxt.textContent = g.id === 6 ? tr("HS4 เช้า: ย้ายไป 2C2-03", "HS4 AM: Room 2C2-03") : tr("ใช้ห้องนี้ตลอด HS1–HS6", "All HS1–HS6 sessions");
+
+      rmG.append(rExtrude, rBox, rStripe, gTitle, cntTxt, codeTxt, subRoomTxt);
+
+      // Fieldwork site color dots inside the classroom
+      const presentSiteIds = [...new Set(gMembers.map((m) => getSiteIdByAreaName(m.area)))].sort((a, b) => a - b);
+      presentSiteIds.forEach((sId, dIdx) => {
+        const sDot = document.createElementNS(svgNS, "circle");
+        sDot.setAttribute("cx", String(lay.x + 15 + dIdx * 15));
+        sDot.setAttribute("cy", String(lay.y + 85));
+        sDot.setAttribute("r", "5");
+        sDot.setAttribute("fill", SITE_PIN_COLORS[sId] || "#007aff");
+        sDot.setAttribute("stroke", "#ffffff");
+        sDot.setAttribute("stroke-width", "1.3");
+        rmG.appendChild(sDot);
+      });
+
+      const focusRoom = () => {
+        state.discHoverGroup = gIdStr;
+        renderDiscInspectorContent();
+      };
+      const toggleLockRoom = () => {
+        const sel = $("discGroupSelect");
+        if (sel) sel.value = sel.value === gIdStr ? "" : gIdStr;
+        state.discHoverGroup = gIdStr;
+        state.discContext = null;
+        renderDiscussionView();
+      };
+
+      rmG.addEventListener("mouseenter", focusRoom);
+      rmG.addEventListener("focus", focusRoom);
+      rmG.addEventListener("click", toggleLockRoom);
+      rmG.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          toggleLockRoom();
+        }
+      });
+
+      roomsGroup.appendChild(rmG);
     });
+
+    // Special 3D Floor-2 Callout Badge for Group 6 (HS4 -> 2C2-03)
+    const fl2Box = document.createElementNS(svgNS, "rect");
+    fl2Box.setAttribute("x", "236");
+    fl2Box.setAttribute("y", "528");
+    fl2Box.setAttribute("width", "182");
+    fl2Box.setAttribute("height", "38");
+    fl2Box.setAttribute("rx", "10");
+    fl2Box.setAttribute("fill", "#fff7ed");
+    fl2Box.setAttribute("stroke", "#ea580c");
+    fl2Box.setAttribute("stroke-width", "1.5");
+    fl2Box.setAttribute("stroke-dasharray", "4 3");
+    const fl2Txt = document.createElementNS(svgNS, "text");
+    fl2Txt.setAttribute("x", "327");
+    fl2Txt.setAttribute("y", "551");
+    fl2Txt.setAttribute("text-anchor", "middle");
+    fl2Txt.setAttribute("class", "disc-fl2-note");
+    fl2Txt.textContent = tr("ชั้น 2: ห้อง 2C2-03 (กลุ่ม 6 เฉพาะ HS4)", "Fl. 2: 2C2-03 (G6 on HS4 AM)");
+    appendSvg3DAnimatedArc(svgNS, routesGroup, 327, 478, 372, 496, 332, 506, 327, 528, "#ea580c", "discRoom", "6", 2.8);
+    svg.append(routesGroup, hubG, roomsGroup, fl2Box, fl2Txt);
+
+    mapCard.appendChild(svg);
+    const mapFoot = make("div", null, "th-map-caption");
+    mapFoot.innerHTML =
+      `<span>${escapeHtml(tr("● จุดสีในห้อง = สมาชิกจาก 9 พื้นที่ภาคสนาม", "● Dots = 9 Fieldwork Sites"))}</span>` +
+      `<span>${escapeHtml(tr("คลิกห้องเพื่อล็อกกลุ่ม · คลิกซ้ำดูครบ 6 กลุ่ม", "Click room to lock · Click again for all 6"))}</span>`;
+    mapCard.appendChild(mapFoot);
+
+    split.append(mapCard, inspector);
+    grid.appendChild(split);
+    renderDiscInspectorContent();
   }
 
   function renderDiscussionAreaLegendBar(discVal, activeAreaVal) {
@@ -5129,11 +5675,11 @@
     const modeHead = make("div", null, "th-map-topbar");
     const modeInfo = make("div", null, "th-map-topbar-info");
     modeInfo.innerHTML =
-      `<strong>🗺 แผนที่โรงพยาบาลชุมชน 9 พื้นที่ภาคสนามทั่วประเทศ</strong>` +
-      `<span>เลื่อนเมาส์ชี้ (Hover) บนหมุดจังหวัดในแผนที่เพื่อดูข้อมูลโรงพยาบาล วันเดินทาง และรูปสมาชิกทันที · คลิกที่หมุดเพื่อล็อกกรองรายชื่อด้านล่าง</span>`;
+      `<strong>${escapeHtml(tr("🗺 แผนที่โรงพยาบาลชุมชน 9 พื้นที่ภาคสนามทั่วประเทศ (3D Interactive)", "🗺 3D Interactive Thailand Map · 9 Community Hospital Fieldwork Sites"))}</strong>` +
+      `<span>${escapeHtml(tr("เลื่อนเมาส์ชี้ (Hover) บนหมุดจังหวัดในแผนที่เพื่อดูข้อมูลโรงพยาบาล วันเดินทาง และรูปสมาชิกทันที · คลิกที่หมุดเพื่อล็อกกรองรายชื่อด้านล่าง", "Hover over any hospital pin to inspect hospital details, travel dates, and group members · Click pin to lock filter below"))}</span>`;
 
     const seg = make("div", null, "reader-mode-seg");
-    const mapBtn = make("button", "🗺 แผนที่ประเทศไทย (Hover)", "reader-mode-btn");
+    const mapBtn = make("button", tr("🗺 แผนที่ 3D ประเทศไทย (Hover)", "🗺 3D Thailand Map (Hover)"), "reader-mode-btn");
     mapBtn.type = "button";
     mapBtn.setAttribute("aria-pressed", state.fieldOverviewStyle === "map" ? "true" : "false");
     mapBtn.addEventListener("click", () => {
@@ -5141,7 +5687,7 @@
       renderSitesOverviewSection(sitesGrid, ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "");
     });
 
-    const cardsBtn = make("button", "▦ การ์ด 9 พื้นที่แบบเต็ม", "reader-mode-btn");
+    const cardsBtn = make("button", tr("▦ การ์ด 9 พื้นที่แบบเต็ม", "▦ 9 Site Cards"), "reader-mode-btn");
     cardsBtn.type = "button";
     cardsBtn.setAttribute("aria-pressed", state.fieldOverviewStyle === "cards" ? "true" : "false");
     cardsBtn.addEventListener("click", () => {
@@ -5205,76 +5751,99 @@
       return;
     }
 
-    // Interactive Thailand SVG Map + Right-Hand Hover Inspector
+    // Interactive 3D Thailand SVG Map + Right-Hand Hover Inspector
     const split = make("div", null, "th-map-studio-grid");
-    const mapCard = make("div", null, "th-map-canvas-card");
+    const mapCard = make("div", null, "th-map-canvas-card is-3d-map-card");
     const inspector = make("div", null, "th-map-inspector-card");
 
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("viewBox", "0 0 440 680");
-    svg.setAttribute("class", "th-svg-map");
+    svg.setAttribute("class", "th-svg-map is-3d-stage");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", "แผนที่ประเทศไทยแสดงตำแหน่งโรงพยาบาลชุมชน 9 พื้นที่ภาคสนาม");
+    svg.setAttribute("aria-label", "แผนที่ประเทศไทย 3 มิติแสดงตำแหน่งโรงพยาบาลชุมชน 9 พื้นที่ภาคสนาม");
 
     // Ocean / Sea labels
     const seaGulf = document.createElementNS(svgNS, "text");
     seaGulf.setAttribute("x", "252");
     seaGulf.setAttribute("y", "445");
     seaGulf.setAttribute("class", "th-sea-label");
-    seaGulf.textContent = "อ่าวไทย";
+    seaGulf.textContent = tr("อ่าวไทย", "Gulf of Thailand");
 
     const seaAndaman = document.createElementNS(svgNS, "text");
-    seaAndaman.setAttribute("x", "38");
+    seaAndaman.setAttribute("x", "34");
     seaAndaman.setAttribute("y", "492");
     seaAndaman.setAttribute("class", "th-sea-label");
-    seaAndaman.textContent = "ทะเลอันดามัน";
+    seaAndaman.textContent = tr("ทะเลอันดามัน", "Andaman Sea");
 
-    // Thailand Mainland Polygon
-    const poly = document.createElementNS(svgNS, "polygon");
+    // 3D Extruded Relief Under-Slab + Mainland Polygon
     const ptsStr = THAILAND_OUTLINE_LATLON.map(([la, lo]) => projectThailandLatLon(la, lo).join(",")).join(" ");
+    const polyExtrude = document.createElementNS(svgNS, "polygon");
+    polyExtrude.setAttribute("points", ptsStr);
+    polyExtrude.setAttribute("transform", "translate(4, 7)");
+    polyExtrude.setAttribute("class", "th-land-extrude");
+
+    const poly = document.createElementNS(svgNS, "polygon");
     poly.setAttribute("points", ptsStr);
     poly.setAttribute("class", "th-land-poly");
 
-    // Phuket & Koh Samui mini-islands
-    const phuket = document.createElementNS(svgNS, "ellipse");
+    // Phuket & Koh Samui mini-islands (+ 3D extrude)
     const [pkx, pky] = projectThailandLatLon(7.92, 98.34);
+    const phuketEx = document.createElementNS(svgNS, "ellipse");
+    phuketEx.setAttribute("cx", String(pkx + 3));
+    phuketEx.setAttribute("cy", String(pky + 5));
+    phuketEx.setAttribute("rx", "4.5");
+    phuketEx.setAttribute("ry", "9");
+    phuketEx.setAttribute("class", "th-land-extrude");
+
+    const phuket = document.createElementNS(svgNS, "ellipse");
     phuket.setAttribute("cx", String(pkx));
     phuket.setAttribute("cy", String(pky));
     phuket.setAttribute("rx", "4.5");
     phuket.setAttribute("ry", "9");
     phuket.setAttribute("class", "th-land-poly");
 
-    const samui = document.createElementNS(svgNS, "circle");
     const [smx, smy] = projectThailandLatLon(9.52, 100.00);
+    const samuiEx = document.createElementNS(svgNS, "circle");
+    samuiEx.setAttribute("cx", String(smx + 3));
+    samuiEx.setAttribute("cy", String(smy + 5));
+    samuiEx.setAttribute("r", "4.5");
+    samuiEx.setAttribute("class", "th-land-extrude");
+
+    const samui = document.createElementNS(svgNS, "circle");
     samui.setAttribute("cx", String(smx));
     samui.setAttribute("cy", String(smy));
     samui.setAttribute("r", "4.5");
     samui.setAttribute("class", "th-land-poly");
 
-    svg.append(poly, phuket, samui, seaGulf, seaAndaman);
+    svg.append(polyExtrude, phuketEx, samuiEx, poly, phuket, samui, seaGulf, seaAndaman);
 
     // Origin Hub: Ramathibodi / CNMI (Bangkok - Samut Prakan)
     const [bx, by] = projectThailandLatLon(13.62, 100.62);
     const routesGroup = document.createElementNS(svgNS, "g");
     const pinsGroup = document.createElementNS(svgNS, "g");
 
-    // Origin marker
+    // Origin marker with 3D radar pulse ring
     const hubG = document.createElementNS(svgNS, "g");
     hubG.setAttribute("class", "th-origin-hub");
+    const hubPulse = document.createElementNS(svgNS, "circle");
+    hubPulse.setAttribute("cx", String(bx));
+    hubPulse.setAttribute("cy", String(by));
+    hubPulse.setAttribute("r", "13");
+    hubPulse.setAttribute("class", "th-hub-pulse");
     const hubCircle = document.createElementNS(svgNS, "circle");
     hubCircle.setAttribute("cx", String(bx));
     hubCircle.setAttribute("cy", String(by));
-    hubCircle.setAttribute("r", "5.5");
+    hubCircle.setAttribute("r", "5.8");
     hubCircle.setAttribute("fill", "#002d72");
     hubCircle.setAttribute("stroke", "#ffb81c");
-    hubCircle.setAttribute("stroke-width", "2");
+    hubCircle.setAttribute("stroke-width", "2.2");
     const hubTxt = document.createElementNS(svgNS, "text");
-    hubTxt.setAttribute("x", String(bx + 9));
+    hubTxt.setAttribute("x", String(bx + 10));
     hubTxt.setAttribute("y", String(by + 4));
     hubTxt.setAttribute("class", "th-hub-label");
-    hubTxt.textContent = "★ รามาฯ / CNMI";
-    hubG.append(hubCircle, hubTxt);
+    hubTxt.textContent = tr("★ รามาฯ / CNMI", "★ Rama / CNMI");
+    hubG.append(hubPulse, hubCircle, hubTxt);
 
     const resolveInspectedSite = () => {
       const targetName =
@@ -5330,7 +5899,9 @@
       const actRow = make("div", null, "header-actions");
       const lockBtn = make(
         "button",
-        isLocked ? `✓ กำลังกรอง ${curSite.shortName}` : `กรองรายชื่อ ${curSite.shortName} ด้านล่าง`,
+        isLocked
+          ? tr(`✓ กำลังกรอง ${curSite.shortName}`, `✓ Filtering ${curSite.shortName}`)
+          : tr(`กรองรายชื่อ ${curSite.shortName} ด้านล่าง`, `Filter ${curSite.shortName} Below`),
         "btn sm primary"
       );
       lockBtn.type = "button";
@@ -5374,7 +5945,7 @@
           eyebrowText: `พื้นที่ที่ ${curSite.id} · ${geo.region || curSite.province}${isMine ? " · ★ พื้นที่ของฉัน" : ""}`,
           titleText: `${curSite.hospital} (${curSite.province})`,
           subText: `ห้อง ${curSite.room.split(" ")[0]} · ${curSite.datesTH} · ${friNote}${staffPart}`,
-          mentorLabel: "อาจารย์ที่ปรึกษา",
+          mentorLabel: tr("อาจารย์ที่ปรึกษา", "Site Advisors"),
           mentorValue: curSite.advisors,
           members,
           viewStyle: state.mapInspectorStyle || "formation",
@@ -5387,21 +5958,45 @@
       );
     };
 
+    // Custom 3D parabolic control offsets per site so all 9 flight arcs soar cleanly without tangling
+    const SITE_3D_ARC_OFFSETS = {
+      1: { dx: -24, dy: -72, shDx: -4, shDy: 16, dur: 3.6 }, // กุฉินารายณ์
+      2: { dx: 52, dy: -36, shDx: 10, shDy: 12, dur: 3.2 }, // ด่านซ้าย
+      3: { dx: -66, dy: -42, shDx: -10, shDy: 18, dur: 3.9 }, // ตะกั่วป่า
+      4: { dx: -74, dy: -38, shDx: -14, shDy: 14, dur: 4.1 }, // ท่าวังผา
+      5: { dx: -42, dy: -26, shDx: -8, shDy: 10, dur: 2.9 }, // เพชรบูรณ์ 1
+      6: { dx: 40, dy: -24, shDx: 8, shDy: 10, dur: 2.8 }, // เพชรบูรณ์ 2
+      7: { dx: -18, dy: -58, shDx: -3, shDy: 14, dur: 3.3 }, // อุบลรัตน์
+      8: { dx: -38, dy: -64, shDx: -8, shDy: 15, dur: 3.7 }, // ท่าสองยาง
+      9: { dx: -30, dy: -48, shDx: -6, shDy: 13, dur: 3.4 } // อุ้มผาง
+    };
+
     sites.forEach((site) => {
       const geo = SITE_GEO_COORDS[site.id] || { lat: 15.0, lon: 101.0, dx: 10, dy: 4, anchor: "start" };
       const [sx, sy] = projectThailandLatLon(geo.lat, geo.lon);
       const pinColor = SITE_PIN_COLORS[site.id] || "#007aff";
       const isMine = state.myStudent && state.myStudent.area === site.shortName;
 
-      // Curved dashed route from Ramathibodi/CNMI to hospital
-      const route = document.createElementNS(svgNS, "path");
-      const mx = ((bx + sx) / 2 + (sy < by ? -12 : 12)).toFixed(1);
-      const my = ((by + sy) / 2).toFixed(1);
-      route.setAttribute("d", `M ${bx} ${by} Q ${mx} ${my} ${sx} ${sy}`);
-      route.setAttribute("class", "th-route-arc");
-      route.dataset.mapSite = site.shortName;
-      route.style.setProperty("--pin-color", pinColor);
-      routesGroup.appendChild(route);
+      // 3D lofted curved dashed flight arc + surface ground shadow + animated glowing shuttle
+      const arcOff = SITE_3D_ARC_OFFSETS[site.id] || { dx: -40, dy: -44, shDx: -6, shDy: 14, dur: 3.4 };
+      const midX = (bx + sx) / 2;
+      const midY = (by + sy) / 2;
+      appendSvg3DAnimatedArc(
+        svgNS,
+        routesGroup,
+        bx,
+        by,
+        (midX + arcOff.dx).toFixed(1),
+        (midY + arcOff.dy).toFixed(1),
+        (midX + arcOff.shDx).toFixed(1),
+        (midY + arcOff.shDy).toFixed(1),
+        sx,
+        sy,
+        pinColor,
+        "mapSite",
+        site.shortName,
+        arcOff.dur
+      );
 
       const pinG = document.createElementNS(svgNS, "g");
       pinG.setAttribute("class", `th-map-pin-group${isMine ? " is-mine" : ""}`);
@@ -5410,6 +6005,13 @@
       pinG.setAttribute("tabindex", "0");
       pinG.setAttribute("role", "button");
       pinG.setAttribute("aria-label", `${site.id}. ${site.shortName} ${site.hospital} ${site.province} ${site.count} คน`);
+
+      const groundShadow = document.createElementNS(svgNS, "ellipse");
+      groundShadow.setAttribute("cx", String(sx + 1.5));
+      groundShadow.setAttribute("cy", String(sy + 9));
+      groundShadow.setAttribute("rx", "6.8");
+      groundShadow.setAttribute("ry", "2.6");
+      groundShadow.setAttribute("class", "th-pin-ground-shadow");
 
       const halo = document.createElementNS(svgNS, "circle");
       halo.setAttribute("cx", String(sx));
@@ -5420,7 +6022,7 @@
       const dot = document.createElementNS(svgNS, "circle");
       dot.setAttribute("cx", String(sx));
       dot.setAttribute("cy", String(sy));
-      dot.setAttribute("r", "7.5");
+      dot.setAttribute("r", "7.8");
       dot.setAttribute("fill", pinColor);
       dot.setAttribute("stroke", "#ffffff");
       dot.setAttribute("stroke-width", "2.2");
@@ -5440,7 +6042,7 @@
       lbl.setAttribute("class", "th-pin-label");
       lbl.textContent = `${site.id}.${site.shortName}`;
 
-      pinG.append(halo, dot, numTxt, lbl);
+      pinG.append(groundShadow, halo, dot, numTxt, lbl);
 
       const focusSite = () => {
         state.mapHoverSite = site.shortName;
@@ -5471,7 +6073,9 @@
     mapCard.appendChild(svg);
 
     const mapFoot = make("div", null, "th-map-caption");
-    mapFoot.innerHTML = `<span>★ จุดเริ่มต้น: คณะแพทยศาสตร์ รพ.รามาธิบดี / CNMI</span><span>คลิกหมุดเพื่อล็อกกลุ่ม · คลิกซ้ำเพื่อดูครบ 9 แห่ง</span>`;
+    mapFoot.innerHTML =
+      `<span>${escapeHtml(tr("★ จุดเริ่มต้น: คณะแพทยศาสตร์ รพ.รามาธิบดี / CNMI", "★ Origin: Ramathibodi / CNMI"))}</span>` +
+      `<span>${escapeHtml(tr("คลิกหมุดเพื่อล็อกกลุ่ม · คลิกซ้ำเพื่อดูครบ 9 แห่ง", "Click pin to lock · Click again for all 9"))}</span>`;
     mapCard.appendChild(mapFoot);
 
     split.append(mapCard, inspector);
@@ -8087,7 +8691,7 @@
         const idWrap = make("div", null, "hsd-Identity-inline");
         const nameIn = document.createElement("input");
         nameIn.type = "text";
-        nameIn.placeholder = "ชื่อเล่น/รหัส (แสดงบนจอ)…";
+        nameIn.placeholder = tr("ชื่อเล่น/รหัส (แสดงบนจอ)…", "Nickname / ID…");
         nameIn.value = localStorage.getItem("racm303_live_name_v1") || "";
         nameIn.addEventListener("change", () => LIVE.setCustomDisplayName(nameIn.value));
         nameIn.addEventListener("blur", () => LIVE.setCustomDisplayName(nameIn.value));
@@ -8098,16 +8702,51 @@
       const followLbl = make("label", null, "hsd-follow-label");
       const followChk = document.createElement("input");
       followChk.type = "checkbox";
+      followChk.id = "hsdFollowTeacherChk";
       followChk.checked = LIVE.getFollowTeacher();
-      followChk.addEventListener("change", () => LIVE.setFollowTeacher(followChk.checked));
-      followLbl.append(followChk, make("span", "ซิงค์ข้อตามอาจารย์"));
+      followChk.addEventListener("change", () => {
+        LIVE.setFollowTeacher(followChk.checked);
+        if (followChk.checked && typeof LIVE.getTeacherPointer === "function") {
+          const ptr = LIVE.getTeacherPointer();
+          if (ptr && ptr.questionId) jumpStudentToTeacherQuestion(ptr);
+        }
+      });
+      followLbl.append(followChk, make("span", tr("ซิงค์ข้อตามอาจารย์", "Sync w/ Teacher")));
       left.appendChild(followLbl);
     }
+
+    // Self-paced question switcher directly inside sticky Live Classroom Bar
+    const qNav = make("div", null, "hsd-live-qnav");
+    qNav.setAttribute("role", "group");
+    qNav.setAttribute("aria-label", tr("เปลี่ยนข้อย่อยด้วยตนเอง", "Switch question"));
+
+    const qPrevBtn = make("button", tr("◀ ข้อก่อน", "◀ Prev"), "hsd-tbtn hsd-qstep-btn");
+    qPrevBtn.type = "button";
+    qPrevBtn.id = "hsdLivePrevQBtn";
+    qPrevBtn.title = tr("ไปข้อก่อนหน้า", "Previous question");
+    qPrevBtn.addEventListener("click", () => manualStepHsSlide(-1));
+
+    const qSel = document.createElement("select");
+    qSel.id = "hsdLiveQSelect";
+    qSel.className = "hsd-live-qselect";
+    qSel.setAttribute("aria-label", tr("เลือกข้อย่อย", "Select question"));
+    qSel.addEventListener("change", () => {
+      if (qSel.value) selectHsQuestionById(qSel.value, true);
+    });
+
+    const qNextBtn = make("button", tr("ข้อถัดไป ▶", "Next ▶"), "hsd-tbtn primary hsd-qstep-btn");
+    qNextBtn.type = "button";
+    qNextBtn.id = "hsdLiveNextQBtn";
+    qNextBtn.title = tr("ไปข้อถัดไป", "Next question");
+    qNextBtn.addEventListener("click", () => manualStepHsSlide(1));
+
+    qNav.append(qPrevBtn, qSel, qNextBtn);
+    left.appendChild(qNav);
 
     const right = make("div", null, "hsd-live-right");
     const timerW = make("div", null, "hsd-timer-widget");
     timerW.id = "hsdTimerWidget";
-    const tSub = make("span", "นาฬิกาห้องกลุ่ม", "hsd-timer-sub");
+    const tSub = make("span", tr("นาฬิกาห้องกลุ่ม", "Room Timer"), "hsd-timer-sub");
     tSub.id = "hsdTimerSub";
     const tClk = make("span", "05:00", "hsd-timer-clock");
     tClk.id = "hsdTimerClock";
@@ -8149,17 +8788,18 @@
       right.appendChild(ctrls);
     }
 
-    const muteBtn = make("button", LIVE.getSoundMuted() ? "🔕 ปิดเสียง" : "🔔 เสียงเตือน", "hsd-tbtn");
+    const muteBtn = make("button", LIVE.getSoundMuted() ? tr("🔕 ปิดเสียง", "🔕 Muted") : tr("🔔 เสียงเตือน", "🔔 Sound"), "hsd-tbtn");
     muteBtn.type = "button";
     muteBtn.addEventListener("click", () => {
       LIVE.setSoundMuted(!LIVE.getSoundMuted());
-      muteBtn.textContent = LIVE.getSoundMuted() ? "🔕 ปิดเสียง" : "🔔 เสียงเตือน";
+      muteBtn.textContent = LIVE.getSoundMuted() ? tr("🔕 ปิดเสียง", "🔕 Muted") : tr("🔔 เสียงเตือน", "🔔 Sound");
     });
     right.appendChild(muteBtn);
 
     bar.append(left, right);
     syncLiveConnectionAndPresenceDOM();
     syncTimerWidgetDOM();
+    syncLiveBarQuestionPickerDOM();
 
     if (!liveSubscriptionsBound) {
       liveSubscriptionsBound = true;
@@ -8182,12 +8822,145 @@
     }
   }
 
+  function isHsQuestionAnswered(qObj) {
+    if (!qObj || !qObj.worksheet || !Array.isArray(qObj.worksheet.rows)) return false;
+    return qObj.worksheet.rows.some((r) =>
+      (r.cells || []).some((cell) => cell.inputId && String(state.hsdDrafts[cell.inputId] || "").trim().length > 0)
+    );
+  }
+
+  function getShortQuestionNumLabel(qObj, fallbackIdx) {
+    const raw = String((qObj && qObj.label) || "");
+    const m = raw.match(/(\d+\.\d+)/);
+    return m ? m[1] : raw || String(fallbackIdx + 1);
+  }
+
+  function pauseFollowTeacherIfDiverged(targetQId) {
+    if (ROLE !== "student" || !LIVE || !LIVE.getFollowTeacher()) return;
+    const ptr = typeof LIVE.getTeacherPointer === "function" ? LIVE.getTeacherPointer() : null;
+    if (!ptr || !ptr.questionId || ptr.questionId !== targetQId) {
+      LIVE.setFollowTeacher(false);
+      const chk = $("hsdFollowTeacherChk");
+      if (chk) chk.checked = false;
+    }
+  }
+
+  function getFlatQuestionList(casesList) {
+    const out = [];
+    (casesList || getFilteredHsDiscussionCases()).forEach((c) => {
+      (c.questions || []).forEach((qObj) => {
+        out.push({ modId: c.module, caseObj: c, qObj });
+      });
+    });
+    return out;
+  }
+
+  function selectHsQuestionById(qId, isManual = true) {
+    if (!qId) return;
+    if (isManual) pauseFollowTeacherIfDiverged(qId);
+
+    // Ensure question is within current module filter; if not, switch module filter automatically
+    let matchedCases = getFilteredHsDiscussionCases();
+    let inScope = matchedCases.some((c) => (c.questions || []).some((q) => q.id === qId));
+    if (!inScope) {
+      const ownerCase = (HSD_DATA.cases || []).find((c) => (c.questions || []).some((q) => q.id === qId));
+      if (ownerCase) {
+        state.hsdModule = ownerCase.module;
+        if ($("hsdModuleSelect")) $("hsdModuleSelect").value = ownerCase.module;
+        matchedCases = getFilteredHsDiscussionCases();
+      }
+    }
+
+    state.hsdLastSelectedQId = qId;
+    if (state.hsdViewMode === "slide") {
+      const slides = buildHsSlideDeckItems(matchedCases);
+      const idx = slides.findIndex((s) => s.kind === "question" && s.qObj.id === qId);
+      if (idx >= 0) {
+        state.hsdSlideIdx = idx;
+        renderHsDiscussionView();
+      }
+    } else {
+      renderHsDiscussionView();
+      requestAnimationFrame(() => {
+        const qEl = document.getElementById(`hsd-qblock-${qId}`);
+        if (qEl) qEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+  }
+
+  function manualStepHsSlide(delta) {
+    const matchedCases = getFilteredHsDiscussionCases();
+    if (state.hsdViewMode === "slide") {
+      const slides = buildHsSlideDeckItems(matchedCases);
+      if (!slides.length) return;
+      const next = Math.max(0, Math.min(slides.length - 1, state.hsdSlideIdx + delta));
+      if (next === state.hsdSlideIdx) return;
+      state.hsdSlideIdx = next;
+      const targetSlide = slides[next];
+      if (targetSlide && targetSlide.qObj) {
+        state.hsdLastSelectedQId = targetSlide.qObj.id;
+        pauseFollowTeacherIfDiverged(targetSlide.qObj.id);
+      }
+      renderHsDiscussionView();
+      return;
+    }
+    const qList = getFlatQuestionList(matchedCases);
+    if (!qList.length) return;
+    const curIdx = Math.max(0, qList.findIndex((item) => item.qObj.id === state.hsdLastSelectedQId));
+    const nextIdx = Math.max(0, Math.min(qList.length - 1, curIdx + delta));
+    selectHsQuestionById(qList[nextIdx].qObj.id, true);
+  }
+
+  function syncLiveBarQuestionPickerDOM(matchedCasesOpt) {
+    const sel = $("hsdLiveQSelect");
+    const prevBtn = $("hsdLivePrevQBtn");
+    const nextBtn = $("hsdLiveNextQBtn");
+    const chk = $("hsdFollowTeacherChk");
+    if (chk && LIVE) chk.checked = LIVE.getFollowTeacher();
+    if (!sel) return;
+
+    const matchedCases = matchedCasesOpt || getFilteredHsDiscussionCases();
+    const qList = getFlatQuestionList(matchedCases);
+    sel.replaceChildren();
+    if (!qList.length) {
+      sel.disabled = true;
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+
+    let activeQId = state.hsdLastSelectedQId || "";
+    if (state.hsdViewMode === "slide") {
+      const slides = buildHsSlideDeckItems(matchedCases);
+      const curSlide = slides[Math.max(0, Math.min(slides.length - 1, state.hsdSlideIdx))];
+      if (curSlide && curSlide.qObj) activeQId = curSlide.qObj.id;
+      if (prevBtn) prevBtn.disabled = state.hsdSlideIdx <= 0;
+      if (nextBtn) nextBtn.disabled = state.hsdSlideIdx >= slides.length - 1;
+    } else {
+      if (!activeQId || !qList.some((x) => x.qObj.id === activeQId)) {
+        activeQId = qList[0].qObj.id;
+      }
+      const cIdx = qList.findIndex((x) => x.qObj.id === activeQId);
+      if (prevBtn) prevBtn.disabled = cIdx <= 0;
+      if (nextBtn) nextBtn.disabled = cIdx >= qList.length - 1;
+    }
+
+    qList.forEach((item, idx) => {
+      const numLbl = getShortQuestionNumLabel(item.qObj, idx);
+      const doneMark = isHsQuestionAnswered(item.qObj) ? "✓ " : "";
+      const txt = `${doneMark}${item.modId} · ข้อ ${numLbl}: ${item.qObj.title}`;
+      sel.add(new Option(txt, item.qObj.id, false, item.qObj.id === activeQId));
+    });
+  }
+
   function jumpStudentToTeacherQuestion(ptr) {
     if (!ptr || !ptr.questionId) return;
     if (state.hsdModule !== "ALL" && ptr.module && state.hsdModule !== ptr.module) {
       state.hsdModule = ptr.module;
       if ($("hsdModuleSelect")) $("hsdModuleSelect").value = ptr.module;
     }
+    state.hsdLastSelectedQId = ptr.questionId;
     if (state.hsdViewMode === "slide") {
       const slides = buildHsSlideDeckItems(getFilteredHsDiscussionCases());
       const idx = slides.findIndex((s) => s.kind === "question" && s.qObj.id === ptr.questionId);
@@ -8619,13 +9392,57 @@
     return scenBox;
   }
 
-  function buildQuestionHeaderDOM(qObj) {
+  function buildQuestionHeaderDOM(qObj, caseObjOpt) {
+    const ownerCase =
+      caseObjOpt ||
+      (HSD_DATA.cases || []).find((c) => (c.questions || []).some((q) => q.id === qObj.id)) ||
+      null;
     const qHead = make("div", null, "hsd-q-head");
     const topRow = make("div", null, "hsd-q-head-top");
-    topRow.append(
+    const topLeft = make("div", null, "hsd-q-head-badges");
+    topLeft.append(
       make("span", qObj.label, "hsd-q-badge"),
-      make("span", "จำกัดคำตามกรอบกระดาษ A4 · ตอบกระชับตรงประเด็น", "hsd-a4-rule-badge")
+      make("span", tr("จำกัดคำตามกรอบกระดาษ A4 · ตอบกระชับตรงประเด็น", "Concise A4 Limit · Key Points Only"), "hsd-a4-rule-badge")
     );
+    topRow.appendChild(topLeft);
+
+    // Inline self-paced sub-question switcher right inside question header
+    if (ownerCase && Array.isArray(ownerCase.questions) && ownerCase.questions.length > 0) {
+      const sw = make("div", null, "hsd-q-inline-switcher hsd-no-print");
+      sw.setAttribute("role", "group");
+      sw.setAttribute("aria-label", tr("สลับข้อย่อยในกรณีศึกษานี้", "Switch sub-questions"));
+
+      const prevMini = make("button", "◀", "hsd-q-mini-step");
+      prevMini.type = "button";
+      prevMini.title = tr("ข้อก่อนหน้า", "Previous question");
+      prevMini.addEventListener("click", () => manualStepHsSlide(-1));
+      sw.appendChild(prevMini);
+
+      ownerCase.questions.forEach((sib, sIdx) => {
+        const isCurrent = sib.id === qObj.id;
+        const answered = isHsQuestionAnswered(sib);
+        const shortNum = getShortQuestionNumLabel(sib, sIdx);
+        const pill = make(
+          "button",
+          `${answered ? "✓ " : ""}${shortNum}`,
+          `hsd-q-sib-pill${isCurrent ? " is-current" : ""}${answered ? " is-answered" : ""}`
+        );
+        pill.type = "button";
+        pill.title = `${sib.label}: ${sib.title}`;
+        pill.setAttribute("aria-pressed", isCurrent ? "true" : "false");
+        pill.addEventListener("click", () => selectHsQuestionById(sib.id, true));
+        sw.appendChild(pill);
+      });
+
+      const nextMini = make("button", "▶", "hsd-q-mini-step");
+      nextMini.type = "button";
+      nextMini.title = tr("ข้อถัดไป", "Next question");
+      nextMini.addEventListener("click", () => manualStepHsSlide(1));
+      sw.appendChild(nextMini);
+
+      topRow.appendChild(sw);
+    }
+
     qHead.appendChild(topRow);
     qHead.appendChild(make("h5", qObj.title, "hsd-q-title"));
     qHead.appendChild(make("p", qObj.prompt, "hsd-q-prompt"));
@@ -8820,26 +9637,45 @@
       const rNum = LIVE.getRoomId();
       const hint = make(
         "span",
-        `● กด “ส่งช่องนี้ ✓” ใต้แต่ละช่องได้ทันทีโดยไม่ต้องรอกรอกครบทุกช่อง (ซิงค์เข้าห้องกลุ่มที่ ${rNum})`,
+        tr(
+          `● กด “ส่งช่องนี้ ✓” ใต้แต่ละช่องได้ทันทีโดยไม่ต้องรอกรอกครบทุกช่อง (ซิงค์เข้าห้องกลุ่มที่ ${rNum})`,
+          `● Click “Send Cell ✓” under any cell anytime, or submit all filled cells to Group ${rNum}`
+        ),
         "hsd-live-sync-hint"
       );
-      const sendBtn = make("button", `ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓`, "btn sm teal");
+
+      const actWrap = make("div", null, "hsd-q-submit-actions");
+      const prevQBtn = make("button", tr("◀ ข้อก่อนหน้า", "◀ Prev Question"), "btn sm");
+      prevQBtn.type = "button";
+      prevQBtn.addEventListener("click", () => manualStepHsSlide(-1));
+
+      const sendBtn = make("button", tr("ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓", "Submit All Filled Cells ✓"), "btn sm teal");
       sendBtn.type = "button";
       sendBtn.addEventListener("click", () => {
         const map = collectQuestionCellsMap(qObj);
         if (!Object.keys(map).length) {
-          hint.textContent = "กรุณาพิมพ์คำตอบอย่างน้อย 1 ช่องก่อนกดส่งขึ้นจอ";
+          hint.textContent = tr("กรุณาพิมพ์คำตอบอย่างน้อย 1 ช่องก่อนกดส่งขึ้นจอ", "Please type at least 1 cell before submitting");
           return;
         }
         LIVE.submitQuestionFinal(qObj.id, map);
         cellSyncCallbacks.forEach((fn) => fn());
-        sendBtn.textContent = "✓ ส่งทุกช่องที่กรอกแล้ว!";
-        hint.textContent = `ส่งคำตอบทุกช่องที่กรอกขึ้นจอห้องกลุ่มที่ ${LIVE.getRoomId()} เรียบร้อยแล้ว`;
+        sendBtn.textContent = tr("✓ ส่งทุกช่องที่กรอกแล้ว!", "✓ Submitted All Filled Cells!");
+        hint.textContent = tr(
+          `ส่งคำตอบทุกช่องที่กรอกขึ้นจอห้องกลุ่มที่ ${LIVE.getRoomId()} เรียบร้อยแล้ว`,
+          `Submitted all filled cells to Group ${LIVE.getRoomId()} screen`
+        );
+        syncLiveBarQuestionPickerDOM();
         setTimeout(() => {
-          sendBtn.textContent = `ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓`;
+          sendBtn.textContent = tr("ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓", "Submit All Filled Cells ✓");
         }, 2000);
       });
-      subBar.append(hint, sendBtn);
+
+      const nextQBtn = make("button", tr("ข้อถัดไป ▶", "Next Question ▶"), "btn sm primary");
+      nextQBtn.type = "button";
+      nextQBtn.addEventListener("click", () => manualStepHsSlide(1));
+
+      actWrap.append(prevQBtn, sendBtn, nextQBtn);
+      subBar.append(hint, actWrap);
       frag.appendChild(subBar);
     }
 
@@ -8894,12 +9730,7 @@
   }
 
   function stepHsSlide(delta) {
-    const slides = buildHsSlideDeckItems(getFilteredHsDiscussionCases());
-    if (!slides.length) return;
-    const next = Math.max(0, Math.min(slides.length - 1, state.hsdSlideIdx + delta));
-    if (next === state.hsdSlideIdx) return;
-    state.hsdSlideIdx = next;
-    renderHsDiscussionView();
+    manualStepHsSlide(delta);
   }
 
   function renderHsSlideDeckMode(container, matchedCases) {
@@ -8910,6 +9741,7 @@
 
     const cur = slides[state.hsdSlideIdx];
     const nextSlide = slides[state.hsdSlideIdx + 1] || null;
+    if (cur && cur.qObj) state.hsdLastSelectedQId = cur.qObj.id;
 
     // Broadcast active question ID (student-safe) when Faculty changes slide
     if (LIVE && ROLE === "faculty") {
@@ -8920,17 +9752,17 @@
     const topbar = make("div", null, "hsd-slide-topbar hsd-no-print");
 
     const leftNav = make("div", null, "hsd-slide-nav-group");
-    const prevBtn = make("button", "◀ สไลด์ก่อนหน้า", "btn sm");
+    const prevBtn = make("button", tr("◀ ข้อก่อนหน้า", "◀ Prev"), "btn sm");
     prevBtn.type = "button";
     prevBtn.disabled = state.hsdSlideIdx === 0;
-    prevBtn.addEventListener("click", () => stepHsSlide(-1));
+    prevBtn.addEventListener("click", () => manualStepHsSlide(-1));
 
     const counter = make("span", `${state.hsdSlideIdx + 1} / ${slides.length}`, "hsd-slide-counter");
 
     const nextLabel =
       nextSlide && nextSlide.kind === "key"
         ? `สไลด์ถัดไป: เฉลย ${cur.qObj.label} ★ →`
-        : "สไลด์ถัดไป ▶";
+        : tr("ข้อถัดไป ▶", "Next ▶");
     const nextBtn = make(
       "button",
       nextLabel,
@@ -8938,20 +9770,27 @@
     );
     nextBtn.type = "button";
     nextBtn.disabled = state.hsdSlideIdx >= slides.length - 1;
-    nextBtn.addEventListener("click", () => stepHsSlide(1));
+    nextBtn.addEventListener("click", () => manualStepHsSlide(1));
 
     const picker = document.createElement("select");
     picker.className = "hsd-slide-select";
-    picker.setAttribute("aria-label", "เลือกสไลด์อย่างรวดเร็ว");
+    picker.setAttribute("aria-label", tr("เลือกสไลด์อย่างรวดเร็ว", "Jump to slide"));
     slides.forEach((s, idx) => {
+      const doneMark = s.kind === "question" && isHsQuestionAnswered(s.qObj) ? "✓ " : "";
       const optLabel =
         s.kind === "key"
           ? `★ [เฉลยอาจารย์] ${s.mod.code} · ${s.qObj.label}: ${s.qObj.title}`
-          : `${s.mod.code} · กรณีที่ ${s.caseObj.caseNumber} (${s.qObj.label}): ${s.qObj.title}`;
+          : `${doneMark}${s.mod.code} · กรณีที่ ${s.caseObj.caseNumber} (${s.qObj.label}): ${s.qObj.title}`;
       picker.add(new Option(optLabel, String(idx), false, idx === state.hsdSlideIdx));
     });
     picker.addEventListener("change", () => {
-      state.hsdSlideIdx = Number(picker.value) || 0;
+      const nextIdx = Number(picker.value) || 0;
+      state.hsdSlideIdx = nextIdx;
+      const chosen = slides[nextIdx];
+      if (chosen && chosen.qObj) {
+        state.hsdLastSelectedQId = chosen.qObj.id;
+        pauseFollowTeacherIfDiverged(chosen.qObj.id);
+      }
       renderHsDiscussionView();
     });
 
@@ -8959,13 +9798,13 @@
 
     const rightNav = make("div", null, "hsd-slide-nav-group");
     if (cur.mod && cur.mod.conciseDocId) {
-      const docBtn = make("button", `บทเรียน ${cur.mod.code}`, "btn sm teal");
+      const docBtn = make("button", `${tr("บทเรียน", "Study")} ${cur.mod.code}`, "btn sm teal");
       docBtn.type = "button";
       docBtn.addEventListener("click", () => openTextbookDoc(cur.mod.conciseDocId));
       rightNav.appendChild(docBtn);
     }
     if (state.hsdTheater) {
-      const exitBtn = make("button", "✕ ออกจากเต็มจอ", "btn sm");
+      const exitBtn = make("button", tr("✕ ออกจากเต็มจอ", "✕ Exit Fullscreen"), "btn sm");
       exitBtn.type = "button";
       exitBtn.addEventListener("click", () => {
         state.hsdTheater = false;
@@ -8989,7 +9828,7 @@
       leftPane.appendChild(buildScenarioPaneContent(cur.caseObj));
 
       const rightPane = make("div", null, "hsd-slide-right");
-      rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj));
+      rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
 
       // On Faculty Portal: Live Wall renders the exact Answer Sheet Table with per-cell live answers!
       if (
@@ -9121,7 +9960,7 @@
         (c.questions || []).forEach((qObj) => {
           const qBlock = make("div", null, "hsd-question-block");
           qBlock.id = `hsd-qblock-${qObj.id}`;
-          qBlock.appendChild(buildQuestionHeaderDOM(qObj));
+          qBlock.appendChild(buildQuestionHeaderDOM(qObj, c));
 
           if (
             ROLE === "faculty" &&
@@ -9178,6 +10017,7 @@
     container.replaceChildren();
     if (!matchedCases.length) {
       container.appendChild(make("div", "ไม่พบกรณีศึกษาที่ตรงกับตัวกรองหรือคำค้นหา", "empty-state"));
+      syncLiveBarQuestionPickerDOM(matchedCases);
       return;
     }
 
@@ -9186,6 +10026,7 @@
     } else {
       renderHsScrollMode(container, matchedCases);
     }
+    syncLiveBarQuestionPickerDOM(matchedCases);
   }
 
   /* ---------- Role-Specific Question-Driven Concierge (My Day · My Rooms · My Groupmates / Students) ---------- */
@@ -13524,6 +14365,274 @@
   }
 
   /* ---------- Bootstrap ---------- */
+  /* ---------- Top Bar TH / EN Language Switcher & Light / Dark Mode ---------- */
+  function setTranslatedText(el, enText) {
+    if (!el) return;
+    if (el.dataset.thOrigText === undefined) {
+      el.dataset.thOrigText = el.textContent;
+    }
+    el.textContent = state.lang === "en" ? enText : el.dataset.thOrigText;
+  }
+
+  function setTranslatedHtml(el, enHtml) {
+    if (!el) return;
+    if (el.dataset.thOrigHtml === undefined) {
+      el.dataset.thOrigHtml = el.innerHTML;
+    }
+    el.innerHTML = state.lang === "en" ? enHtml : el.dataset.thOrigHtml;
+  }
+
+  function setTranslatedPlaceholder(el, enPlaceholder) {
+    if (!el) return;
+    if (el.dataset.thOrigPh === undefined) {
+      el.dataset.thOrigPh = el.getAttribute("placeholder") || "";
+    }
+    el.setAttribute("placeholder", state.lang === "en" ? enPlaceholder : el.dataset.thOrigPh);
+  }
+
+  function syncPreferenceButtonsUI() {
+    const langBtn = $("langToggleBtn");
+    if (langBtn) {
+      langBtn.setAttribute("aria-label", state.lang === "en" ? "Switch language to Thai" : "สลับเป็นภาษาอังกฤษ (English)");
+      langBtn.innerHTML =
+        `<span class="pref-lang-opt${state.lang === "th" ? " is-active" : ""}">TH</span>` +
+        `<span class="pref-sep">/</span>` +
+        `<span class="pref-lang-opt${state.lang === "en" ? " is-active" : ""}">EN</span>`;
+    }
+    const themeBtn = $("themeToggleBtn");
+    if (themeBtn) {
+      const isDark = state.theme === "dark";
+      themeBtn.setAttribute("aria-pressed", isDark ? "true" : "false");
+      themeBtn.title = isDark
+        ? tr("สลับเป็นโหมดสว่าง (Light Mode)", "Switch to Light Mode")
+        : tr("สลับเป็นโหมดมืด (Dark Mode)", "Switch to Dark Mode");
+      themeBtn.innerHTML = isDark
+        ? `<span>🌙</span><span>${escapeHtml(tr("โหมดมืด", "Dark"))}</span>`
+        : `<span>☀️</span><span>${escapeHtml(tr("โหมดสว่าง", "Light"))}</span>`;
+    }
+  }
+
+  function applyStaticDomLanguage(lang) {
+    state.lang = lang === "en" ? "en" : "th";
+    document.documentElement.lang = state.lang;
+    document.documentElement.setAttribute("data-lang", state.lang);
+
+    // Masthead
+    const deptLine = document.querySelector(".masthead .dept-line");
+    const mastH1 = document.querySelector(".masthead h1");
+    const mastSub = document.querySelector(".masthead .head-subtitle");
+    if (ROLE === "faculty") {
+      setTranslatedText(deptLine, "FACULTY & COURSE COORDINATOR PORTAL · RACM 303 · AY 2026 (2569)");
+      setTranslatedText(mastH1, "RACM 303 Faculty & Course Coordinator Portal (AY 2026)");
+      setTranslatedText(
+        mastSub,
+        "Instructor Schedule · Lecture Slide Uploads · HS1–HS6 Teacher Answer Keys · Student Leave Approvals · Instructor Guide"
+      );
+      setTranslatedText($("facQuickSlideTopBtn"), "📊 Upload Slides");
+      setTranslatedText($("facOpenStudentSiteLink"), "Student Portal ↗");
+      setTranslatedText($("facRamedTopLink"), "E-learning ↗");
+      const facLeaveBtn = $("facQuickLeaveTopBtn");
+      if (facLeaveBtn) {
+        const badge = $("facTopLeaveBadge");
+        setTranslatedHtml(
+          facLeaveBtn,
+          `🔔 Leave Requests${badge ? ` <span id="facTopLeaveBadge" class="top-notif-pill"${badge.hidden ? " hidden" : ""}>${escapeHtml(badge.textContent)}</span>` : ""}`
+        );
+      }
+    } else {
+      setTranslatedText(deptLine, "RACM 303 · COMMUNITY MEDICINE & HEALTH SYSTEMS SCIENCE · AY 2026 (2569)");
+      setTranslatedText(mastH1, "Community Medicine & Health Systems Science (3rd-Year Medical Students)");
+      setTranslatedText(
+        mastSub,
+        "Wed 25 Nov – Wed 30 Dec 2026 · Chakri Naruebodindra Medical Institute (CNMI) & 9 Community Hospitals"
+      );
+      setTranslatedText($("studentQuickLeaveTopBtn"), "📝 Leave Request");
+      setTranslatedText($("studentElearningLink"), "E-learning ↗");
+      setTranslatedText($("studentSurveyFormLink"), "Slides & Health Survey ↗");
+    }
+
+    // Universal Search Bar
+    setTranslatedText(document.querySelector('label[for="personalStudentInput"]'), "🔍 Quick Search:");
+    setTranslatedPlaceholder(
+      $("personalStudentInput"),
+      ROLE === "faculty"
+        ? "Search anything — Instructor, 169 students, sessions, slides, HS1–HS6 docs, hospitals, leave…"
+        : "Search anything — Student ID / nickname, schedule, HS1–HS6 study docs, flashcards, hospitals, leave…"
+    );
+    setTranslatedText($("clearPersonalBtn"), "Clear");
+
+    // Navigation Tabs (preserving dynamic #leaveNavCountBadge if present)
+    const tabMap = {
+      schedule: ROLE === "faculty" ? `Teaching Schedule` : `Schedule & Calendar`,
+      fieldwork: `Fieldwork Groups <span class="tab-count">9 Sites</span>`,
+      discussion: `Discussion Groups <span class="tab-count">6 Groups</span>`,
+      "hs-discussion":
+        ROLE === "faculty"
+          ? `HS Cases & Key <span class="tab-count">HS1–HS6 · Key</span>`
+          : `HS Case Discussion <span class="tab-count">HS1–HS6</span>`,
+      submissions: ROLE === "faculty" ? `Submissions & E-learning` : `Submissions <span class="tab-count">4 Tasks</span>`,
+      audit: `Schedule Audit <span class="tab-count">6 Checks</span>`,
+      "faculty-docs": `Instructor Guide & Docs`,
+      manual: `Course Manual <span class="tab-count">17 Ch</span>`,
+      textbooks: `Health Systems Study Materials (HS1–HS6)`,
+      practice: `Flashcards & Q&A <span class="tab-count">82 Qs</span>`
+    };
+    Object.keys(tabMap).forEach((tKey) => {
+      const btn = document.querySelector(`.nav-tab[data-tab="${tKey}"]`);
+      if (btn) setTranslatedHtml(btn, tabMap[tKey]);
+    });
+    const leaveTabBtn = document.querySelector('.nav-tab[data-tab="leave"]');
+    if (leaveTabBtn) {
+      if (ROLE === "faculty") {
+        const curBadge = $("leaveNavCountBadge");
+        const cntTxt = curBadge ? curBadge.textContent : "0";
+        if (state.lang === "en") {
+          if (leaveTabBtn.dataset.thOrigHtml === undefined) leaveTabBtn.dataset.thOrigHtml = leaveTabBtn.innerHTML;
+          leaveTabBtn.innerHTML = `Student Leave <span class="tab-count" id="leaveNavCountBadge">${escapeHtml(cntTxt)}</span>`;
+        } else if (leaveTabBtn.dataset.thOrigHtml !== undefined) {
+          leaveTabBtn.innerHTML = leaveTabBtn.dataset.thOrigHtml;
+          syncLeaveNotificationBadges();
+        }
+      } else {
+        setTranslatedHtml(leaveTabBtn, `Leave Request <span class="tab-count" id="leaveNavCountBadge">e-Sign</span>`);
+      }
+    }
+
+    // Section Headers
+    const secHeaders = {
+      "panel-schedule": [
+        ROLE === "faculty"
+          ? "Teaching Calendar · Instructor Workload & Session Slide Studio"
+          : "Academic Schedule & Interactive Course Calendar (AY 2026)",
+        ROLE === "faculty"
+          ? "Filter by instructor, upload lecture slides per session, and export personalized iCal (.ics) or Google Calendar (.csv)."
+          : "Check in up to 15 min before class · Export personal or group schedules to Apple iCal (.ics) & Google Calendar (.csv) with embedded Zoom links."
+      ],
+      "panel-fieldwork": [
+        "Fieldwork Groups by Community Hospital (9 Fieldwork Sites)",
+        "Explore all 9 community hospitals across Thailand in 3D, inspect advisors, small-group rooms, travel dates, and student rosters."
+      ],
+      "panel-discussion": [
+        "Health Systems Discussion Groups (Groups 1–6 · Sorted by Fieldwork Site)",
+        "Inspect Preclinical Fl. 1 classrooms (1C1-02 to 1C1-07), rotating HS1–HS6 instructors, and members color-coded by fieldwork site."
+      ],
+      "panel-hs-discussion": [
+        "Live Health Systems Case Discussion & Worksheets (HS1–HS6 · 10 Cases)",
+        "Join live group rooms 1–6 with synchronized timer · Switch freely between Slide Mode and Full Scroll Mode · Export to PDF or Word (.docx)."
+      ],
+      "panel-submissions": [
+        "Course Submissions & RAMED E-learning Hub",
+        "Sign in with your own 7-digit student ID, validate PDF assignments, and auto-format standard SRN 1 & SRN 2 filenames."
+      ],
+      "panel-leave": [
+        ROLE === "faculty" ? "Student Leave Requests & E-Signature Approval" : "Digital Sick / Personal Leave Request & E-Signature",
+        ROLE === "faculty"
+          ? "Review student leave submissions, sign electronically, and export official A4 PDF forms."
+          : "Complete your leave request online, draw your digital signature, and export an official A4 PDF."
+      ],
+      "panel-manual": [
+        "RACM 303 Course Manual (AY 2026 · 17 Chapters & Appendices)",
+        "Searchable official syllabus, attendance rules, assessment rubrics, fieldwork regulations, and forms."
+      ],
+      "panel-textbooks": [
+        "Health Systems Exam Study Materials (HS1–HS6) · Full · Abridged & Worksheets",
+        "Complete self-contained study chapters across HS1–HS6 with abridged versions, infographics, and guided worksheets."
+      ],
+      "panel-practice": [
+        "Active Recall Flashcards · Key Terms & 82 Practice Questions",
+        "Review high-yield concepts across Health Systems and Epidemiology with instant explanations."
+      ]
+    };
+    Object.keys(secHeaders).forEach((pid) => {
+      const panel = $(pid);
+      if (!panel) return;
+      const h2 = panel.querySelector(".section-header h2");
+      const p = panel.querySelector(".section-header p");
+      setTranslatedText(h2, secHeaders[pid][0]);
+      setTranslatedText(p, secHeaders[pid][1]);
+    });
+
+    // Calendar Segmented & Legend
+    setTranslatedText($("schedSubMonthBtn"), "Month");
+    setTranslatedText($("schedSubWeekBtn"), "Week");
+    setTranslatedText($("schedSubDailyBtn"), "Agenda");
+    setTranslatedText($("schedSubSpecBtn"), "HS Rotation");
+    setTranslatedText($("calStartWeekBtn"), "Week 1");
+    setTranslatedText($("toggleCalSidebarBtn"), "◫ Milestones");
+    setTranslatedText($("resetSchedFiltersBtn"), "Reset Filters");
+    setTranslatedText($("discClearFiltersBtn"), "Reset Filters");
+    setTranslatedText($("fieldClearFiltersBtn"), "Reset Filters");
+    setTranslatedText($("hsdViewSlideBtn"), "▣ Slide Each Case");
+    setTranslatedText($("hsdViewScrollBtn"), "☰ Full Scroll");
+    setTranslatedText($("closeLightboxBtn"), "Close (Esc)");
+
+    const legendEn = [
+      `<i class="cal-dot cat-HS"></i>Health Systems (HS)`,
+      `<i class="cal-dot cat-EP"></i>Epidemiology (EP/Zoom)`,
+      `<i class="cal-dot cat-SG"></i>Small Group &amp; Fieldwork`,
+      `<i class="cal-dot cat-PANEL"></i>System Panel`,
+      `<i class="cal-dot cat-EXAM"></i>Exam &amp; Deadlines`,
+      `<i class="cal-dot cat-HOLIDAY"></i>Public Holiday`
+    ];
+    document.querySelectorAll(".cal-legend .cal-legend-item").forEach((item, idx) => {
+      if (legendEn[idx]) setTranslatedHtml(item, legendEn[idx]);
+    });
+
+    if ($("toggleSitesOverviewBtn")) {
+      $("toggleSitesOverviewBtn").textContent = state.showSitesOverview
+        ? tr("ซ่อนแผนที่ 9 พื้นที่", "Hide 3D Map")
+        : tr("แสดงแผนที่ประเทศไทย 9 พื้นที่", "Show 3D Map");
+    }
+    if ($("toggleDiscOverviewBtn")) {
+      $("toggleDiscOverviewBtn").textContent = state.showDiscOverview
+        ? tr("ซ่อนผัง 6 กลุ่ม", "Hide 6-Group Studio")
+        : tr("แสดงผัง 6 กลุ่ม", "Show 6-Group Studio");
+    }
+
+    syncPreferenceButtonsUI();
+  }
+
+  function applyThemeMode(theme) {
+    state.theme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", state.theme);
+    try {
+      localStorage.setItem("racm303_theme", state.theme);
+    } catch (_) {}
+    syncPreferenceButtonsUI();
+  }
+
+  function initLanguageAndThemeControls() {
+    document.documentElement.setAttribute("data-theme", state.theme);
+    document.documentElement.setAttribute("data-lang", state.lang);
+    document.documentElement.lang = state.lang;
+    syncPreferenceButtonsUI();
+
+    const langBtn = $("langToggleBtn");
+    if (langBtn) {
+      langBtn.addEventListener("click", () => {
+        const nextLang = state.lang === "th" ? "en" : "th";
+        try {
+          localStorage.setItem("racm303_lang", nextLang);
+        } catch (_) {}
+        applyStaticDomLanguage(nextLang);
+        if (LIVE && $("hsdLiveClassroomBar") && $("hsdTimerWidget")) {
+          renderHsLiveClassroomBar();
+        }
+        if (state.activeTab === "fieldwork") renderFieldworkView();
+        else if (state.activeTab === "discussion") renderDiscussionView();
+        else if (state.activeTab === "hs-discussion") renderHsDiscussionView();
+        if (typeof renderRoleConcierge === "function") renderRoleConcierge();
+      });
+    }
+
+    const themeBtn = $("themeToggleBtn");
+    if (themeBtn) {
+      themeBtn.addEventListener("click", () => {
+        applyThemeMode(state.theme === "dark" ? "light" : "dark");
+      });
+    }
+  }
+
   function init() {
     document.querySelectorAll(".nav-tab").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
@@ -13540,6 +14649,7 @@
     }
 
     wireFontButtons();
+    initLanguageAndThemeControls();
     initPersonalizer();
     initUniversalOmniboxSearch();
     initScheduleControls();
@@ -13557,6 +14667,7 @@
     }
     initRoleConcierge();
     initGlobalSpotlightAndFab();
+    if (state.lang === "en") applyStaticDomLanguage("en");
     syncLiveNicknamesFromGoogleSheet();
 
     const params = new URLSearchParams(window.location.search);

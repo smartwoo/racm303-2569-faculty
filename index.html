@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=20261120v">
+  <script>(function(){try{var t=localStorage.getItem("racm303_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");var l=localStorage.getItem("racm303_lang");if(l==="en"){document.documentElement.lang="en";document.documentElement.setAttribute("data-lang","en");}}catch(_){}})();</script>
+  <link rel="stylesheet" href="assets/styles.css?v=20261120w">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -20,6 +21,10 @@
           <p class="head-subtitle">ปฏิทินภาระงานสอนรายอาจารย์ · อัปโหลด Slide ประกอบการสอน · Teacher Answer Key คาบ Discussion HS1–HS6 · อนุมัติใบลานักศึกษา · คู่มือผู้สอน</p>
         </div>
         <div class="head-links">
+          <div class="top-pref-controls" role="group" aria-label="สลับภาษาและโหมดสีหน้าจอ">
+            <button class="pref-pill-btn" id="langToggleBtn" type="button" title="สลับภาษา TH / EN"><span class="pref-lang-opt is-active">TH</span><span class="pref-sep">/</span><span class="pref-lang-opt">EN</span></button>
+            <button class="pref-pill-btn" id="themeToggleBtn" type="button" aria-pressed="false" title="สลับโหมดสว่าง / โหมดมืด"><span>☀️</span><span>โหมดสว่าง</span></button>
+          </div>
           <button class="ghost-link" id="facQuickSlideTopBtn" type="button">📊 อัปโหลด Slide สอน</button>
           <button class="ghost-link" id="facQuickLeaveTopBtn" type="button">🔔 คำขอใบลานักศึกษา <span id="facTopLeaveBadge" class="top-notif-pill" hidden>0</span></button>
           <a class="ghost-link" id="facOpenStudentSiteLink" href="https://smartwoo.github.io/racm303-2569/" target="_blank" rel="noopener">เปิดเว็บฝั่งนักศึกษา ↗</a>
@@ -40,9 +45,9 @@
 
       <nav class="nav-tabs" role="tablist" aria-label="หมวดเนื้อหาสำหรับคณาจารย์">
         <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ปฏิทินสอน &amp; Slide</button>
+        <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" aria-selected="false" type="button">กลุ่มตามพื้นที่ภาคสนาม <span class="tab-count">9 แห่ง</span></button>
+        <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" aria-selected="false" type="button">กลุ่ม Discussion <span class="tab-count">6 กลุ่ม</span></button>
         <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" aria-selected="false" type="button">Discussion ระบบสุขภาพ &amp; เฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
-        <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" aria-selected="false" type="button">รายชื่อกลุ่ม Discussion <span class="tab-count">6 กลุ่ม</span></button>
-        <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" aria-selected="false" type="button">9 พื้นที่ภาคสนาม <span class="tab-count">9 พื้นที่</span></button>
         <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" aria-selected="false" type="button">ระบบรับงาน &amp; E-learning</button>
         <button class="nav-tab" id="fTabLeave" role="tab" data-tab="leave" aria-selected="false" type="button">ใบลานักศึกษา &amp; แจ้งเตือน <span class="tab-count" id="leaveNavCountBadge">0 รายการ</span></button>
         <button class="nav-tab" id="fTabAudit" role="tab" data-tab="audit" aria-selected="false" type="button">ตรวจตาราง &amp; ซิงค์ชีต <span class="tab-count">6 จุด</span></button>
@@ -369,14 +374,15 @@
       <div id="hsdCasesContainer"></div>
     </section>
 
-    <!-- TAB 2: SEPARATED DISCUSSION GROUP PHOTO ROSTER (HS1–HS6 · 6 GROUPS) -->
+    <!-- TAB 3: SEPARATED DISCUSSION GROUP PHOTO ROSTER (HS1–HS6 · 6 GROUPS) -->
     <section class="tab-panel" id="panel-discussion" aria-labelledby="fTabDiscussion" hidden>
       <div class="section-header">
         <div>
-          <h2>ใบรายชื่อและรูปถ่ายกลุ่มอภิปราย Discussion (HS1–HS6 · 6 กลุ่มย่อย)</h2>
-          <p>รูปถ่ายนักศึกษาครบ 169 คน พร้อมป้ายสีย่อยแยกตามกลุ่มพื้นที่ภาคสนามทั้ง 9 แห่ง (วางเมาส์เหนือชื่อกลุ่มพื้นที่เพื่อดูรูปและชื่อเล่นนักศึกษาแบบกระชับ) และพิมพ์ลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
+          <h2>กลุ่มอภิปราย Discussion (HS1–HS6 · 6 กลุ่มย่อย · จัดกลุ่มตามพื้นที่ภาคสนาม)</h2>
+          <p>สำรวจผังห้องเรียน 1C1-02 ถึง 1C1-07 ชั้น 1 อาคารพรีคลินิก รูปถ่ายนักศึกษาครบ 169 คนพร้อมป้ายสีแยกตามแหล่งฝึกภาคสนามทั้ง 9 แห่ง และพิมพ์ลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
         </div>
         <div class="header-actions">
+          <button class="btn" id="toggleDiscOverviewBtn" type="button">ซ่อนผัง 6 กลุ่ม</button>
           <button class="btn" id="jumpToHsDiscCasesBtn" type="button">เปิดโจทย์ &amp; Teacher Key HS1–HS6 →</button>
           <a class="btn pdf-red" id="exportDiscPdfBtn" href="exports/pdf/RACM303_2569_Discussion_All.pdf" download="ใบรายชื่อ_Discussion_ครบ6กลุ่ม_RACM303_2569.pdf" title="ส่งออกใบรูปถ่ายสมาชิกกลุ่ม Discussion เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
           <a class="btn docx-blue" id="exportDiscDocxBtn" href="exports/docx/RACM303_2569_Discussion_Roster.docx" download="รายชื่อสมาชิก_Discussion_RACM303_2569.docx" title="ส่งออกรายชื่อสมาชิกกลุ่ม Discussion เป็นไฟล์ Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
@@ -420,12 +426,12 @@
       <div class="student-cards" id="discCardsContainer"></div>
     </section>
 
-    <!-- TAB 3: SEPARATED 9 FIELDWORK SITES PHOTO ROSTER & STAFF COORDINATORS -->
+    <!-- TAB 2: SEPARATED 9 FIELDWORK SITES PHOTO ROSTER & STAFF COORDINATORS -->
     <section class="tab-panel" id="panel-fieldwork" aria-labelledby="fTabFieldwork" hidden>
       <div class="section-header">
         <div>
-          <h2>แผนที่โรงพยาบาลชุมชน เจ้าหน้าที่ประสานงาน และใบรายชื่อรูปถ่าย 9 พื้นที่ภาคสนาม</h2>
-          <p>สำรวจตำแหน่งโรงพยาบาลชุมชนทั้ง 9 พื้นที่บนแผนที่ประเทศไทย (Hover ดูอาจารย์ที่ปรึกษา เจ้าหน้าที่ประสานงาน และรูปถ่ายนักศึกษาได้ทันที) พร้อมพิมพ์ใบรูปถ่าย 1 หน้า A4</p>
+          <h2>กลุ่มแบ่งตามพื้นที่ฝึกภาคสนาม เจ้าหน้าที่ประสานงาน และแผนที่โรงพยาบาลชุมชน (9 แห่ง)</h2>
+          <p>สำรวจเส้นทางและตำแหน่งโรงพยาบาลชุมชนทั้ง 9 พื้นที่บนแผนที่ 3 มิติ (Hover ดูอาจารย์ที่ปรึกษา เจ้าหน้าที่ประสานงาน และรูปถ่ายนักศึกษาได้ทันที) พร้อมพิมพ์ใบรูปถ่าย 1 หน้า A4</p>
         </div>
         <div class="header-actions">
           <button class="btn" id="toggleSitesOverviewBtn" type="button">ซ่อนแผนที่ 9 พื้นที่</button>
@@ -782,17 +788,17 @@
   </div>
 
   <script>window.PORTAL_ROLE = "faculty";</script>
-  <script src="assets/vendor/mqtt.min.js?v=20261120s"></script>
-  <script src="assets/vendor/peerjs.min.js?v=20261120s"></script>
-  <script src="assets/live_classroom.js?v=20261120v"></script>
-  <script src="assets/data_schedule.js?v=20261120e"></script>
-  <script src="assets/data_roster.js?v=20261120u"></script>
-  <script src="assets/data_manual.js?v=20261120s"></script>
-  <script src="assets/data_hs_docs.js?v=20261120p"></script>
-  <script src="assets/data_hs_discussion.js?v=20261120v"></script>
-  <script src="assets/data_hs_discussion_key.js?v=20261120v"></script>
-  <script src="assets/data_faculty.js?v=20261120v"></script>
-  <script src="assets/interactive_qa.js?v=20261120m"></script>
-  <script src="assets/portal.js?v=20261120v"></script>
+  <script src="assets/vendor/mqtt.min.js?v=20261120w"></script>
+  <script src="assets/vendor/peerjs.min.js?v=20261120w"></script>
+  <script src="assets/live_classroom.js?v=20261120w"></script>
+  <script src="assets/data_schedule.js?v=20261120w"></script>
+  <script src="assets/data_roster.js?v=20261120w"></script>
+  <script src="assets/data_manual.js?v=20261120w"></script>
+  <script src="assets/data_hs_docs.js?v=20261120w"></script>
+  <script src="assets/data_hs_discussion.js?v=20261120w"></script>
+  <script src="assets/data_hs_discussion_key.js?v=20261120w"></script>
+  <script src="assets/data_faculty.js?v=20261120w"></script>
+  <script src="assets/interactive_qa.js?v=20261120w"></script>
+  <script src="assets/portal.js?v=20261120w"></script>
 </body>
 </html>
