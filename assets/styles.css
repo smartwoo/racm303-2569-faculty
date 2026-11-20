@@ -469,6 +469,57 @@ a:hover {
   color: #ffffff;
 }
 
+.btn.docx-blue {
+  background: linear-gradient(135deg, #2b579a 0%, #185abd 100%);
+  border-color: #185abd;
+  color: #ffffff;
+  box-shadow: 0 2px 7px rgba(24, 90, 189, 0.25);
+}
+
+.btn.docx-blue:hover {
+  background: linear-gradient(135deg, #1f447a 0%, #124594 100%);
+  border-color: #124594;
+  color: #ffffff;
+}
+
+.btn.xlsx-green {
+  background: linear-gradient(135deg, #217346 0%, #107c41 100%);
+  border-color: #107c41;
+  color: #ffffff;
+  box-shadow: 0 2px 7px rgba(16, 124, 65, 0.25);
+}
+
+.btn.xlsx-green:hover {
+  background: linear-gradient(135deg, #185a36 0%, #0b5c2f 100%);
+  border-color: #0b5c2f;
+  color: #ffffff;
+}
+
+.btn.print-ink {
+  background: linear-gradient(135deg, #1e293b 0%, #0f1d35 100%);
+  border-color: #0f1d35;
+  color: #ffffff;
+  box-shadow: 0 2px 7px rgba(15, 29, 53, 0.22);
+}
+
+.btn.print-ink:hover {
+  background: linear-gradient(135deg, #0f172a 0%, #070f1d 100%);
+  border-color: #070f1d;
+  color: #ffffff;
+}
+
+.btn .btn-ico {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  vertical-align: -2px;
+}
+
+.btn.sm .btn-ico {
+  width: 13.5px;
+  height: 13.5px;
+}
+
 .btn.sm {
   padding: 5.5px 11.5px;
   font-size: 12.8px;

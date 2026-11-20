@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=20261120p">
+  <link rel="stylesheet" href="assets/styles.css?v=20261120r">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -64,11 +64,13 @@
         </div>
         <div class="cal-export-group">
           <button class="btn primary" id="toggleSlideStudioBtn" type="button" aria-expanded="false">📊 อัปโหลด Slide ประกอบการสอน</button>
-          <button class="btn cal-ics-btn" id="exportIcsBtn" type="button" title="ดาวน์โหลดไฟล์ .ics สำหรับ Apple Calendar / Outlook / Google Calendar (หากเลือกชื่ออาจารย์ไว้ จะส่งออกเฉพาะคาบของอาจารย์ท่านนั้น)">ดาวน์โหลด iCal / Apple (.ics)</button>
-          <button class="btn cal-gcal-btn" id="exportGcalCsvBtn" type="button" title="ดาวน์โหลดไฟล์ CSV มาตรฐานสำหรับนำเข้า Google Calendar พร้อมฝังลิงก์ Zoom">ดาวน์โหลด Google Calendar (.csv)</button>
+          <button class="btn cal-ics-btn" id="exportIcsBtn" type="button" title="ส่งออกไฟล์ .ics สำหรับ Apple Calendar / Outlook / Google Calendar"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span data-btn-label>Export iCal (.ics)</span></button>
+          <button class="btn cal-gcal-btn" id="exportGcalCsvBtn" type="button" title="ส่งออกไฟล์ CSV มาตรฐานสำหรับนำเข้า Google Calendar พร้อมฝังลิงก์ Zoom"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span data-btn-label>Google (.csv)</span></button>
           <button class="btn zoom-pill-btn" id="toggleZoomDrawerBtn" type="button" aria-expanded="false">รวมลิงก์ห้องเรียน Zoom (3 ห้อง)</button>
-          <a class="btn" id="facDlXlsxBtn" href="downloads/ตารางเรียนปี_3-2569_ฉบับปรับปรุง.xlsx" download>Excel (.xlsx)</a>
-          <button class="btn pdf-red" id="printScheduleBtn" type="button">พิมพ์ / PDF</button>
+          <a class="btn xlsx-green" id="facDlXlsxBtn" href="downloads/ตารางเรียนปี_3-2569_ฉบับปรับปรุง.xlsx" download title="ส่งออกตารางสอนเป็นไฟล์ Excel (.xlsx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>Export .xlsx</a>
+          <a class="btn pdf-red" id="exportSchedulePdfBtn" href="exports/pdf/RACM303_2569_Schedule.pdf" download="ตารางสอน_RACM303_2569.pdf" title="ส่งออกตารางสอนเป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportScheduleDocxBtn" href="exports/docx/RACM303_2569_Schedule.docx" download="ตารางสอน_RACM303_2569.docx" title="ส่งออกตารางสอนเป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="printScheduleBtn" type="button" title="สั่งพิมพ์ตารางสอน (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -126,8 +128,8 @@
               <h3 class="cal-studio-step-title"><span class="cal-step-badge">2</span>นำเข้า Google Calendar / Apple Calendar (iCal) พร้อมฝังลิงก์ Zoom</h3>
 
               <div class="cal-dl-btn-row">
-                <button class="btn cal-ics-btn" id="studioDownloadIcsBtn" type="button">ดาวน์โหลดไฟล์ .ics (Google / Apple iCal)</button>
-                <button class="btn cal-gcal-btn" id="studioDownloadCsvBtn" type="button">ดาวน์โหลดไฟล์ .csv (Google Calendar)</button>
+                <button class="btn cal-ics-btn" id="studioDownloadIcsBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span data-btn-label>Export .ics (Google / Apple iCal)</span></button>
+                <button class="btn cal-gcal-btn" id="studioDownloadCsvBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span data-btn-label>Export .csv (Google Calendar)</span></button>
               </div>
 
               <div class="cal-sub-box">
@@ -301,8 +303,8 @@
             <p class="cal-side-caption" id="calSideSyncTargetLabel">ซิงค์ภาระงานสอนเข้าแอปปฏิทินบน Mac / iPad / iPhone หรือ Google Calendar</p>
             <div class="side-sync-stack">
               <a class="btn primary" id="sideWebcalQuickLink" href="webcal://smartwoo.github.io/racm303-2569-faculty/calendars/all.ics">สมัครรับใน Apple Calendar (iCal) ↗</a>
-              <button class="btn" id="sideDlIcsQuickBtn" type="button">ดาวน์โหลดไฟล์ .ics ลงเครื่อง</button>
-              <button class="btn" id="sideDlCsvQuickBtn" type="button">ดาวน์โหลดไฟล์ Google Calendar (.csv)</button>
+              <button class="btn" id="sideDlIcsQuickBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span data-btn-label>Export .ics ลงเครื่อง</span></button>
+              <button class="btn" id="sideDlCsvQuickBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span data-btn-label>Export .csv (Google Calendar)</span></button>
               <button class="btn sm teal" id="sideOpenFullStudioBtn" type="button">เลือกชื่ออาจารย์ / กลุ่มแบบละเอียด ↗</button>
             </div>
           </div>
@@ -318,10 +320,11 @@
           <p>ครบทั้ง 10 กรณีศึกษาตามคาบอภิปราย HS1–HS6 พร้อมแนวทางการตอบมาตรฐาน เกณฑ์การให้คะแนน (Scoring Rubric) การเชื่อมโยงทฤษฎีบทเรียนฉบับปี 2569 และแผนนำอภิปราย 140 นาทีสำหรับคณาจารย์ประจำกลุ่มย่อย 1–6</p>
         </div>
         <div class="header-actions hsd-no-print">
-          <a class="btn teal" id="hsdDownloadKeyMdBtn" href="downloads/คู่มือเฉลย_Discussion_ระบบสุขภาพ_HS1-HS6_Teacher_Key_2569.md" download>ดาวน์โหลด Teacher Key (.md)</a>
-          <a class="btn" id="hsdDownloadBlankMdBtn" href="downloads/ใบงาน_Discussion_ระบบสุขภาพ_HS1-HS6_2569.md" download>ใบงานเปล่า นศพ. (.md)</a>
           <a class="btn" id="hsdSourceDocBtn" href="https://docs.google.com/document/d/1ZQER6Q9efFfxYtXx_X1WUeze1wmVxJRE/edit?usp=sharing" target="_blank" rel="noopener">ต้นฉบับ 231268 (Google Docs) ↗</a>
-          <button class="btn primary" id="hsdPrintAllBtn" type="button">พิมพ์ชุดโจทย์ &amp; เฉลย / PDF</button>
+          <a class="btn" id="hsdExportBlankDocxBtn" href="exports/docx/RACM303_2569_HS_Discussion_Worksheet.docx" download="ใบงานเปล่า_นศพ_Discussion_HS1-HS6_2569.docx" title="ส่งออกใบงานเปล่าสำหรับนักศึกษาเป็นไฟล์ Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>ใบงาน นศพ. (.docx)</a>
+          <a class="btn pdf-red" id="hsdExportKeyPdfBtn" href="exports/pdf/RACM303_2569_HS_Discussion_Teacher_Key.pdf" download="คู่มือเฉลย_Discussion_HS1-HS6_Teacher_Key_2569.pdf" title="ส่งออกคู่มือเฉลยอาจารย์ (Teacher Key) เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="hsdExportKeyDocxBtn" href="exports/docx/RACM303_2569_HS_Discussion_Teacher_Key.docx" download="คู่มือเฉลย_Discussion_HS1-HS6_Teacher_Key_2569.docx" title="ส่งออกคู่มือเฉลยอาจารย์ (Teacher Key) เป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="hsdPrintAllBtn" type="button" title="สั่งพิมพ์ชุดโจทย์และเฉลย (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -371,7 +374,9 @@
         </div>
         <div class="header-actions">
           <button class="btn" id="jumpToHsDiscCasesBtn" type="button">เปิดโจทย์ &amp; Teacher Key HS1–HS6 →</button>
-          <button class="btn primary" id="discPrintTopBtn" type="button">พิมพ์ใบรายชื่อ Discussion 1 หน้า A4</button>
+          <a class="btn pdf-red" id="exportDiscPdfBtn" href="exports/pdf/RACM303_2569_Discussion_All.pdf" download="ใบรายชื่อ_Discussion_ครบ6กลุ่ม_RACM303_2569.pdf" title="ส่งออกใบรูปถ่ายสมาชิกกลุ่ม Discussion เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportDiscDocxBtn" href="exports/docx/RACM303_2569_Discussion_Roster.docx" download="รายชื่อสมาชิก_Discussion_RACM303_2569.docx" title="ส่งออกรายชื่อสมาชิกกลุ่ม Discussion เป็นไฟล์ Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="discPrintTopBtn" type="button" title="พิมพ์ใบรายชื่อและรูปถ่ายลงกระดาษ A4 หน้าเดียว"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (1 หน้า A4)</button>
         </div>
       </div>
 
@@ -404,7 +409,7 @@
         <span class="status-text" id="discStatusText" role="status">กำลังโหลดรายชื่อสมาชิกกลุ่ม Discussion…</span>
         <button class="btn sm" id="discTogglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
         <button class="btn sm" id="discClearFiltersBtn" type="button">ล้างตัวกรอง</button>
-        <button class="btn sm primary" id="discPrintBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
+        <button class="btn sm print-ink" id="discPrintBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (1 หน้า A4)</button>
       </div>
 
       <div class="print-heading" id="discPrintHeading"></div>
@@ -420,7 +425,9 @@
         </div>
         <div class="header-actions">
           <button class="btn" id="toggleSitesOverviewBtn" type="button">ซ่อนแผนที่ 9 พื้นที่</button>
-          <button class="btn primary" id="fieldPrintTopBtn" type="button">พิมพ์ใบรายชื่อพื้นที่ 1 หน้า A4</button>
+          <a class="btn pdf-red" id="exportFieldPdfBtn" href="exports/pdf/RACM303_2569_Fieldwork_All.pdf" download="ใบรายชื่อ_9พื้นที่ภาคสนาม_RACM303_2569.pdf" title="ส่งออกใบรูปถ่าย 9 พื้นที่ภาคสนามเป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportFieldDocxBtn" href="exports/docx/RACM303_2569_Fieldwork_Roster.docx" download="รายชื่อ_9พื้นที่ภาคสนาม_RACM303_2569.docx" title="ส่งออกรายชื่อ 9 พื้นที่ภาคสนามเป็นไฟล์ Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="fieldPrintTopBtn" type="button" title="พิมพ์ใบรายชื่อพื้นที่ลงกระดาษ A4 หน้าเดียว"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (1 หน้า A4)</button>
         </div>
       </div>
 
@@ -444,7 +451,7 @@
         <span class="status-text" id="fieldStatusText" role="status">กำลังโหลดรายชื่อกลุ่มพื้นที่ภาคสนาม…</span>
         <button class="btn sm" id="fieldTogglePhotosBtn" type="button">ซ่อนรูปถ่าย (โหมดกะทัดรัด)</button>
         <button class="btn sm" id="fieldClearFiltersBtn" type="button">ล้างตัวกรอง</button>
-        <button class="btn sm primary" id="fieldPrintBtn" type="button">พิมพ์ใบรายชื่อ 1 หน้า A4 / บันทึก PDF</button>
+        <button class="btn sm print-ink" id="fieldPrintBtn" type="button"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (1 หน้า A4)</button>
       </div>
 
       <div class="print-heading" id="fieldPrintHeading"></div>
@@ -547,7 +554,7 @@
               <input id="srnPdfFileInput" type="file" accept=".pdf,application/pdf" hidden>
               <div class="header-actions" style="justify-content:center">
                 <button class="btn sm" id="pickSrnPdfBtn" type="button">เลือกไฟล์ PDF…</button>
-                <button class="btn sm teal" id="downloadRenamedPdfBtn" type="button" hidden>ดาวน์โหลดไฟล์ที่เปลี่ยนชื่อมาตรฐาน</button>
+                <button class="btn sm pdf-red" id="downloadRenamedPdfBtn" type="button" hidden><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg><span data-btn-label>Export PDF ที่เปลี่ยนชื่อแล้ว</span></button>
               </div>
               <div class="pdf-check-result" id="srnPdfCheckResult" hidden></div>
             </div>
@@ -564,8 +571,10 @@
           <p>สรุปจุดที่ต้องยืนยันขั้นสุดท้ายก่อนเปิดรายวิชา (ยืนยัน อ. นพ.ปวินท์ วันอังคารที่ 1 ธ.ค. 2569 เรียบร้อยแล้ว เหลือ 6 จุด) และการเทียบความตรงกันกับฐานข้อมูล Google Sheet (schedule-racm303-v1)</p>
         </div>
         <div class="header-actions">
-          <a class="btn teal" id="auditDlCsvBtn" href="downloads/schedule_racm303_v2_revised.csv" download>ดาวน์โหลด schedule_racm303_v2_revised.csv</a>
-          <button class="btn primary" id="printAuditBtn" type="button">พิมพ์รายการตรวจสอบ</button>
+          <a class="btn xlsx-green" id="auditDlCsvBtn" href="downloads/schedule_racm303_v2_revised.csv" download><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>Export CSV (v2)</a>
+          <a class="btn pdf-red" id="exportAuditPdfBtn" href="exports/pdf/RACM303_2569_Schedule_Audit.pdf" download="รายงานตรวจสอบตารางสอน_RACM303_2569.pdf" title="ส่งออกรายการตรวจสอบเป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportAuditDocxBtn" href="exports/docx/RACM303_2569_Schedule_Audit.docx" download="รายงานตรวจสอบตารางสอน_RACM303_2569.docx" title="ส่งออกรายการตรวจสอบเป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="printAuditBtn" type="button" title="สั่งพิมพ์รายการตรวจสอบ (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
       <div id="auditContentContainer"></div>
@@ -577,6 +586,11 @@
         <div>
           <h2>คู่มือผู้สอน (Teacher Guides) · บันทึกการปรับปรุง &amp; สารบัญลิงก์ต้นฉบับ</h2>
           <p>แนวทางการนำอภิปรายกลุ่มย่อย เฉลยเชิงลึกสำหรับคณาจารย์ แผนการศึกษาหลักสูตร และลิงก์ Google Drive / ข้อสอบปี 2569</p>
+        </div>
+        <div class="header-actions" id="facultyDocsExportActions">
+          <a class="btn pdf-red" id="exportFacultyDocPdfBtn" href="exports/pdf/hs-disc-teacher-key.pdf" download="RACM303_hs-disc-teacher-key.pdf" title="ส่งออกคู่มือผู้สอนฉบับนี้เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportFacultyDocDocxBtn" href="exports/docx/hs-disc-teacher-key.docx" download="RACM303_hs-disc-teacher-key.docx" title="ส่งออกคู่มือผู้สอนฉบับนี้เป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="printFacultyDocBtn" type="button" title="สั่งพิมพ์คู่มือผู้สอนฉบับนี้ (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -619,8 +633,9 @@
           <p>ฉบับบูรณาการตารางเรียนปี 2569 ลิงก์ห้องเรียน Zoom ครบ 17 บท และภาคผนวกแบบฟอร์มการประเมิน 1A–4A</p>
         </div>
         <div class="header-actions">
-          <a class="btn" id="facDlManualBtn" href="downloads/คู่มือการเรียนการสอน_RACM303_2569.md" download>ดาวน์โหลดคู่มือ (.md)</a>
-          <button class="btn primary" id="facPrintManualBtn" type="button">พิมพ์คู่มือ</button>
+          <a class="btn pdf-red" id="exportManualPdfBtn" href="exports/pdf/RACM303_2569_Course_Manual.pdf" download="คู่มือการเรียนการสอน_RACM303_2569.pdf" title="ส่งออกคู่มือรายวิชาเป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportManualDocxBtn" href="exports/docx/RACM303_2569_Course_Manual.docx" download="คู่มือการเรียนการสอน_RACM303_2569.docx" title="ส่งออกคู่มือรายวิชาเป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="facPrintManualBtn" type="button" title="สั่งพิมพ์คู่มือรายวิชา (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -652,13 +667,14 @@
       <div class="section-header">
         <div>
           <h2>เอกสารประกอบการสอบ Health Systems (HS1–HS6) · ฉบับเต็ม · ฉบับย่อ (Abridged version) &amp; Worksheet</h2>
-          <p>ฉบับเดียวกับที่นักศึกษาใช้อ่านเตรียมตัวก่อนเข้าอภิปรายกลุ่มย่อยและสอบ Open Note พร้อมปุ่มเปิด Google Docs ต้นฉบับและดาวน์โหลดไฟล์ .md</p>
+          <p>ฉบับเดียวกับที่นักศึกษาใช้อ่านเตรียมตัวก่อนเข้าอภิปรายกลุ่มย่อยและสอบ Open Note พร้อมปุ่มเปิด Google Docs ต้นฉบับและส่งออกเป็น PDF / Word (.docx)</p>
         </div>
         <div class="header-actions">
-          <a class="btn" id="activeTextbookMdBtn" href="#" download hidden>ดาวน์โหลดไฟล์ .md</a>
           <button class="btn" id="toggleAllAnswersBtn" type="button">เปิดแนวคำตอบทั้งหมด</button>
-          <a class="btn teal" id="activeTextbookGdocBtn" href="#" target="_blank" rel="noopener" hidden>แก้ไข/ดูใน Google Docs</a>
-          <button class="btn primary" id="fPrintTextbookBtn" type="button">พิมพ์บทเรียน</button>
+          <a class="btn teal" id="activeTextbookGdocBtn" href="#" target="_blank" rel="noopener" hidden>แก้ไข/ดูใน Google Docs ↗</a>
+          <a class="btn pdf-red" id="exportTextbookPdfBtn" href="exports/pdf/HS1.pdf" download="RACM303_HS1.pdf" title="ส่งออกบทเรียนนี้เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportTextbookDocxBtn" href="exports/docx/HS1.docx" download="RACM303_HS1.docx" title="ส่งออกบทเรียนนี้เป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="fPrintTextbookBtn" type="button" title="สั่งพิมพ์บทเรียนนี้ (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -690,6 +706,11 @@
         <div>
           <h2>คลังตารางทบทวนเร็ว · บัตรคำศัพท์ 111 คำ &amp; โจทย์ตรวจสอบความเข้าใจ 82 ข้อ</h2>
           <p>ชุดคำศัพท์และคำถามทบทวนตนเองจากท้ายบทเอกสารคำสอน HS1–HS6 สำหรับใช้ตั้งคำถามกระตุ้นคิดในห้องกลุ่มย่อย</p>
+        </div>
+        <div class="header-actions">
+          <a class="btn pdf-red" id="exportPracticePdfBtn" href="exports/pdf/RACM303_2569_Practice_Review.pdf" download="คลังทบทวนเร็ว_คำศัพท์_โจทย์_RACM303_2569.pdf" title="ส่งออกคลังทบทวนเร็ว คำศัพท์ และโจทย์เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
+          <a class="btn docx-blue" id="exportPracticeDocxBtn" href="exports/docx/RACM303_2569_Practice_Review.docx" download="คลังทบทวนเร็ว_คำศัพท์_โจทย์_RACM303_2569.docx" title="ส่งออกคลังทบทวนเร็ว คำศัพท์ และโจทย์เป็นไฟล์ Microsoft Word (.docx)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13.5" y2="17"/></svg>Export as .docx</a>
+          <button class="btn print-ink" id="printPracticeBtn" type="button" title="สั่งพิมพ์หน้าทบทวนนี้ (Print)"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         </div>
       </div>
 
@@ -755,12 +776,12 @@
   <script>window.PORTAL_ROLE = "faculty";</script>
   <script src="assets/data_schedule.js?v=20261120e"></script>
   <script src="assets/data_roster.js?v=20261120e"></script>
-  <script src="assets/data_manual.js?v=20261120e"></script>
+  <script src="assets/data_manual.js?v=20261120r"></script>
   <script src="assets/data_hs_docs.js?v=20261120p"></script>
   <script src="assets/data_hs_discussion.js?v=20261120k"></script>
   <script src="assets/data_hs_discussion_key.js?v=20261120k"></script>
   <script src="assets/data_faculty.js?v=20261120k"></script>
   <script src="assets/interactive_qa.js?v=20261120m"></script>
-  <script src="assets/portal.js?v=20261120p"></script>
+  <script src="assets/portal.js?v=20261120r"></script>
 </body>
 </html>

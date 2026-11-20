@@ -164,19 +164,272 @@
     return `${m}/${d}/${y}`;
   }
 
+  function setBtnLabel(btn, text) {
+    if (!btn) return;
+    const span = btn.querySelector ? btn.querySelector("[data-btn-label]") : null;
+    if (span) span.textContent = text;
+    else btn.textContent = text;
+  }
+
   function copyTextWithFeedback(text, btn, doneLabel = "คัดลอกแล้ว ✓") {
     if (!navigator.clipboard) return;
     navigator.clipboard.writeText(text).then(() => {
       if (!btn) return;
-      const prev = btn.textContent;
-      btn.textContent = doneLabel;
+      const span = btn.querySelector ? btn.querySelector("[data-btn-label]") : null;
+      const prev = span ? span.textContent : btn.textContent;
+      if (span) span.textContent = doneLabel;
+      else btn.textContent = doneLabel;
       setTimeout(() => {
-        btn.textContent = prev;
+        if (span) span.textContent = prev;
+        else btn.textContent = prev;
       }, 1500);
     });
   }
 
-  /* ---------- Synced Apps Script Portrait Loader ---------- */
+  function printWithCleanTitle(tempTitle) {
+    document.body.classList.remove("print-students-mode", "print-disc-mode", "print-single-hsd-case");
+    const prevTitle = document.title;
+    if (tempTitle) document.title = tempTitle;
+    window.print();
+    if (tempTitle) {
+      setTimeout(() => {
+        document.title = prevTitle;
+      }, 600);
+    }
+  }
+
+  /* ---------- Client-Side Genuine OpenXML (.docx) Stored-ZIP Exporter (for Filtered Views) ---------- */
+  const CRC32_TABLE = (() => {
+    const tbl = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      tbl[i] = c >>> 0;
+    }
+    return tbl;
+  })();
+
+  function crc32Bytes(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) {
+      crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function buildStoredZipBlob(entries, mimeType) {
+    const enc = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    entries.forEach((entry) => {
+      const nameBytes = enc.encode(entry.name);
+      const dataBytes = entry.bytes instanceof Uint8Array ? entry.bytes : enc.encode(String(entry.content || ""));
+      const crc = crc32Bytes(dataBytes);
+      const size = dataBytes.length;
+
+      const local = new Uint8Array(30 + nameBytes.length);
+      const lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0x0800, true); // UTF-8 filename flag
+      lv.setUint16(8, 0, true); // STORE (uncompressed)
+      lv.setUint16(10, 0, true);
+      lv.setUint16(12, 0x5774, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, size, true);
+      lv.setUint32(22, size, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      local.set(nameBytes, 30);
+
+      const central = new Uint8Array(46 + nameBytes.length);
+      const cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, 0, true);
+      cv.setUint16(14, 0x5774, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, size, true);
+      cv.setUint32(24, size, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, offset, true);
+      central.set(nameBytes, 46);
+
+      localParts.push(local, dataBytes);
+      centralParts.push(central);
+      offset += local.length + dataBytes.length;
+    });
+
+    const centralSize = centralParts.reduce((acc, b) => acc + b.length, 0);
+    const eocd = new Uint8Array(22);
+    const ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, entries.length, true);
+    ev.setUint16(10, entries.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    ev.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, eocd], { type: mimeType });
+  }
+
+  function escXml(str) {
+    return String(str || "")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function wRunXml(text, opts = {}) {
+    const t = escXml(text);
+    if (!t) return "";
+    const rPr = [
+      `<w:rFonts w:ascii="Sarabun" w:hAnsi="Sarabun" w:cs="Sarabun" w:eastAsia="Sarabun"/>`,
+      opts.bold ? "<w:b/><w:bCs/>" : "",
+      opts.color ? `<w:color w:val="${opts.color}"/>` : "",
+      opts.sz ? `<w:sz w:val="${opts.sz}"/><w:szCs w:val="${opts.sz}"/>` : `<w:sz w:val="23"/><w:szCs w:val="23"/>`
+    ].join("");
+    return `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${t}</w:t></w:r>`;
+  }
+
+  function wParaXml(runsXml, spaceBefore = 60, spaceAfter = 100) {
+    return `<w:p><w:pPr><w:spacing w:before="${spaceBefore}" w:after="${spaceAfter}" w:line="290" w:lineRule="auto"/></w:pPr>${runsXml}</w:p>`;
+  }
+
+  function domNodeToWordBlocks(rootNode) {
+    const out = [];
+    const extractCellText = (el) => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll("textarea, button, svg, script, style").forEach((n) => n.remove());
+      return clone.textContent.replace(/\s+/g, " ").trim();
+    };
+    const walk = (node) => {
+      if (!node || node.nodeType !== 1) return;
+      if (node.hidden || (node.classList && node.classList.contains("hsd-no-print"))) return;
+      const tag = String(node.tagName || "").toUpperCase();
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "BUTTON" || tag === "SVG" || tag === "TEXTAREA") return;
+      if (tag === "H1" || tag === "H2") {
+        out.push(wParaXml(wRunXml(node.textContent.trim(), { bold: true, sz: 30, color: "002D72" }), 220, 100));
+      } else if (tag === "H3" || tag === "H4") {
+        out.push(wParaXml(wRunXml(node.textContent.trim(), { bold: true, sz: 25, color: "0F766E" }), 160, 80));
+      } else if (tag === "H5" || tag === "H6") {
+        out.push(wParaXml(wRunXml(node.textContent.trim(), { bold: true, sz: 23, color: "1E293B" }), 120, 60));
+      } else if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION") {
+        const txt = node.textContent.replace(/\s+/g, " ").trim();
+        if (txt) out.push(wParaXml(wRunXml(txt, { sz: tag === "FIGCAPTION" ? 19 : 23, color: tag === "FIGCAPTION" ? "475569" : "162238" }), 40, 100));
+      } else if (tag === "UL" || tag === "OL") {
+        const isOrdered = tag === "OL";
+        [...node.children].forEach((li, idx) => {
+          if (String(li.tagName || "").toUpperCase() !== "LI") return;
+          const prefix = isOrdered ? `${idx + 1}. ` : "• ";
+          const txt = li.textContent.replace(/\s+/g, " ").trim();
+          if (txt) out.push(wParaXml(wRunXml(prefix + txt, { sz: 23 }), 30, 60));
+        });
+      } else if (tag === "TABLE") {
+        const rows = [...node.querySelectorAll("tr")];
+        if (!rows.length) return;
+        const trXml = rows
+          .map((tr, rIdx) => {
+            const cells = [...tr.querySelectorAll("th, td")];
+            if (!cells.length) return "";
+            const isHead = rIdx === 0 || cells.every((c) => String(c.tagName || "").toUpperCase() === "TH");
+            const tcXml = cells
+              .map((cell) => {
+                const txt = extractCellText(cell);
+                const shd = isHead ? `<w:shd w:val="clear" w:color="auto" w:fill="E8EEF7"/>` : "";
+                return `<w:tc><w:tcPr>${shd}<w:tcMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tcMar></w:tcPr>${wParaXml(
+                  wRunXml(txt, { bold: isHead, sz: 20, color: isHead ? "00245C" : "162238" }),
+                  20,
+                  20
+                )}</w:tc>`;
+              })
+              .join("");
+            return `<w:tr>${tcXml}</w:tr>`;
+          })
+          .join("");
+        out.push(
+          `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>` +
+            `<w:top w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>` +
+            `<w:left w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>` +
+            `<w:bottom w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>` +
+            `<w:right w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>` +
+            `<w:insideH w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>` +
+            `<w:insideV w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>` +
+            `</w:tblBorders></w:tblPr>${trXml}</w:tbl>`
+        );
+      } else {
+        [...node.children].forEach(walk);
+      }
+    };
+    [...rootNode.children].forEach(walk);
+    return out.join("");
+  }
+
+  function downloadHtmlAsGenuineDocx(title, subtitle, htmlString, filename) {
+    const holder = document.createElement("div");
+    holder.innerHTML = htmlString;
+    const bodyXml =
+      wParaXml(wRunXml(title, { bold: true, sz: 34, color: "002D72" }), 0, 80) +
+      (subtitle ? wParaXml(wRunXml(subtitle, { bold: true, sz: 21, color: "475569" }), 0, 180) : "") +
+      domNodeToWordBlocks(holder) +
+      `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1020" w:right="1020" w:bottom="1020" w:left="1020"/></w:sectPr>`;
+
+    const entries = [
+      {
+        name: "[Content_Types].xml",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+          `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+          `<Default Extension="xml" ContentType="application/xml"/>` +
+          `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+          `</Types>`
+      },
+      {
+        name: "_rels/.rels",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>` +
+          `</Relationships>`
+      },
+      {
+        name: "word/document.xml",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${bodyXml}</w:body></w:document>`
+      }
+    ];
+
+    const blob = buildStoredZipBlob(
+      entries,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename.endsWith(".docx") ? filename : `${filename}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
+  }
+
+  /* ---------- Student Portrait Loader ---------- */
   function studentInitials(s) {
     const parts = String(s.name || "").trim().split(/\s+/);
     const a = parts[0] ? [...parts[0]][0] : "น";
@@ -198,6 +451,7 @@
     const sid = box.dataset.studentId || "";
     const pid = box.dataset.photoId || "";
     const initials = box.dataset.initials || "นศ";
+    const sLabel = box.dataset.studentName || initials;
     if (!sid && !pid) {
       box.innerHTML = `<span class="avatar-monogram">${escapeHtml(initials)}</span>`;
       return;
@@ -215,13 +469,13 @@
           img.src = `https://drive.google.com/thumbnail?id=${encodeURIComponent(pid)}&sz=w320`;
           return;
         }
-        box.innerHTML = `<span class="avatar-monogram" title="เปิดดูรูปใน Apps Script ได้จากปุ่มด้านบน">${escapeHtml(initials)}</span>`;
+        box.innerHTML = `<span class="avatar-monogram" title="${escapeHtml(sLabel)}">${escapeHtml(initials)}</span>`;
       };
     } else {
       img.referrerPolicy = "no-referrer";
       img.src = `https://drive.google.com/thumbnail?id=${encodeURIComponent(pid)}&sz=w320`;
       img.onerror = () => {
-        box.innerHTML = `<span class="avatar-monogram" title="เปิดดูรูปใน Apps Script ได้จากปุ่มด้านบน">${escapeHtml(initials)}</span>`;
+        box.innerHTML = `<span class="avatar-monogram" title="${escapeHtml(sLabel)}">${escapeHtml(initials)}</span>`;
       };
     }
     box.replaceChildren(img);
@@ -885,12 +1139,12 @@
       }
     }
 
-    if (dlIcsBtn) dlIcsBtn.textContent = `ดาวน์โหลด .ics (${shortTarget})`;
-    if (dlCsvBtn) dlCsvBtn.textContent = `ดาวน์โหลด .csv (${shortTarget})`;
-    if (topIcsBtn) topIcsBtn.textContent = `ดาวน์โหลด iCal .ics (${shortTarget})`;
-    if (topCsvBtn) topCsvBtn.textContent = `ดาวน์โหลด Google .csv (${shortTarget})`;
-    if ($("sideDlIcsQuickBtn")) $("sideDlIcsQuickBtn").textContent = `ดาวน์โหลดไฟล์ .ics (${shortTarget})`;
-    if ($("sideDlCsvQuickBtn")) $("sideDlCsvQuickBtn").textContent = `ดาวน์โหลดไฟล์ .csv (${shortTarget})`;
+    setBtnLabel(dlIcsBtn, `Export .ics (${shortTarget})`);
+    setBtnLabel(dlCsvBtn, `Export .csv (${shortTarget})`);
+    setBtnLabel(topIcsBtn, `Export iCal .ics (${shortTarget})`);
+    setBtnLabel(topCsvBtn, `Google .csv (${shortTarget})`);
+    setBtnLabel($("sideDlIcsQuickBtn"), `Export .ics (${shortTarget})`);
+    setBtnLabel($("sideDlCsvQuickBtn"), `Export .csv (${shortTarget})`);
     if ($("calSideSyncTargetLabel")) {
       $("calSideSyncTargetLabel").textContent = `กำลังซิงค์: ${shortTarget} (${sessionsToExport.length} คาบ · พร้อมลิงก์ Zoom)`;
     }
@@ -1286,13 +1540,45 @@
       });
     }
 
+    const hasActiveScheduleFilter = () => {
+      const ids = ["schedWeekFilter", "schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter", "schedSearchInput"];
+      return Boolean(state.myStudent || ids.some((id) => $(id) && String($(id).value || "").trim() !== ""));
+    };
+
     if ($("exportIcsBtn")) $("exportIcsBtn").addEventListener("click", downloadScheduleIcs);
     if ($("exportGcalCsvBtn")) $("exportGcalCsvBtn").addEventListener("click", downloadScheduleGoogleCsv);
-    if ($("printScheduleBtn")) {
-      $("printScheduleBtn").addEventListener("click", () => {
-        document.body.classList.remove("print-students-mode", "print-disc-mode");
-        window.print();
+    if ($("exportSchedulePdfBtn")) {
+      $("exportSchedulePdfBtn").addEventListener("click", (ev) => {
+        if (!hasActiveScheduleFilter()) return; // allow native download of pre-built PDF
+        ev.preventDefault();
+        const ctx = getActivePersonalContext();
+        const tag = ctx.teacherVal || (state.myStudent && state.myStudent.id) || ctx.areaVal || "เฉพาะเงื่อนไขที่กรอง";
+        printWithCleanTitle(`ตารางสอน_RACM303_2569_${sanitizeFilenamePart(tag)}`);
       });
+    }
+    if ($("exportScheduleDocxBtn")) {
+      $("exportScheduleDocxBtn").addEventListener("click", (ev) => {
+        if (!hasActiveScheduleFilter()) return; // allow native download of pre-built DOCX
+        ev.preventDefault();
+        const ctx = getActivePersonalContext();
+        const sessions = getFilteredSessions(false);
+        const rowsHtml = sessions
+          .map((s) => {
+            const eff = resolveEffectiveSessionDetails(s, ctx);
+            return `<tr><td>สัปดาห์ ${s.week} · ${escapeHtml(s.dateTH)} (${escapeHtml(eff.startTime || s.startTime)}–${escapeHtml(eff.endTime || s.endTime)})</td><td>${escapeHtml(eff.title || s.title)}</td><td>${escapeHtml(eff.lecturers || s.lecturers || "-")}</td><td>${escapeHtml(eff.room || s.room || "-")}</td></tr>`;
+          })
+          .join("");
+        const tag = ctx.teacherVal || (state.myStudent && `${state.myStudent.id}_${state.myStudent.fullName}`) || ctx.areaVal || "Filtered";
+        downloadHtmlAsGenuineDocx(
+          "ตารางกิจกรรมการเรียนการสอน รายวิชา RACM 303 ปีการศึกษา 2569",
+          `เงื่อนไขที่กรอง: ${tag} · รวม ${sessions.length} คาบกิจกรรม`,
+          `<table><thead><tr><th>วัน-เวลา</th><th>หัวข้อและกิจกรรม</th><th>ผู้สอน</th><th>ห้องเรียน / ช่องทาง</th></tr></thead><tbody>${rowsHtml}</tbody></table>`,
+          `ตารางสอน_RACM303_2569_${sanitizeFilenamePart(tag)}.docx`
+        );
+      });
+    }
+    if ($("printScheduleBtn")) {
+      $("printScheduleBtn").addEventListener("click", () => printWithCleanTitle(""));
     }
 
     const modal = $("calendarEventModal");
@@ -2067,8 +2353,9 @@
     gcalBtn.target = "_blank";
     gcalBtn.rel = "noopener";
 
-    const icsBtn = make("button", "ดาวน์โหลดเฉพาะคาบนี้ (.ics)", "btn sm cal-ics-btn");
+    const icsBtn = make("button", null, "btn sm cal-ics-btn");
     icsBtn.type = "button";
+    icsBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export เฉพาะคาบนี้ (.ics)`;
     icsBtn.addEventListener("click", () => downloadSingleSessionIcs(session));
 
     leftExport.append(gcalBtn, icsBtn);
@@ -2378,20 +2665,6 @@
       switchTab("fieldwork");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function buildAppsScriptDeepLink(areaVal, discVal) {
-    const base = ROSTER.appsScriptUrl;
-    if (!base) return "#";
-    const params = new URLSearchParams({ page: "students" });
-    if (discVal) {
-      params.set("type", "discussion");
-      params.set("group", discVal);
-    } else if (areaVal) {
-      params.set("type", "area");
-      params.set("group", areaVal);
-    }
-    return `${base}?${params.toString()}`;
   }
 
   function syncPhotoToggleButtons() {
@@ -3951,6 +4224,38 @@
       if ($(id)) $(id).addEventListener("click", () => printRosterOnePage("discussion"));
     });
 
+    if ($("exportDiscPdfBtn")) {
+      $("exportDiscPdfBtn").addEventListener("click", (ev) => {
+        if ($("exportDiscPdfBtn").dataset.dynamicPrint === "1") {
+          ev.preventDefault();
+          printRosterOnePage("discussion");
+        }
+      });
+    }
+
+    if ($("exportDiscDocxBtn")) {
+      $("exportDiscDocxBtn").addEventListener("click", (ev) => {
+        const dVal = ($("discGroupSelect") && $("discGroupSelect").value) || "";
+        const aVal = ($("discAreaSubFilter") && $("discAreaSubFilter").value) || "";
+        const qVal = (($("discSearchInput") && $("discSearchInput").value) || "").trim();
+        if (!dVal && !aVal && !qVal) return; // use pre-built full Discussion DOCX
+        ev.preventDefault();
+        const rows = (state.visibleDiscStudents || [])
+          .map(
+            (s, idx) =>
+              `<tr><td>${idx + 1}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.fullName)}</td><td>${escapeHtml(s.nickname || "-")}</td><td>กลุ่ม ${s.disc}</td><td>${escapeHtml(s.area)}</td></tr>`
+          )
+          .join("");
+        const label = dVal ? `กลุ่มที่_${dVal}` : "Filtered";
+        downloadHtmlAsGenuineDocx(
+          `รายชื่อสมาชิกกลุ่มอภิปราย Discussion ${dVal ? "กลุ่มที่ " + dVal : "(ตามเงื่อนไขที่กรอง)"}`,
+          `รายวิชา RACM 303 ปีการศึกษา 2569 · จำนวน ${(state.visibleDiscStudents || []).length} คน`,
+          `<table><thead><tr><th>ลำดับ</th><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ชื่อเล่น</th><th>Discussion</th><th>พื้นที่ภาคสนาม</th></tr></thead><tbody>${rows}</tbody></table>`,
+          `รายชื่อ_Discussion_${sanitizeFilenamePart(label)}_RACM303_2569.docx`
+        );
+      });
+    }
+
     if ($("jumpToHsDiscCasesBtn")) {
       $("jumpToHsDiscCasesBtn").addEventListener("click", () => openHsDiscussion("ALL"));
     }
@@ -4181,8 +4486,21 @@
       }
     }
 
-    const gasTop = $("openAppsScriptDiscBtn");
-    if (gasTop) gasTop.href = buildAppsScriptDeepLink("", discVal || "1");
+    const discPdfBtn = $("exportDiscPdfBtn");
+    if (discPdfBtn) {
+      if (!areaSubVal && !q) {
+        discPdfBtn.dataset.dynamicPrint = "0";
+        if (discVal) {
+          discPdfBtn.href = `exports/pdf/RACM303_2569_Discussion_G${encodeURIComponent(discVal)}.pdf`;
+          discPdfBtn.setAttribute("download", `ใบรายชื่อ_Discussion_กลุ่มที่_${discVal}_A4.pdf`);
+        } else {
+          discPdfBtn.href = "exports/pdf/RACM303_2569_Discussion_All.pdf";
+          discPdfBtn.setAttribute("download", "ใบรายชื่อ_Discussion_ครบ6กลุ่ม_RACM303_2569.pdf");
+        }
+      } else {
+        discPdfBtn.dataset.dynamicPrint = "1";
+      }
+    }
 
     const list = ROSTER.students.filter((s) => {
       if (discVal && String(s.disc) !== discVal) return false;
@@ -4384,6 +4702,43 @@
       if ($(id)) $(id).addEventListener("click", () => printRosterOnePage("fieldwork"));
     });
 
+    if ($("exportFieldPdfBtn")) {
+      $("exportFieldPdfBtn").addEventListener("click", (ev) => {
+        if ($("exportFieldPdfBtn").dataset.dynamicPrint === "1") {
+          ev.preventDefault();
+          printRosterOnePage("fieldwork");
+        }
+      });
+    }
+
+    if ($("exportFieldDocxBtn")) {
+      $("exportFieldDocxBtn").addEventListener("click", (ev) => {
+        const aVal = ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "";
+        const qVal = (($("fieldSearchInput") && $("fieldSearchInput").value) || "").trim();
+        if (!aVal && !qVal) return; // use pre-built full Fieldwork DOCX
+        ev.preventDefault();
+        const siteObj = aVal ? (SCHED.fieldworkSites || []).find((x) => x.shortName === aVal) : null;
+        const rows = (state.visibleFieldStudents || [])
+          .map(
+            (s, idx) =>
+              `<tr><td>${idx + 1}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.fullName)}</td><td>${escapeHtml(s.nickname || "-")}</td><td>${escapeHtml(s.area)}</td><td>กลุ่ม ${s.disc}</td></tr>`
+          )
+          .join("");
+        const title = siteObj
+          ? `รายชื่อนักศึกษาพื้นที่ภาคสนามกลุ่มที่ ${siteObj.id}: ${siteObj.hospital} (${siteObj.province})`
+          : "รายชื่อนักศึกษาพื้นที่ภาคสนาม (ตามเงื่อนไขที่กรอง)";
+        const sub = siteObj
+          ? `อาจารย์ที่ปรึกษา: ${siteObj.advisors} · ห้อง ${siteObj.room} · ${siteObj.datesTH}`
+          : `จำนวน ${(state.visibleFieldStudents || []).length} คน`;
+        downloadHtmlAsGenuineDocx(
+          title,
+          sub,
+          `<table><thead><tr><th>ลำดับ</th><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ชื่อเล่น</th><th>พื้นที่ภาคสนาม</th><th>กลุ่ม Discussion</th></tr></thead><tbody>${rows}</tbody></table>`,
+          `รายชื่อ_ภาคสนาม_${sanitizeFilenamePart(aVal || "Filtered")}_RACM303_2569.docx`
+        );
+      });
+    }
+
     syncPhotoToggleButtons();
   }
 
@@ -4465,7 +4820,7 @@
           state.fieldContext = null;
           renderFieldworkView();
         });
-        const icsLink = make("a", "ปฏิทิน .ics กลุ่มนี้", "btn sm teal");
+        const icsLink = make("a", "Export .ics กลุ่มนี้", "btn sm teal");
         icsLink.href = `calendars/group_${site.id}_${site.slug}.ics`;
         icsLink.setAttribute("download", `RACM303_2569_group_${site.id}_${site.slug}.ics`);
         actRow.append(filterBtn, icsLink);
@@ -4657,15 +5012,22 @@
         if (dockEl && !isLocked) dockEl.scrollIntoView({ behavior: "smooth", block: "start" });
       });
 
-      const printSiteBtn = make("button", "🖨 พิมพ์ A4 กลุ่มนี้", "btn sm");
+      const pdfSiteLink = make("a", null, "btn sm pdf-red");
+      pdfSiteLink.href = `exports/pdf/RACM303_2569_Fieldwork_S${curSite.id}.pdf`;
+      pdfSiteLink.setAttribute("download", `ใบรายชื่อ_ภาคสนาม_กลุ่ม${curSite.id}_${curSite.shortName}_A4.pdf`);
+      pdfSiteLink.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF`;
+
+      const printSiteBtn = make("button", null, "btn sm print-ink");
       printSiteBtn.type = "button";
+      printSiteBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (A4)`;
       printSiteBtn.addEventListener("click", () => printSingleGroupHelper("fieldwork", curSite.shortName));
 
-      const icsLink = make("a", "📅 ปฏิทิน .ics กลุ่มนี้", "btn sm teal");
+      const icsLink = make("a", null, "btn sm teal");
       icsLink.href = `calendars/group_${curSite.id}_${curSite.slug}.ics`;
       icsLink.setAttribute("download", `RACM303_2569_group_${curSite.id}_${curSite.slug}.ics`);
+      icsLink.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export .ics`;
 
-      actRow.append(lockBtn, printSiteBtn, icsLink);
+      actRow.append(lockBtn, pdfSiteLink, printSiteBtn, icsLink);
       cardBody.appendChild(actRow);
       inspector.appendChild(cardBody);
     };
@@ -4787,17 +5149,27 @@
         const backBtn = make("button", "กลับไปปฏิทินสอน", "btn sm");
         backBtn.type = "button";
         backBtn.addEventListener("click", () => switchTab("schedule"));
-        const gasLink = make("a", "เปิดดูรูปถ่ายใน Apps Script ↗", "btn sm teal");
-        gasLink.href = buildAppsScriptDeepLink(areaVal, "");
-        gasLink.target = "_blank";
-        gasLink.rel = "noopener";
-        right.append(backBtn, gasLink);
+        right.append(backBtn);
         ctxBox.append(left, right);
       }
     }
 
-    const topGasBtn = $("openAppsScriptFieldBtn");
-    if (topGasBtn) topGasBtn.href = buildAppsScriptDeepLink(areaVal, "");
+    const fieldPdfBtn = $("exportFieldPdfBtn");
+    if (fieldPdfBtn) {
+      const matchedSite = areaVal ? (SCHED.fieldworkSites || []).find((x) => x.shortName === areaVal) : null;
+      if (!q) {
+        fieldPdfBtn.dataset.dynamicPrint = "0";
+        if (matchedSite) {
+          fieldPdfBtn.href = `exports/pdf/RACM303_2569_Fieldwork_S${matchedSite.id}.pdf`;
+          fieldPdfBtn.setAttribute("download", `ใบรายชื่อ_ภาคสนาม_กลุ่ม${matchedSite.id}_${matchedSite.shortName}_A4.pdf`);
+        } else {
+          fieldPdfBtn.href = "exports/pdf/RACM303_2569_Fieldwork_All.pdf";
+          fieldPdfBtn.setAttribute("download", "ใบรายชื่อ_9พื้นที่ภาคสนาม_RACM303_2569.pdf");
+        }
+      } else {
+        fieldPdfBtn.dataset.dynamicPrint = "1";
+      }
+    }
 
     const siteOrder = new Map((SCHED.fieldworkSites || []).map((s, idx) => [s.shortName, idx]));
     const list = ROSTER.students.filter((s) => {
@@ -5074,7 +5446,7 @@
     const preview = $("srnFilenamePreview");
     if (preview) preview.textContent = finalName;
     if ($("downloadRenamedPdfBtn") && state.inspectedPdfBytes) {
-      $("downloadRenamedPdfBtn").textContent = `ดาวน์โหลด "${finalName}"`;
+      setBtnLabel($("downloadRenamedPdfBtn"), `Export "${finalName}"`);
     }
     return finalName;
   }
@@ -5115,7 +5487,7 @@
       state.inspectedPdfOrigName = file.name;
       if (dlBtn) {
         dlBtn.hidden = false;
-        dlBtn.textContent = `ดาวน์โหลด "${targetName}"`;
+        setBtnLabel(dlBtn, `Export "${targetName}"`);
       }
 
       resBox.hidden = false;
@@ -5129,7 +5501,7 @@
         resBox.className = "pdf-check-result is-ok";
         resBox.innerHTML =
           `<strong>✓ ไฟล์ PDF พร้อมส่ง · ${escapeHtml(pageInfo)} · ขนาด ${escapeHtml(sizeStr)}</strong><br>` +
-          `กดปุ่ม <strong>ดาวน์โหลด "${escapeHtml(targetName)}"</strong> เพื่อรับไฟล์ที่ตั้งชื่อถูกต้องครบถ้วน แล้วลากวางในหน้าต่าง RAMED E-learning ได้ทันที`;
+          `กดปุ่ม <strong>Export "${escapeHtml(targetName)}"</strong> เพื่อรับไฟล์ที่ตั้งชื่อถูกต้องครบถ้วน แล้วลากวางในหน้าต่าง RAMED E-learning ได้ทันที`;
       }
     } catch (_) {
       resBox.hidden = false;
@@ -6619,12 +6991,42 @@
   function initManualControls() {
     const search = $("manualSearchInput");
     if (search) search.addEventListener("input", renderManualReader);
+
+    const isManualFiltered = () => {
+      const q = (($("manualSearchInput") && $("manualSearchInput").value) || "").trim();
+      return Boolean((state.manualChapterId && state.manualChapterId !== "ALL") || q);
+    };
+
+    if ($("exportManualPdfBtn")) {
+      $("exportManualPdfBtn").addEventListener("click", (ev) => {
+        if (!isManualFiltered()) return;
+        ev.preventDefault();
+        const ch = (MANUAL.chapters || []).find((c) => c.id === state.manualChapterId);
+        const tag = ch ? ch.title : "เฉพาะหัวข้อที่ค้นหา";
+        printWithCleanTitle(`คู่มือรายวิชา_RACM303_2569_${sanitizeFilenamePart(tag)}`);
+      });
+    }
+
+    if ($("exportManualDocxBtn")) {
+      $("exportManualDocxBtn").addEventListener("click", (ev) => {
+        if (!isManualFiltered()) return;
+        ev.preventDefault();
+        const prose = $("manualProseContainer");
+        if (!prose) return;
+        const ch = (MANUAL.chapters || []).find((c) => c.id === state.manualChapterId);
+        const tag = ch ? ch.title : "Filtered";
+        downloadHtmlAsGenuineDocx(
+          `คู่มือรายวิชา RACM 303 ปีการศึกษา 2569 — ${ch ? ch.title : "ผลการค้นหา"}`,
+          "ภาควิชาเวชศาสตร์ชุมชน คณะแพทยศาสตร์โรงพยาบาลรามาธิบดี มหาวิทยาลัยมหิดล",
+          prose.innerHTML,
+          `คู่มือรายวิชา_RACM303_2569_${sanitizeFilenamePart(tag)}.docx`
+        );
+      });
+    }
+
     ["printManualBtn", "facPrintManualBtn"].forEach((id) => {
       if ($(id)) {
-        $(id).addEventListener("click", () => {
-          document.body.classList.remove("print-students-mode", "print-disc-mode");
-          window.print();
-        });
+        $(id).addEventListener("click", () => printWithCleanTitle(""));
       }
     });
   }
@@ -6709,10 +7111,7 @@
     }
     ["printTextbookBtn", "fPrintTextbookBtn"].forEach((id) => {
       if ($(id)) {
-        $(id).addEventListener("click", () => {
-          document.body.classList.remove("print-students-mode", "print-disc-mode");
-          window.print();
-        });
+        $(id).addEventListener("click", () => printWithCleanTitle(""));
       }
     });
   }
@@ -6723,7 +7122,8 @@
     const prose = $("textbookProseContainer");
     const metaTitle = $("activeTextbookMeta");
     const gdocBtn = $("activeTextbookGdocBtn");
-    const mdBtn = $("activeTextbookMdBtn");
+    const pdfBtn = $("exportTextbookPdfBtn");
+    const docxBtn = $("exportTextbookDocxBtn");
     if (!picker || !prose) return;
 
     const docs = HS.docs || [];
@@ -6754,13 +7154,14 @@
     if (metaTitle) {
       metaTitle.textContent = `${current.badge} — ${current.sessionInfo || current.subtitle || ""}`;
     }
-    if (mdBtn) {
-      if (current.mdPath) {
-        mdBtn.href = current.mdPath;
-        mdBtn.hidden = false;
-      } else {
-        mdBtn.hidden = true;
-      }
+    const dlStem = `RACM303_${sanitizeFilenamePart(`${current.id}_${current.title}`).replace(/\s+/g, "_").slice(0, 72)}`;
+    if (pdfBtn) {
+      pdfBtn.href = `exports/pdf/${encodeURIComponent(current.id)}.pdf`;
+      pdfBtn.setAttribute("download", `${dlStem}.pdf`);
+    }
+    if (docxBtn) {
+      docxBtn.href = `exports/docx/${encodeURIComponent(current.id)}.docx`;
+      docxBtn.setAttribute("download", `${dlStem}.docx`);
     }
     if (gdocBtn) {
       if (current.docUrl) {
@@ -6797,6 +7198,56 @@
         state.fcShuffleSeed = Date.now();
         renderFlashcards();
       });
+    }
+
+    const isPracticeFiltered = () => {
+      const m = ($("practiceModuleFilter") && $("practiceModuleFilter").value) || "";
+      const q = (($("practiceSearchInput") && $("practiceSearchInput").value) || "").trim();
+      return Boolean(m || q);
+    };
+
+    if ($("exportPracticePdfBtn")) {
+      $("exportPracticePdfBtn").addEventListener("click", (ev) => {
+        if (!isPracticeFiltered()) return;
+        ev.preventDefault();
+        const m = ($("practiceModuleFilter") && $("practiceModuleFilter").value) || "Filtered";
+        printWithCleanTitle(`คลังทบทวน_${sanitizeFilenamePart(m)}_RACM303_2569`);
+      });
+    }
+
+    if ($("exportPracticeDocxBtn")) {
+      $("exportPracticeDocxBtn").addEventListener("click", (ev) => {
+        if (!isPracticeFiltered()) return;
+        ev.preventDefault();
+        const mod = ($("practiceModuleFilter") && $("practiceModuleFilter").value) || "";
+        const q = (($("practiceSearchInput") && $("practiceSearchInput").value) || "").trim().toLocaleLowerCase("th");
+        let html = "";
+        if (state.practiceSub === "rapid" && $("practiceRapidWrap")) {
+          html = $("practiceRapidWrap").innerHTML;
+        } else if (state.practiceSub === "flashcards") {
+          const cards = (HS.glossary || []).filter(
+            (g) => (!mod || g.module === mod) && (!q || `${g.termTH} ${g.termEN} ${g.definition}`.toLocaleLowerCase("th").includes(q))
+          );
+          html = `<table><thead><tr><th>บท</th><th>คำศัพท์</th><th>ความหมาย</th></tr></thead><tbody>${cards
+            .map((g) => `<tr><td>${escapeHtml(g.module)}</td><td>${escapeHtml(g.termTH || g.termFull)} (${escapeHtml(g.termEN || "")})</td><td>${escapeHtml(g.definition)}</td></tr>`)
+            .join("")}</tbody></table>`;
+        } else {
+          const items = (HS.selfCheck || []).filter(
+            (it) => (!mod || it.module === mod) && (!q || `${it.question} ${it.answerHtml}`.toLocaleLowerCase("th").includes(q))
+          );
+          html = items.map((it) => `<h3>[${escapeHtml(it.module)} · ข้อ ${it.num}] ${escapeHtml(it.question)}</h3>${it.answerHtml}`).join("");
+        }
+        downloadHtmlAsGenuineDocx(
+          `คลังทบทวนความรู้ RACM 303 (${mod || "ผลการค้นหา"})`,
+          "วิทยาศาสตร์ระบบสุขภาพ (HS1–HS6) · ปีการศึกษา 2569",
+          html,
+          `คลังทบทวน_${sanitizeFilenamePart(mod || "Filtered")}_RACM303_2569.docx`
+        );
+      });
+    }
+
+    if ($("printPracticeBtn")) {
+      $("printPracticeBtn").addEventListener("click", () => printWithCleanTitle(""));
     }
   }
 
@@ -7022,62 +7473,57 @@
     }, 600);
   }
 
-  function exportHsDiscussionStudentMarkdown() {
-    const lines = [
-      "# บันทึกการวิเคราะห์กรณีศึกษา Discussion ระบบสุขภาพ (HS1–HS6)",
-      ""
-    ];
-    if (state.myStudent) {
-      lines.push(`- **นักศึกษา:** ${state.myStudent.id} ${state.myStudent.fullName} (กลุ่ม Discussion ที่ ${state.myStudent.disc} · กลุ่มพื้นที่ ${state.myStudent.area})`);
-    }
-    lines.push(`- **รายวิชา:** RACM 303 เวชศาสตร์ชุมชนและวิทยาศาสตร์ระบบสุขภาพ ปีการศึกษา 2569`);
-    lines.push("");
-    lines.push("---");
-    lines.push("");
-
+  function exportHsDiscussionStudentDocx() {
     const targetMod = state.hsdModule || "ALL";
     const mods = (HSD_DATA.modules || []).filter((m) => targetMod === "ALL" || m.id === targetMod);
+    const subtitleParts = [];
+    if (state.myStudent) {
+      subtitleParts.push(
+        `นักศึกษา: ${state.myStudent.id} ${state.myStudent.fullName} (Discussion กลุ่มที่ ${state.myStudent.disc} · พื้นที่ ${state.myStudent.area})`
+      );
+    }
+    subtitleParts.push("รายวิชา RACM 303 เวชศาสตร์ชุมชนและวิทยาศาสตร์ระบบสุขภาพ ปีการศึกษา 2569");
+
+    const blocks = [];
     mods.forEach((mod) => {
-      lines.push(`## ${mod.code}: ${mod.title}`);
-      lines.push(`*${mod.scheduleDate} · เวลา ${mod.discTime}*`);
-      lines.push("");
+      blocks.push(`<h2>${escapeHtml(mod.code)}: ${escapeHtml(mod.title)}</h2>`);
+      blocks.push(`<p>${escapeHtml(mod.scheduleDate)} · เวลา ${escapeHtml(mod.discTime)}</p>`);
       const modCases = (HSD_DATA.cases || []).filter((c) => c.module === mod.id);
       modCases.forEach((c) => {
-        lines.push(`### ${c.title}`);
-        lines.push("");
+        blocks.push(`<h3>${escapeHtml(c.title)}</h3>`);
+        if (c.subtitle) blocks.push(`<p>${escapeHtml(c.subtitle)}</p>`);
         (c.questions || []).forEach((q) => {
-          lines.push(`#### ${q.label}: ${q.title}`);
-          lines.push(q.prompt);
-          lines.push("");
+          blocks.push(`<h4>${escapeHtml(q.label)}: ${escapeHtml(q.title)}</h4>`);
+          blocks.push(`<p>${escapeHtml(q.prompt)}</p>`);
           const ws = q.worksheet;
           if (ws && ws.headers && ws.rows) {
-            lines.push("| " + ws.headers.join(" | ") + " |");
-            lines.push("| " + ws.headers.map(() => "---").join(" | ") + " |");
-            ws.rows.forEach((r) => {
-              const vals = (r.cells || []).map((cell) => {
-                if (cell.static) return `**${cell.static}**`;
-                const ans = String(state.hsdDrafts[cell.inputId] || "").trim();
-                return ans ? ans.replace(/\n+/g, "<br>") : "-";
-              });
-              lines.push("| " + vals.join(" | ") + " |");
-            });
-            lines.push("");
+            const ths = ws.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+            const trs = ws.rows
+              .map((r) => {
+                const tds = (r.cells || [])
+                  .map((cell) => {
+                    if (cell.static) return `<td>${escapeHtml(cell.static)}</td>`;
+                    const ans = String(state.hsdDrafts[cell.inputId] || "").trim();
+                    return `<td>${escapeHtml(ans || "-")}</td>`;
+                  })
+                  .join("");
+                return `<tr>${tds}</tr>`;
+              })
+              .join("");
+            blocks.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);
           }
         });
       });
     });
 
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
     const suffix = targetMod === "ALL" ? "HS1-HS6" : targetMod;
     const sid = state.myStudent ? `_${state.myStudent.id}` : "";
-    a.href = url;
-    a.download = `Discussion_${suffix}${sid}_RACM303_2569.md`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    downloadHtmlAsGenuineDocx(
+      "บันทึกการวิเคราะห์กรณีศึกษา Discussion ระบบสุขภาพ (HS1–HS6)",
+      subtitleParts.join(" · "),
+      blocks.join(""),
+      `Discussion_${suffix}${sid}_RACM303_2569.docx`
+    );
   }
 
   function initHsDiscussionControls() {
@@ -7122,15 +7568,51 @@
       });
     }
 
+    const isHsdFiltered = () => {
+      const q = (($("hsdSearchInput") && $("hsdSearchInput").value) || "").trim();
+      return Boolean((state.hsdModule && state.hsdModule !== "ALL") || q);
+    };
+
+    ["hsdExportPdfBtn", "hsdExportKeyPdfBtn"].forEach((id) => {
+      if ($(id)) {
+        $(id).addEventListener("click", (ev) => {
+          if (!isHsdFiltered()) return;
+          ev.preventDefault();
+          const modTag = state.hsdModule !== "ALL" ? state.hsdModule : "Filtered";
+          const prefix = ROLE === "faculty" ? "Teacher_Key_Discussion" : "ใบงาน_Discussion";
+          printWithCleanTitle(`${prefix}_${sanitizeFilenamePart(modTag)}_RACM303_2569`);
+        });
+      }
+    });
+
+    ["hsdExportDocxBtn", "hsdExportKeyDocxBtn"].forEach((id) => {
+      if ($(id)) {
+        $(id).addEventListener("click", (ev) => {
+          if (!isHsdFiltered()) return;
+          ev.preventDefault();
+          const container = $("hsdCasesContainer");
+          if (!container) return;
+          const modTag = state.hsdModule !== "ALL" ? state.hsdModule : "Filtered";
+          const title =
+            ROLE === "faculty"
+              ? `ชุดกรณีศึกษาและเฉลย Discussion ระบบสุขภาพ (${modTag})`
+              : `กรณีศึกษาและใบงานอภิปรายกลุ่มย่อย ระบบสุขภาพ (${modTag})`;
+          downloadHtmlAsGenuineDocx(
+            title,
+            "รายวิชา RACM 303 เวชศาสตร์ชุมชนและวิทยาศาสตร์ระบบสุขภาพ ปีการศึกษา 2569",
+            container.innerHTML,
+            `Discussion_${sanitizeFilenamePart(modTag)}_RACM303_2569.docx`
+          );
+        });
+      }
+    });
+
     if ($("hsdPrintAllBtn")) {
-      $("hsdPrintAllBtn").addEventListener("click", () => {
-        document.body.classList.remove("print-students-mode", "print-disc-mode", "print-single-hsd-case");
-        window.print();
-      });
+      $("hsdPrintAllBtn").addEventListener("click", () => printWithCleanTitle(""));
     }
 
     if ($("hsdExportMyAnswersBtn")) {
-      $("hsdExportMyAnswersBtn").addEventListener("click", exportHsDiscussionStudentMarkdown);
+      $("hsdExportMyAnswersBtn").addEventListener("click", exportHsDiscussionStudentDocx);
     }
 
     document.querySelectorAll("[data-hsd-fmode]").forEach((btn) => {
@@ -7186,7 +7668,7 @@
       });
       right.append(rosterBtn, fullGuideBtn);
     } else {
-      left.innerHTML = `<strong>การเตรียมตัวชั่วโมงอภิปรายกลุ่มย่อย (HS1–HS6 · 6 กลุ่มย่อย ห้อง 1C1-02 ถึง 1C1-07):</strong> อ่านสถานการณ์และลองพิมพ์วิเคราะห์ลงในตารางใบงานด้านล่าง (ระบบบันทึกอัตโนมัติในเครื่องของนักศึกษา และสั่งพิมพ์ PDF หรือส่งออก .md ได้ทันที) · <em>พิมพ์รหัสนักศึกษา 7 หลักที่แถบด้านบนเพื่อดูห้องเรียนและอาจารย์ประจำกลุ่มของตนเอง</em>`;
+      left.innerHTML = `<strong>การเตรียมตัวชั่วโมงอภิปรายกลุ่มย่อย (HS1–HS6 · 6 กลุ่มย่อย ห้อง 1C1-02 ถึง 1C1-07):</strong> อ่านสถานการณ์และลองพิมพ์วิเคราะห์ลงในตารางใบงานด้านล่าง (ระบบบันทึกอัตโนมัติในเครื่องของนักศึกษา และสามารถ Export เป็น PDF / .docx หรือสั่งพิมพ์ได้ทันที) · <em>พิมพ์รหัสนักศึกษา 7 หลักที่แถบด้านบนเพื่อดูห้องเรียนและอาจารย์ประจำกลุ่มของตนเอง</em>`;
       const rosterBtn = make("button", "ดูรายชื่อกลุ่ม Discussion 1–6 →", "btn sm");
       rosterBtn.type = "button";
       rosterBtn.addEventListener("click", () => switchTab("discussion"));
@@ -7440,8 +7922,9 @@
         hLeft.appendChild(fwWrap);
 
         const hRight = make("div", null, "header-actions hsd-no-print");
-        const printCaseBtn = make("button", "พิมพ์เฉพาะกรณีนี้ / PDF", "btn sm");
+        const printCaseBtn = make("button", null, "btn sm print-ink");
         printCaseBtn.type = "button";
+        printCaseBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print / PDF กรณีนี้`;
         printCaseBtn.addEventListener("click", () => printSingleHsDiscussionCase(card));
 
         const clearCaseBtn = make("button", "ล้างคำตอบข้อนี้", "btn sm");
@@ -7568,7 +8051,7 @@
           <button type="button" class="btn sm" data-audit-jump="sec-audit-pending">1. ประเด็นรอยืนยัน (${items.length})</button>
           <button type="button" class="btn sm" data-audit-jump="sec-audit-sheet">2. ซิงค์ตาราง (${reconList.length})</button>
           <button type="button" class="btn sm" data-audit-jump="sec-audit-signoff">3. เช็กลิสต์ก่อนลงนาม</button>
-          <a class="btn sm teal" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>⬇ CSV อัปเดตชีต (v2)</a>
+          <a class="btn sm xlsx-green" href="${escapeHtml(ROSTER.revisedCsvPath)}" download><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>Export CSV (v2)</a>
         </div>
       </div>
     `;
@@ -7635,7 +8118,7 @@
               <p style="margin:4px 0 0;font-size:14px;color:var(--muted)">เปรียบเทียบข้อมูลตารางเดิมกับตารางฉบับปรับปรุง พร้อมไฟล์ CSV โครงสร้าง 16 คอลัมน์</p>
             </div>
             <div class="header-actions">
-              <a class="btn teal sm" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>ดาวน์โหลด CSV อัปเดตชีต (v2)</a>
+              <a class="btn xlsx-green sm" href="${escapeHtml(ROSTER.revisedCsvPath)}" download><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>Export CSV (v2)</a>
               <a class="btn sm" href="${escapeHtml(ROSTER.appsScriptSheetUrl)}" target="_blank" rel="noopener">เปิดตารางฐานข้อมูล ↗</a>
             </div>
           </div>
@@ -7688,10 +8171,10 @@
       });
     });
     if ($("printAuditBtn")) {
-      $("printAuditBtn").addEventListener("click", () => {
-        document.body.classList.remove("print-students-mode", "print-disc-mode");
-        window.print();
-      });
+      $("printAuditBtn").addEventListener("click", () => printWithCleanTitle(""));
+    }
+    if ($("printFacultyDocBtn")) {
+      $("printFacultyDocBtn").addEventListener("click", () => printWithCleanTitle(""));
     }
   }
 
@@ -7702,6 +8185,9 @@
 
     guidesWrap.hidden = state.facultySub !== "guides";
     linksWrap.hidden = state.facultySub !== "links";
+    if ($("facultyDocsExportActions")) {
+      $("facultyDocsExportActions").hidden = state.facultySub !== "guides";
+    }
 
     if (state.facultySub === "guides") {
       const picker = $("facultyDocList");
@@ -7731,6 +8217,15 @@
       }
       const cur = docs.find((d) => d.id === state.activeFacultyDocId) || docs[0];
       if (cur && prose) {
+        const dlStem = `RACM303_${sanitizeFilenamePart(`${cur.id}_${cur.title}`).replace(/\s+/g, "_").slice(0, 72)}`;
+        if ($("exportFacultyDocPdfBtn")) {
+          $("exportFacultyDocPdfBtn").href = `exports/pdf/${encodeURIComponent(cur.id)}.pdf`;
+          $("exportFacultyDocPdfBtn").setAttribute("download", `${dlStem}.pdf`);
+        }
+        if ($("exportFacultyDocDocxBtn")) {
+          $("exportFacultyDocDocxBtn").href = `exports/docx/${encodeURIComponent(cur.id)}.docx`;
+          $("exportFacultyDocDocxBtn").setAttribute("download", `${dlStem}.docx`);
+        }
         prose.innerHTML = cur.html;
         attachProseEnhancements(prose, toc);
       }
@@ -11150,8 +11645,8 @@
               <div class="header-actions" style="margin-top:8px">
                 <button type="button" class="btn sm primary fac-approve-btn">✓ อนุมัติใบลา &amp; บันทึกลายเซ็น</button>
                 <button type="button" class="btn sm fac-reject-btn">✗ ไม่อนุมัติ</button>
-                <button type="button" class="btn sm teal fac-dl-pdf-btn">⬇ ดาวน์โหลดไฟล์ .PDF</button>
-                <button type="button" class="btn sm fac-print-pdf-btn">🖨 พิมพ์ A4 / PDF</button>
+                <button type="button" class="btn sm pdf-red fac-dl-pdf-btn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</button>
+                <button type="button" class="btn sm print-ink fac-print-pdf-btn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
               </div>
             </div>
           `;
@@ -11302,8 +11797,8 @@
 
           <div class="leave-submit-actions">
             <button type="button" class="btn primary" id="submitAndNotifyLeaveBtn">📤 ยื่นใบลา &amp; ส่งแจ้งเตือนอาจารย์ประจำกลุ่มและประธานรายวิชา</button>
-            <button type="button" class="btn teal" id="exportDraftLeavePdfBtn">⬇ Export เป็นไฟล์ .PDF ทันที</button>
-            <button type="button" class="btn" id="printDraftLeaveA4Btn">🖨 พิมพ์ / บันทึก PDF (1 หน้า A4)</button>
+            <button type="button" class="btn pdf-red" id="exportDraftLeavePdfBtn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</button>
+            <button type="button" class="btn print-ink" id="printDraftLeaveA4Btn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (1 หน้า A4)</button>
           </div>
           <div id="leaveFormFeedbackBox" class="slide-studio-feedback" hidden></div>
         </div>
@@ -11499,7 +11994,7 @@
           <div class="dispatch-nav-buttons">
             <button type="button" class="btn sm primary" id="navToGroupAdvisorNotifBtn">👨‍⚕️ ไปยังหน้าแจ้งเตือนอาจารย์ประจำกลุ่ม (${escapeHtml(savedRec.groupAdvisors)}) →</button>
             <button type="button" class="btn sm teal" id="navToCourseDirectorNotifBtn">🏛 ไปยังหน้าแจ้งเตือนประธานรายวิชา (${escapeHtml(COURSE_DIRECTOR_NAME)}) →</button>
-            <button type="button" class="btn sm" id="dlSubmittedLeavePdfBtn">⬇ Export ใบลาเป็น .PDF</button>
+            <button type="button" class="btn sm pdf-red" id="dlSubmittedLeavePdfBtn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</button>
             <button type="button" class="btn sm" id="copyLeaveNotifSummaryBtn">📋 คัดลอกข้อความแจ้งลา</button>
           </div>
         `;
@@ -11582,8 +12077,9 @@
           const navAdv = make("button", "🔔 แจ้งอาจารย์ประจำกลุ่ม ↗", "btn sm");
           navAdv.type = "button";
           navAdv.addEventListener("click", () => navigateToAdvisorOrDirectorNotification(r, "advisor", r.groupAdvisors));
-          const dlPdf = make("button", "⬇ Export PDF", "btn sm teal");
+          const dlPdf = make("button", null, "btn sm pdf-red");
           dlPdf.type = "button";
+          dlPdf.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF`;
           dlPdf.addEventListener("click", () => downloadLeaveRecordAsPdfFile(r));
           acts.append(navAdv, dlPdf);
           row.appendChild(acts);
