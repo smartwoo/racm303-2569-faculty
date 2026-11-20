@@ -3398,8 +3398,21 @@
     lb.hidden = false;
   }
 
-  function wireInteractiveProseChildren(rootEl, gallery) {
+  function wireInteractiveProseChildren(rootEl, gallery, onAnchorJump) {
     if (!rootEl) return;
+    rootEl.querySelectorAll('a[href^="#"]').forEach((link) => {
+      if (link._anchorWired) return;
+      link._anchorWired = true;
+      link.addEventListener("click", (ev) => {
+        const rawHref = link.getAttribute("href") || "";
+        if (rawHref.length <= 1) return;
+        const targetId = decodeURIComponent(rawHref.slice(1));
+        if (typeof onAnchorJump === "function" && onAnchorJump(targetId)) {
+          ev.preventDefault();
+        }
+      });
+    });
+
     rootEl.querySelectorAll("img").forEach((img) => {
       img.loading = "lazy";
       img.classList.add("zoomable-img");
@@ -3645,7 +3658,27 @@
       };
     });
 
-    wireInteractiveProseChildren(proseContainer, docGallery);
+    const flashTargetEl = (el) => {
+      if (!el || !el.classList) return;
+      el.classList.remove("anchor-flash");
+      void el.offsetWidth;
+      el.classList.add("anchor-flash");
+    };
+
+    // Controller hook for TOC & internal section links across Scroll, Slide Deck, and Slide Sorter
+    let jumpToIdHandler = (targetId) => {
+      if (!targetId) return false;
+      const escId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(targetId) : targetId;
+      const targetEl = proseContainer.querySelector(`#${escId}`) || document.getElementById(targetId);
+      if (!targetEl) return false;
+      const parentDetails = targetEl.closest ? targetEl.closest("details") : null;
+      if (parentDetails && !parentDetails.open) parentDetails.open = true;
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      flashTargetEl(targetEl);
+      return true;
+    };
+
+    wireInteractiveProseChildren(proseContainer, docGallery, (id) => jumpToIdHandler(id));
 
     const paper = proseContainer.parentElement;
     const toolbar = paper && paper.querySelector ? paper.querySelector(".reader-toolbar") : null;
@@ -3653,9 +3686,9 @@
       ? extractSlidesFromProse(proseContainer)
       : [];
 
-    // Controller hook for TOC links so sidebar works across Scroll, Slide Deck, and Slide Sorter
     let jumpToHeadingHandler = (h) => {
-      h.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (h && h.id) jumpToIdHandler(h.id);
+      else if (h) h.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     if (tocContainer) {
@@ -3971,7 +4004,7 @@
       }
       const canvas = make("div", null, "editorial-prose deck-slide-canvas");
       canvas.innerHTML = s.html;
-      wireInteractiveProseChildren(canvas, docGallery);
+      wireInteractiveProseChildren(canvas, docGallery, (id) => jumpToIdHandler(id));
       slideCard.appendChild(canvas);
 
       // Swipe Left / Right support on touch devices (iPad / iPhone)
@@ -4097,21 +4130,43 @@
       );
     }
 
-    // Wire TOC sidebar links to respect active view mode
-    jumpToHeadingHandler = (h) => {
-      const matchedSlide = slides.find((sl) => sl.allIds.has(h.id));
+    // Wire TOC sidebar & internal section links to respect active view mode
+    jumpToIdHandler = (targetId) => {
+      if (!targetId) return false;
+      const escId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(targetId) : targetId;
+      const matchedSlide = slides.find((sl) => sl.allIds.has(targetId));
       if (state.readerViewMode === "deck" && matchedSlide) {
-        renderDeckSlide(matchedSlide.index, matchedSlide.index > activeSlideIdx ? 1 : -1);
-        paper.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else if (state.readerViewMode === "sorter" && matchedSlide) {
+        renderDeckSlide(matchedSlide.index, matchedSlide.index > activeSlideIdx ? 1 : matchedSlide.index < activeSlideIdx ? -1 : 0);
+        const inDeckTarget = deckStage.querySelector(`#${escId}`);
+        if (inDeckTarget) {
+          const parentDetails = inDeckTarget.closest ? inDeckTarget.closest("details") : null;
+          if (parentDetails && !parentDetails.open) parentDetails.open = true;
+          inDeckTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+          flashTargetEl(inDeckTarget);
+        } else {
+          paper.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        return true;
+      }
+      if (state.readerViewMode === "sorter" && matchedSlide) {
         activeSlideIdx = matchedSlide.index;
         renderSorterStage();
         applyZoomStyles();
         const card = sorterStage.querySelector(`[data-slide-idx="${matchedSlide.index}"]`);
         if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else {
-        h.scrollIntoView({ behavior: "smooth", block: "start" });
+        return true;
       }
+      const targetEl = proseContainer.querySelector(`#${escId}`) || document.getElementById(targetId);
+      if (!targetEl) return false;
+      const parentDetails = targetEl.closest ? targetEl.closest("details") : null;
+      if (parentDetails && !parentDetails.open) parentDetails.open = true;
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      flashTargetEl(targetEl);
+      return true;
+    };
+
+    jumpToHeadingHandler = (h) => {
+      if (h && h.id) jumpToIdHandler(h.id);
     };
 
     // Global keyboard Left / Right arrow handler for active Slide Deck
