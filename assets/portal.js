@@ -80,6 +80,20 @@
     readerViewMode: "scroll", // scroll | deck | sorter
     sorterZoomPct: Number(localStorage.getItem("racm303_sorter_zoom")) || 100,
     canvasZoomPct: Number(localStorage.getItem("racm303_canvas_zoom")) || 100,
+    discViewMode: "cards", // cards | deck | sorter | table
+    fieldViewMode: "cards", // cards | deck | sorter | table
+    rosterZoomPct: Number(localStorage.getItem("racm303_roster_zoom")) || 100,
+    discDeckIdx: 0,
+    fieldDeckIdx: 0,
+    adminSortField: "id",
+    adminSortAsc: true,
+    myTeacherKey: localStorage.getItem("racm303_my_teacher") || "",
+    conciergeDateISO: "",
+    conciergeOpen: localStorage.getItem("racm303_concierge_open") !== "0",
+    conciergeTeacherAllDays: false,
+    ramedLoginId: localStorage.getItem("racm303_login_uid") || "",
+    fieldOverviewStyle: "map", // map | cards
+    mapHoverSite: "",
     masteredCards: new Set(JSON.parse(localStorage.getItem("racm303_mastered_fc") || "[]")),
     fcShuffleSeed: null
   };
@@ -235,12 +249,17 @@
 
   function clearAllPersonalization() {
     state.myStudent = null;
+    state.myTeacherKey = "";
+    state.ramedLoginId = "";
     localStorage.removeItem("racm303_my_sid");
-    ["personalStudentInput", "studioStudentInput", "subStudentQuickInput", "schedDiscFilter", "schedAreaFilter", "schedTeacherFilter", "studioTeacherSelect"].forEach((id) => {
+    localStorage.removeItem("racm303_my_teacher");
+    localStorage.removeItem("racm303_login_uid");
+    ["personalStudentInput", "studioStudentInput", "subStudentQuickInput", "conciergeStudentInput", "ramedMyLoginIdInput", "schedDiscFilter", "schedAreaFilter", "schedTeacherFilter", "studioTeacherSelect", "personalTeacherSelect", "conciergeTeacherSelect"].forEach((id) => {
       if ($(id)) $(id).value = "";
     });
     updatePersonalBanner();
     refreshCalendarStudioUI();
+    if (typeof syncRamedPerUserIdentityUI === "function") syncRamedPerUserIdentityUI();
     if (state.activeTab === "schedule") renderScheduleCurrent();
     if (state.activeTab === "discussion") renderDiscussionView();
     if (state.activeTab === "hs-discussion") renderHsDiscussionView();
@@ -294,7 +313,9 @@
 
   function applyMyStudent(student, syncFilters) {
     state.myStudent = student;
+    state.ramedLoginId = student.id;
     localStorage.setItem("racm303_my_sid", student.id);
+    localStorage.setItem("racm303_login_uid", student.id);
     const formatted = `${student.id} — ${student.fullName}`;
     if ($("personalStudentInput")) $("personalStudentInput").value = formatted;
     if ($("studioStudentInput")) $("studioStudentInput").value = formatted;
@@ -316,6 +337,7 @@
 
     updatePersonalBanner();
     refreshCalendarStudioUI();
+    if (typeof syncRamedPerUserIdentityUI === "function") syncRamedPerUserIdentityUI();
     if (state.activeTab === "schedule") renderScheduleCurrent();
     if (state.activeTab === "discussion") renderDiscussionView();
     if (state.activeTab === "hs-discussion") renderHsDiscussionView();
@@ -349,6 +371,7 @@
         make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้อง Discussion กลุ่มภาคสนาม และดาวน์โหลดปฏิทินส่วนตัว (.ics / .csv)")
       );
       if (clearBtn) clearBtn.hidden = true;
+      if (typeof renderRoleConcierge === "function") renderRoleConcierge();
       return;
     }
     const s = state.myStudent;
@@ -364,7 +387,7 @@
       switchTab("discussion");
     });
 
-    const areaChip = make("button", `พื้นที่: ${s.area}${site ? " · " + (site.badgeDates || site.datesTH) : ""} ↗`, "personal-chip");
+    const areaChip = make("button", `พื้นที่: ${s.area} ↗`, "personal-chip");
     areaChip.type = "button";
     areaChip.style.cursor = "pointer";
     areaChip.title = "คลิกเพื่อดูข้อมูลและสมาชิกกลุ่มพื้นที่ภาคสนามของฉัน";
@@ -379,6 +402,7 @@
       make("span", `อ.ที่ปรึกษา: ${s.advisor}`, "personal-chip")
     );
     if (clearBtn) clearBtn.hidden = false;
+    if (typeof renderRoleConcierge === "function") renderRoleConcierge();
   }
 
   /* ---------- Primary Tab Routing ---------- */
@@ -393,6 +417,7 @@
       if ($("hsdModuleSelect")) $("hsdModuleSelect").value = state.hsdModule;
       return "hs-discussion";
     }
+    if (rawTab === "leave-form" || rawTab === "absence") return "leave";
     return rawTab;
   }
 
@@ -406,8 +431,8 @@
   function switchTab(tabId, pushHash = true) {
     tabId = normalizeTabId(tabId);
     const validTabs = ROLE === "faculty"
-      ? ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "audit", "faculty-docs", "manual", "textbooks", "practice"]
-      : ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "manual", "textbooks", "practice"];
+      ? ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "leave", "audit", "faculty-docs", "manual", "textbooks", "practice"]
+      : ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "leave", "manual", "textbooks", "practice"];
     if (!validTabs.includes(tabId)) tabId = "schedule";
 
     state.activeTab = tabId;
@@ -419,6 +444,7 @@
       panel.hidden = panel.id !== `panel-${tabId}`;
     });
 
+    document.body.classList.remove("print-leave-form-mode");
     document.body.classList.toggle("print-students-mode", tabId === "discussion" || tabId === "fieldwork");
     document.body.classList.toggle("print-disc-mode", tabId === "discussion");
     document.body.classList.remove("print-single-hsd-case");
@@ -433,6 +459,7 @@
     if (tabId === "hs-discussion") renderHsDiscussionView();
     if (tabId === "fieldwork") renderFieldworkView();
     if (tabId === "submissions") renderSubmissionsView();
+    if (tabId === "leave" && typeof renderLeavePortalView === "function") renderLeavePortalView();
     if (tabId === "manual") renderManualReader();
     if (tabId === "textbooks") renderTextbookReader();
     if (tabId === "practice") renderPracticeCurrent();
@@ -707,6 +734,14 @@
     if ($("studioSubscribeUrlInput")) $("studioSubscribeUrlInput").value = httpsFeedUrl;
     if ($("studioWebcalLink")) $("studioWebcalLink").href = webcalFeedUrl;
     if ($("sideWebcalQuickLink")) $("sideWebcalQuickLink").href = webcalFeedUrl;
+    if (ROLE === "faculty" && ctx.teacherVal !== undefined) {
+      state.myTeacherKey = ctx.teacherVal || "";
+      if (state.myTeacherKey) localStorage.setItem("racm303_my_teacher", state.myTeacherKey);
+      if ($("personalTeacherSelect") && $("personalTeacherSelect").value !== state.myTeacherKey) {
+        $("personalTeacherSelect").value = state.myTeacherKey;
+      }
+    }
+    if (typeof renderRoleConcierge === "function") renderRoleConcierge();
   }
 
   function initCalendarDownloadStudio() {
@@ -718,7 +753,7 @@
         const pill = make("button", null, "cal-group-pill");
         pill.type = "button";
         pill.dataset.areaName = site.shortName;
-        pill.innerHTML = `<strong>${site.id}. ${escapeHtml(site.shortName)} (${site.count} คน)</strong><small>${escapeHtml(site.badgeDates || site.datesTH)}</small>`;
+        pill.innerHTML = `<strong>${escapeHtml(site.shortName)}</strong><small>${site.count} คน</small>`;
         pill.addEventListener("click", () => {
           selectFieldworkGroupOnly(site.shortName);
         });
@@ -964,13 +999,13 @@
     const discSel = $("schedDiscFilter");
     if (discSel) {
       (SCHED.hsGroups || []).forEach((g) => {
-        discSel.add(new Option(`Discussion ${g.id} (${g.defaultRoom.split(" ")[0]})`, String(g.id)));
+        discSel.add(new Option(`Discussion ${g.id}`, String(g.id)));
       });
     }
     const areaSel = $("schedAreaFilter");
     if (areaSel) {
       (SCHED.fieldworkSites || []).forEach((s) => {
-        areaSel.add(new Option(`${s.shortName} (${s.badgeDates || s.hospital})`, s.shortName));
+        areaSel.add(new Option(s.shortName, s.shortName));
       });
     }
 
@@ -1214,22 +1249,36 @@
       for (let dIdx = 0; dIdx < 7; dIdx++) {
         const iso = addDaysISO(wb.start, dIdx);
         const isOutside = iso < "2026-11-24" || iso > "2026-12-30";
-        const cell = make("div", null, `cal-day-cell${dIdx >= 5 ? " is-weekend" : ""}${isOutside ? " is-outside" : ""}`);
+        const dayItems = byDate.get(iso) || [];
+        const hasHoliday = dayItems.some((x) => x.session.category === "HOLIDAY");
+        const hasExam = dayItems.some((x) => x.session.category === "EXAM");
+        const cell = make(
+          "div",
+          null,
+          `cal-day-cell${dIdx >= 5 ? " is-weekend" : ""}${isOutside ? " is-outside" : ""}${hasHoliday ? " is-holiday-day" : ""}${hasExam ? " is-exam-day" : ""}`
+        );
 
         const dayHead = make("div", null, "cal-day-head");
         const isMonthStart = iso.endsWith("-01") || iso === "2026-11-25";
         const dNum = make("span", formatThaiShortDate(iso, dIdx === 0), `cal-day-num${isMonthStart ? " is-month-start" : ""}`);
         dayHead.appendChild(dNum);
+        if (hasHoliday) {
+          dayHead.appendChild(make("span", "🏖 วันหยุด", "cal-day-flag is-holiday"));
+        } else if (hasExam) {
+          dayHead.appendChild(make("span", "สอบ/ส่งงาน", "cal-day-flag is-exam"));
+        }
         cell.appendChild(dayHead);
 
         const evWrap = make("div", null, "cal-day-events");
-        const dayItems = byDate.get(iso) || [];
         dayItems.forEach(({ session: s, eff }) => {
           const chip = make("button", null, `cal-chip cat-${s.category}${eff.isAllDay ? " is-allday" : ""}`);
           chip.type = "button";
-          const shortTime = eff.isAllDay ? "ทั้งวัน" : (s.startTime || "");
+          chip.dataset.calSessionId = s.id;
+          const shortTime = s.category === "HOLIDAY" ? "🏖 วันหยุด" : eff.isAllDay ? "ทั้งวัน" : (s.startTime || "");
           let labelTitle = "";
-          if (s.code === "FIELD") {
+          if (s.category === "HOLIDAY") {
+            labelTitle = s.title;
+          } else if (s.code === "FIELD") {
             labelTitle = ctx.areaVal ? `ภาคสนาม: ${ctx.areaVal}` : "ฝึกภาคสนาม (9 กลุ่ม)";
           } else if (s.code === "TRAVEL") {
             labelTitle = ctx.areaVal ? `ออกเดินทาง (${ctx.areaVal})` : eff.title;
@@ -1238,11 +1287,12 @@
           } else {
             labelTitle = `${s.code}: ${s.title.replace(/^\*?HS\d:\s*|^EP\d.*:\s*/i, "")}`;
           }
-          chip.title = `${s.timeLabel} · ${eff.title}${eff.personalLabel ? " (" + eff.personalLabel + ")" : ""}`;
 
           chip.appendChild(make("span", shortTime, "chip-time"));
           chip.appendChild(make("span", labelTitle, "chip-title"));
-          if (s.zoom) {
+          if (typeof hasUploadedSessionSlide === "function" && hasUploadedSessionSlide(s.id)) {
+            chip.appendChild(make("span", "Slide", "chip-slide-ready"));
+          } else if (s.zoom) {
             chip.appendChild(make("span", "Zoom", "chip-zoom"));
           }
           chip.addEventListener("click", () => openEventModal(s));
@@ -1298,8 +1348,11 @@
     head.appendChild(make("div", `W${wb.week}`, "cal-gutter-label"));
     for (let i = 0; i < 7; i++) {
       const iso = addDaysISO(wb.start, i);
-      const hc = make("div", null, "cal-week-head-cell");
-      hc.innerHTML = `<span class="wd-name">${TH_DOW_SHORT[i]}</span><span class="wd-num">${escapeHtml(formatThaiShortDate(iso, true))}</span>`;
+      const dayItems = byDate.get(iso) || [];
+      const isHol = dayItems.some((x) => x.session.category === "HOLIDAY");
+      const isEx = dayItems.some((x) => x.session.category === "EXAM");
+      const hc = make("div", null, `cal-week-head-cell${isHol ? " is-holiday-day" : ""}${isEx ? " is-exam-day" : ""}`);
+      hc.innerHTML = `<span class="wd-name">${TH_DOW_SHORT[i]}${isHol ? " · วันหยุด" : ""}</span><span class="wd-num">${escapeHtml(formatThaiShortDate(iso, true))}</span>`;
       head.appendChild(hc);
     }
     minWrap.appendChild(head);
@@ -1308,13 +1361,21 @@
     allDayRow.appendChild(make("div", "ตลอดวัน", "cal-gutter-label"));
     for (let i = 0; i < 7; i++) {
       const iso = addDaysISO(wb.start, i);
-      const adCell = make("div", null, "cal-allday-cell");
-      (byDate.get(iso) || [])
+      const dayItems = byDate.get(iso) || [];
+      const isHol = dayItems.some((x) => x.session.category === "HOLIDAY");
+      const adCell = make("div", null, `cal-allday-cell${isHol ? " is-holiday-day" : ""}`);
+      dayItems
         .filter((x) => x.eff.isAllDay)
         .forEach(({ session: s, eff }) => {
           const chip = make("button", null, `cal-chip is-allday cat-${s.category}`);
           chip.type = "button";
-          const txt = s.code === "FIELD" && ctx.areaVal ? `ฝึกภาคสนาม (${ctx.areaVal})` : eff.title;
+          chip.dataset.calSessionId = s.id;
+          const txt =
+            s.category === "HOLIDAY"
+              ? `🏖 วันหยุด: ${eff.title}`
+              : s.code === "FIELD" && ctx.areaVal
+                ? `ฝึกภาคสนาม (${ctx.areaVal})`
+                : eff.title;
           chip.appendChild(make("span", txt, "chip-title"));
           chip.addEventListener("click", () => openEventModal(s));
           adCell.appendChild(chip);
@@ -1332,9 +1393,15 @@
 
     for (let i = 0; i < 7; i++) {
       const iso = addDaysISO(wb.start, i);
-      const col = make("div", null, `cal-day-col${i >= 5 ? " is-weekend" : ""}`);
+      const dayItems = byDate.get(iso) || [];
+      const isHol = dayItems.some((x) => x.session.category === "HOLIDAY");
+      const col = make("div", null, `cal-day-col${i >= 5 ? " is-weekend" : ""}${isHol ? " is-holiday-day" : ""}`);
       col.style.height = `${(HOUR_END - HOUR_START) * HOUR_PX}px`;
-      (byDate.get(iso) || [])
+      if (isHol) {
+        const holBanner = make("div", "🏖 วันหยุดราชการ (งดการเรียนการสอนในชั้นเรียน)", "cal-week-holiday-watermark");
+        col.appendChild(holBanner);
+      }
+      dayItems
         .filter((x) => !x.eff.isAllDay)
         .forEach(({ session: s, eff }) => {
           const sMin = Math.max(HOUR_START * 60, timeToMinutes(s.startTime || "09:00"));
@@ -1344,11 +1411,12 @@
 
           const block = make("button", null, `cal-timed-event cat-${s.category}`);
           block.type = "button";
+          block.dataset.calSessionId = s.id;
           block.style.top = `${topPx}px`;
           block.style.height = `${heightPx}px`;
-          block.title = `${s.timeLabel} · ${eff.title} · ${eff.room}`;
 
-          const timeLine = `${s.startTime}–${s.endTime}${s.zoom ? " · 🎥 Zoom" : ""}`;
+          const slideBadge = typeof hasUploadedSessionSlide === "function" && hasUploadedSessionSlide(s.id) ? " · 📊 Slide" : "";
+          const timeLine = `${s.startTime}–${s.endTime}${s.zoom ? " · 🎥 Zoom" : ""}${slideBadge}`;
           block.appendChild(make("span", timeLine, "ev-time"));
           block.appendChild(make("span", `${s.code}: ${eff.title}`, "ev-title"));
           if (heightPx >= 58) {
@@ -1365,7 +1433,7 @@
     wrap.replaceChildren(shell);
   }
 
-  /* ---------- View 3: Detailed Agenda / Daily Cards ---------- */
+  /* ---------- View 3: Detailed Agenda / Daily Cards (Full-Card Color Coding for Rapid Skim/Scan) ---------- */
   function renderScheduleDaily() {
     const sessions = getFilteredSessions(false);
     updateScheduleStatusBar(sessions.length);
@@ -1385,6 +1453,7 @@
 
     sessions.forEach((s) => {
       const eff = resolveEffectiveSessionDetails(s, ctx);
+      const isHoliday = s.category === "HOLIDAY";
       if (s.week !== lastWeek) {
         lastWeek = s.week;
         lastDate = "";
@@ -1394,22 +1463,32 @@
       const dateHeadingText = s.code === "FIELD" && ctx.siteObj ? `ช่วงฝึกภาคสนาม (${ctx.siteObj.datesTH})` : s.dateTH;
       if (dateHeadingText !== lastDate) {
         lastDate = dateHeadingText;
-        listEl.appendChild(make("h3", dateHeadingText, "day-heading"));
+        const dayH = make("h3", dateHeadingText, `day-heading${isHoliday ? " is-holiday-heading" : ""}`);
+        listEl.appendChild(dayH);
       }
 
-      const card = make("article", null, "session-card");
+      const card = make("article", null, `session-card cat-${s.category}`);
       const main = make("div", null, "session-main");
 
-      const timeCol = make("div", s.code === "FIELD" && ctx.siteObj ? ctx.siteObj.badgeDates || s.timeLabel : s.timeLabel, "session-time");
-      timeCol.appendChild(make("small", `${s.code} · ${s.checkIn || ""}`));
+      const timeLabelTxt = isHoliday
+        ? "🏖 วันหยุดราชการ"
+        : s.code === "FIELD" && ctx.siteObj
+          ? ctx.siteObj.badgeDates || s.timeLabel
+          : s.timeLabel;
+      const timeCol = make("div", timeLabelTxt, "session-time");
+      const subCodeTxt = isHoliday
+        ? "งดการเรียนการสอน"
+        : [s.code, s.checkIn && s.checkIn !== "—" ? s.checkIn : ""].filter(Boolean).join(" · ");
+      if (subCodeTxt) timeCol.appendChild(make("small", subCodeTxt));
       main.appendChild(timeCol);
 
       const bodyCol = make("div", null, "session-topic");
       const badges = make("div", null, "session-badges");
-      badges.append(
-        make("span", CAT_NAMES[s.category] || s.category, `badge cat-${s.category}`),
-        make("span", s.format, "badge")
-      );
+      const catText = isHoliday ? "🏖 วันหยุดราชการ · งดคลาสเรียนในชั้นเรียน" : (CAT_NAMES[s.category] || s.category);
+      badges.appendChild(make("span", catText, `badge cat-${s.category}`));
+      if (s.format && !isHoliday && s.format !== (CAT_NAMES[s.category] || s.category)) {
+        badges.appendChild(make("span", s.format, "badge"));
+      }
       if (s.zoom) {
         badges.appendChild(make("span", `Zoom ID: ${s.zoom.id}`, "badge cat-EP"));
       }
@@ -1465,10 +1544,17 @@
         bodyCol.appendChild(zBox);
       }
 
-      const meta = make("div", null, "session-meta");
-      meta.appendChild(make("span", `ผู้สอน: ${eff.lecturer}`));
-      const roomSpan = make("span", `ห้อง/สถานที่: ${eff.room}`, "room-pill");
-      bodyCol.append(meta, roomSpan);
+      if (!isHoliday) {
+        if (eff.lecturer && eff.lecturer !== "—") {
+          const meta = make("div", null, "session-meta");
+          meta.appendChild(make("span", `ผู้สอน: ${eff.lecturer}`));
+          bodyCol.appendChild(meta);
+        }
+        if (eff.room && eff.room !== "—") {
+          const roomSpan = make("span", `ห้อง/สถานที่: ${eff.room}`, "room-pill");
+          bodyCol.appendChild(roomSpan);
+        }
+      }
 
       if (ROLE === "faculty" && s.facultyNote) {
         bodyCol.appendChild(make("div", `[บันทึกสำหรับอาจารย์/ผู้ประสานงาน] ${s.facultyNote}`, "faculty-flag-box"));
@@ -1476,7 +1562,7 @@
 
       const actions = make("div", null, "session-actions");
       const targetHsMod = s.hsModule || (/^HS[1-6]$/.test(s.docLink || "") ? s.docLink : "");
-      if (targetHsMod) {
+      if (targetHsMod && !isHoliday) {
         const discLabel = ROLE === "faculty"
           ? `โจทย์ & เฉลย Discussion (${targetHsMod}) →`
           : `โจทย์ & ใบงาน Discussion (${targetHsMod}) →`;
@@ -1485,23 +1571,27 @@
         bHsd.addEventListener("click", () => openHsDiscussion(targetHsMod));
         actions.appendChild(bHsd);
       }
-      if (s.conciseLink) {
-        const bConcise = make("button", `อ่านฉบับย่อ (${s.hsModule || s.docLink})`, "btn sm teal");
-        bConcise.type = "button";
-        bConcise.addEventListener("click", () => openTextbookDoc(s.conciseLink));
-        actions.appendChild(bConcise);
-      }
-      if (s.docLink) {
-        const bDoc = make("button", `อ่านฉบับเต็ม ${s.docLink}`, s.conciseLink ? "btn sm" : "btn sm teal");
-        bDoc.type = "button";
-        bDoc.addEventListener("click", () => openTextbookDoc(s.docLink));
-        actions.appendChild(bDoc);
-      }
-      if (s.wbLink) {
-        const bWb = make("button", `Worksheet (${s.wbLink.replace("-WB", "")})`, "btn sm");
-        bWb.type = "button";
-        bWb.addEventListener("click", () => openTextbookDoc(s.wbLink));
-        actions.appendChild(bWb);
+      if (typeof appendSessionMaterialButtons === "function" && !isHoliday) {
+        appendSessionMaterialButtons(actions, s, false);
+      } else {
+        if (s.conciseLink) {
+          const bConcise = make("button", `อ่านฉบับย่อ (${s.hsModule || s.docLink})`, "btn sm teal");
+          bConcise.type = "button";
+          bConcise.addEventListener("click", () => openTextbookDoc(s.conciseLink));
+          actions.appendChild(bConcise);
+        }
+        if (s.docLink) {
+          const bDoc = make("button", `อ่านฉบับเต็ม ${s.docLink}`, s.conciseLink ? "btn sm" : "btn sm teal");
+          bDoc.type = "button";
+          bDoc.addEventListener("click", () => openTextbookDoc(s.docLink));
+          actions.appendChild(bDoc);
+        }
+        if (s.wbLink) {
+          const bWb = make("button", `Worksheet (${s.wbLink.replace("-WB", "")})`, "btn sm");
+          bWb.type = "button";
+          bWb.addEventListener("click", () => openTextbookDoc(s.wbLink));
+          actions.appendChild(bWb);
+        }
       }
       if (s.actionUrl) {
         const bExt = make("a", s.actionLabel || "เปิดลิงก์ส่งงาน ↗", "btn sm primary");
@@ -1511,14 +1601,14 @@
         actions.appendChild(bExt);
       }
       if (s.code === "SRN 2 & SLIDES") {
-        const bRamed = make("a", "ส่ง SRN 2 ในห้องวิชา id=398 ↗", "btn sm primary");
+        const bRamed = make("a", "ส่ง SRN 2 ในห้องเรียน E-learning ↗", "btn sm primary");
         bRamed.href = getActiveRamedTargetUrl();
         bRamed.target = "_blank";
         bRamed.rel = "noopener";
         actions.appendChild(bRamed);
       }
       if (s.code === "SRN 1" || s.code === "SRN 2 & SLIDES") {
-        const bSrn = make("button", "เตรียมไฟล์ & ศูนย์การส่งงาน (E-learning)", "btn sm teal");
+        const bSrn = make("button", "เตรียมไฟล์ & ศูนย์การส่งงาน", "btn sm teal");
         bSrn.type = "button";
         bSrn.addEventListener("click", () => {
           if ($("srnRoundSelect")) {
@@ -1729,7 +1819,7 @@
 
     const studyRow = make("div", null, "session-actions");
     const modalHsMod = session.hsModule || (/^HS[1-6]$/.test(session.docLink || "") ? session.docLink : "");
-    if (modalHsMod) {
+    if (modalHsMod && session.category !== "HOLIDAY") {
       const bHsd = make(
         "button",
         ROLE === "faculty" ? `เปิดโจทย์ & เฉลย Discussion (${modalHsMod}) →` : `เปิดโจทย์ & ใบงาน Discussion (${modalHsMod}) →`,
@@ -1742,32 +1832,36 @@
       });
       studyRow.appendChild(bHsd);
     }
-    if (session.conciseLink) {
-      const bc = make("button", `อ่านบทเรียนฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
-      bc.type = "button";
-      bc.addEventListener("click", () => {
-        closeEventModal();
-        openTextbookDoc(session.conciseLink);
-      });
-      studyRow.appendChild(bc);
-    }
-    if (session.docLink) {
-      const bd = make("button", `อ่านฉบับเต็ม (${session.docLink})`, session.conciseLink ? "btn sm" : "btn sm teal");
-      bd.type = "button";
-      bd.addEventListener("click", () => {
-        closeEventModal();
-        openTextbookDoc(session.docLink);
-      });
-      studyRow.appendChild(bd);
-    }
-    if (session.wbLink) {
-      const bw = make("button", `Worksheet (${session.wbLink.replace("-WB", "")})`, "btn sm");
-      bw.type = "button";
-      bw.addEventListener("click", () => {
-        closeEventModal();
-        openTextbookDoc(session.wbLink);
-      });
-      studyRow.appendChild(bw);
+    if (typeof appendSessionMaterialButtons === "function" && session.category !== "HOLIDAY") {
+      appendSessionMaterialButtons(studyRow, session, true);
+    } else {
+      if (session.conciseLink) {
+        const bc = make("button", `อ่านบทเรียนฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
+        bc.type = "button";
+        bc.addEventListener("click", () => {
+          closeEventModal();
+          openTextbookDoc(session.conciseLink);
+        });
+        studyRow.appendChild(bc);
+      }
+      if (session.docLink) {
+        const bd = make("button", `อ่านฉบับเต็ม (${session.docLink})`, session.conciseLink ? "btn sm" : "btn sm teal");
+        bd.type = "button";
+        bd.addEventListener("click", () => {
+          closeEventModal();
+          openTextbookDoc(session.docLink);
+        });
+        studyRow.appendChild(bd);
+      }
+      if (session.wbLink) {
+        const bw = make("button", `Worksheet (${session.wbLink.replace("-WB", "")})`, "btn sm");
+        bw.type = "button";
+        bw.addEventListener("click", () => {
+          closeEventModal();
+          openTextbookDoc(session.wbLink);
+        });
+        studyRow.appendChild(bw);
+      }
     }
     if (session.actionUrl) {
       const ba = make("a", session.actionLabel || "เปิดลิงก์ส่งงาน ↗", "btn sm primary");
@@ -1777,14 +1871,14 @@
       studyRow.appendChild(ba);
     }
     if (session.code === "SRN 2 & SLIDES") {
-      const br = make("a", "ส่ง SRN 2 ในห้องวิชา id=398 ↗", "btn sm primary");
+      const br = make("a", "ส่ง SRN 2 ในห้องเรียน E-learning ↗", "btn sm primary");
       br.href = getActiveRamedTargetUrl();
       br.target = "_blank";
       br.rel = "noopener";
       studyRow.appendChild(br);
     }
     if (session.code === "SRN 1" || session.code === "SRN 2 & SLIDES") {
-      const bs = make("button", "เตรียมไฟล์ & ศูนย์การส่งงาน (E-learning)", "btn sm teal");
+      const bs = make("button", "เตรียมไฟล์ & ศูนย์การส่งงาน", "btn sm teal");
       bs.type = "button";
       bs.addEventListener("click", () => {
         closeEventModal();
@@ -2140,10 +2234,14 @@
   }
 
   function renderStudentCardElement(s, mode) {
-    const card = make("article", null, "student-card");
+    const card = make("article", null, "student-card is-interactive");
     if (state.myStudent && state.myStudent.id === s.id) {
       card.classList.add("is-my-student");
     }
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `${s.fullName} รหัส ${s.id} คลิกเพื่อดูรายละเอียดและตารางเรียน`);
+
     const siteId = getSiteIdByAreaName(s.area);
     const initials = studentInitials(s);
     const portrait = make("div", null, `student-portrait${state.showPhotos ? "" : " compact-avatar"}`);
@@ -2173,21 +2271,1363 @@
       card.appendChild(pillWrap);
       card.appendChild(make("p", `Discussion: กลุ่มที่ ${s.disc}`, "disc-line"));
     }
+
+    const hint = make("span", "ดูข้อมูล & ตาราง ↗", "student-quick-hint");
+    card.appendChild(hint);
+
+    card.addEventListener("click", () => openStudentQuickModal(s));
+    card.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        openStudentQuickModal(s);
+      }
+    });
     return card;
   }
 
-  function buildDiscSiteBreakdownHtml(groupStudents) {
+  /* ---------- Student Quick-Look Inspector Sheet (User-Centric Profile & Actions) ---------- */
+  function openStudentQuickModal(s) {
+    if (!s) return;
+    let backdrop = $("studentQuickModal");
+    if (!backdrop) {
+      backdrop = make("div", null, "cal-modal-backdrop");
+      backdrop.id = "studentQuickModal";
+      backdrop.setAttribute("role", "dialog");
+      backdrop.setAttribute("aria-modal", "true");
+      backdrop.setAttribute("aria-label", "ข้อมูลนักศึกษาและทางลัดตารางเรียน");
+      backdrop.hidden = true;
+      const card = make("div", null, "cal-modal-card stu-quick-modal-card");
+      card.id = "studentQuickModalCard";
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+
+      backdrop.addEventListener("click", (ev) => {
+        if (ev.target === backdrop) backdrop.hidden = true;
+      });
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape" && !backdrop.hidden) backdrop.hidden = true;
+      });
+    }
+
+    const card = $("studentQuickModalCard");
+    if (!card) return;
+    card.replaceChildren();
+
+    const siteId = getSiteIdByAreaName(s.area);
+    const site = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area) || {};
+    const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
+    const isMine = state.myStudent && state.myStudent.id === s.id;
+
+    const top = make("div", null, "cal-modal-top");
+    const profileHead = make("div", null, "stu-quick-head");
+    const portrait = make("div", null, "student-portrait stu-quick-portrait");
+    portrait.dataset.studentId = s.id || "";
+    portrait.dataset.photoId = s.photoId || "";
+    portrait.dataset.initials = studentInitials(s);
+    portrait.dataset.studentName = s.fullName;
+    portrait.innerHTML = `<span class="avatar-monogram">${escapeHtml(studentInitials(s))}</span>`;
+    mountStudentPhoto(portrait);
+
+    const headInfo = make("div", null, "stu-quick-title-col");
+    const badgesRow = make("div", null, "stu-quick-badges");
+    badgesRow.innerHTML = `<span class="badge cat-EP">รหัส ${escapeHtml(s.id)}</span>` +
+      `<span class="badge">${escapeHtml(s.program === "MD-M.Eng" ? "พ.บ.–วศ.ม. (MD-M.Eng)" : "หลักสูตร พ.บ. ชั้นปีที่ 3")}</span>` +
+      (isMine ? `<span class="badge cat-HS">★ ตารางของฉัน</span>` : "");
+    headInfo.appendChild(badgesRow);
+    headInfo.appendChild(make("h3", s.nickname ? `${s.fullName} (${s.nickname})` : s.fullName));
+    headInfo.appendChild(
+      make("p", `Discussion กลุ่มที่ ${s.disc}${rot.room ? " (ห้อง " + rot.room + ")" : ""} · พื้นที่ภาคสนาม ${siteId}. ${s.area}`, "stu-quick-sub")
+    );
+    profileHead.append(portrait, headInfo);
+
+    const closeBtn = make("button", "✕", "cal-modal-close");
+    closeBtn.type = "button";
+    closeBtn.title = "ปิดหน้าต่าง (Esc)";
+    closeBtn.addEventListener("click", () => {
+      backdrop.hidden = true;
+    });
+    top.append(profileHead, closeBtn);
+    card.appendChild(top);
+
+    const detailGrid = make("div", null, "stu-quick-grid");
+
+    // Box 1: Discussion Group
+    const discBox = make("div", null, "stu-quick-box");
+    discBox.innerHTML = `
+      <div class="stu-quick-box-head">
+        <strong>กลุ่มอภิปราย Discussion ที่ ${s.disc}</strong>
+        <span class="badge cat-HS">ห้องหลัก ${escapeHtml(rot.room || "-")}</span>
+      </div>
+      <div class="stu-quick-rot-list">
+        ${HS_SLOTS_META.map((m) => {
+          const cell = rot[m.mod] || {};
+          return `<div class="stu-quick-rot-row"><span>${escapeHtml(m.mod)}</span><strong>${escapeHtml(cell.instructor || "-")}</strong><small>ห้อง ${escapeHtml(cell.room || rot.room || "-")}</small></div>`;
+        }).join("")}
+      </div>
+    `;
+    const jumpDiscBtn = make("button", `ไปที่รายชื่อกลุ่ม Discussion ${s.disc} →`, "btn sm");
+    jumpDiscBtn.type = "button";
+    jumpDiscBtn.style.marginTop = "8px";
+    jumpDiscBtn.addEventListener("click", () => {
+      backdrop.hidden = true;
+      if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
+      if ($("discAreaSubFilter")) $("discAreaSubFilter").value = "";
+      if ($("discSearchInput")) $("discSearchInput").value = "";
+      if (state.discViewMode === "deck") state.discDeckIdx = Math.max(0, Number(s.disc) - 1);
+      switchTab("discussion");
+    });
+    discBox.appendChild(jumpDiscBtn);
+
+    // Box 2: Fieldwork Site
+    const fieldBox = make("div", null, "stu-quick-box");
+    const staffHtml =
+      ROLE === "faculty" && site.staffRef
+        ? `<p><strong>ผู้ประสานงานพื้นที่:</strong> ${escapeHtml(site.staffRef)}</p>`
+        : "";
+    fieldBox.innerHTML = `
+      <div class="stu-quick-box-head">
+        <span class="area-sub-pill area-site-${siteId}"><i class="area-dot"></i>${siteId}. ${escapeHtml(s.area)}</span>
+        <span class="badge cat-SG">${site.count || "-"} คน</span>
+      </div>
+      <div class="stu-quick-meta-lines">
+        <p><strong>โรงพยาบาล:</strong> ${escapeHtml(site.hospital || s.area)} (${escapeHtml(site.province || "")})</p>
+        <p><strong>อาจารย์ที่ปรึกษา:</strong> ${escapeHtml(s.advisor || site.advisors || "-")}</p>
+        <p><strong>ห้องกลุ่มย่อย:</strong> ${escapeHtml(site.room || "-")}</p>
+        <p><strong>ช่วงฝึกภาคสนาม:</strong> ${escapeHtml(site.datesTH || "-")}</p>
+        ${site.travelNote ? `<p class="muted-line">${escapeHtml(site.travelNote)}</p>` : ""}
+        ${staffHtml}
+      </div>
+    `;
+    const jumpFieldBtn = make("button", `ไปที่รายชื่อกลุ่มพื้นที่ ${s.area} →`, "btn sm");
+    jumpFieldBtn.type = "button";
+    jumpFieldBtn.style.marginTop = "8px";
+    jumpFieldBtn.addEventListener("click", () => {
+      backdrop.hidden = true;
+      if ($("fieldAreaSelect")) $("fieldAreaSelect").value = s.area;
+      if ($("fieldSearchInput")) $("fieldSearchInput").value = "";
+      if (state.fieldViewMode === "deck") {
+        const idx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === s.area);
+        if (idx >= 0) state.fieldDeckIdx = idx;
+      }
+      switchTab("fieldwork");
+    });
+    fieldBox.appendChild(jumpFieldBtn);
+
+    detailGrid.append(discBox, fieldBox);
+    card.appendChild(detailGrid);
+
+    const footer = make("div", null, "cal-modal-footer stu-quick-footer");
+    const bindBtn = make(
+      "button",
+      isMine ? "✓ กำลังผูกตารางของคนนี้อยู่ · เปิดปฏิทิน" : "★ ผูกตารางเรียน & ดูปฏิทินของคนนี้",
+      "btn primary sm"
+    );
+    bindBtn.type = "button";
+    bindBtn.addEventListener("click", () => {
+      state.calScope = "student";
+      applyMyStudent(s, true);
+      backdrop.hidden = true;
+      switchTab("schedule");
+    });
+
+    const icsLink = make("a", "📅 ปฏิทิน .ics เฉพาะคนนี้", "btn teal sm");
+    icsLink.href = `calendars/d${s.disc}_g${siteId}.ics`;
+    icsLink.setAttribute("download", `RACM303_2569_${s.id}_d${s.disc}_g${siteId}.ics`);
+
+    const copyBtn = make("button", "📋 คัดลอกข้อมูล", "btn sm");
+    copyBtn.type = "button";
+    copyBtn.addEventListener("click", () => {
+      const summaryText = [
+        `${s.id} ${s.fullName}${s.nickname ? " (" + s.nickname + ")" : ""}`,
+        `Discussion กลุ่มที่ ${s.disc} (ห้อง ${rot.room || "-"})`,
+        `พื้นที่ภาคสนาม: ${siteId}. ${s.area} (${site.hospital || ""} ${site.province || ""})`,
+        `อาจารย์ที่ปรึกษา: ${s.advisor || site.advisors || "-"}`
+      ].join(" | ");
+      copyTextWithFeedback(summaryText, copyBtn);
+    });
+
+    footer.append(bindBtn, icsLink, copyBtn);
+    card.appendChild(footer);
+
+    backdrop.hidden = false;
+  }
+
+  /* ---------- Admin Roster Export & Clipboard Helpers ---------- */
+  function exportRosterCsv(list, labelSlug) {
+    if (!list || !list.length) return;
+    const header = [
+      "ลำดับ",
+      "รหัสนักศึกษา",
+      "ชื่อ-นามสกุล",
+      "ชื่อเล่น",
+      "หลักสูตร",
+      "กลุ่ม Discussion",
+      "ห้องหลัก Discussion",
+      "ลำดับพื้นที่",
+      "กลุ่มพื้นที่ภาคสนาม",
+      "โรงพยาบาลชุมชน",
+      "จังหวัด",
+      "อาจารย์ที่ปรึกษา"
+    ].join(",");
+
+    const rows = [header];
+    list.forEach((s, i) => {
+      const site = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area) || {};
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
+      rows.push(
+        [
+          csvCell(i + 1),
+          csvCell(s.id),
+          csvCell(s.fullName),
+          csvCell(s.nickname || ""),
+          csvCell(s.program || "MD"),
+          csvCell(`กลุ่มที่ ${s.disc}`),
+          csvCell(rot.room || ""),
+          csvCell(site.id || ""),
+          csvCell(s.area),
+          csvCell(site.hospital || ""),
+          csvCell(site.province || ""),
+          csvCell(s.advisor || site.advisors || "")
+        ].join(",")
+      );
+    });
+    const safeSlug = String(labelSlug || "roster").replace(/[^\wก-๙-]+/g, "_");
+    triggerBlobDownload("\uFEFF" + rows.join("\r\n") + "\r\n", "text/csv;charset=utf-8", `RACM303_2569_${safeSlug}_${list.length}.csv`);
+  }
+
+  function copyRosterTsv(list, btn) {
+    if (!list || !list.length) return;
+    const lines = [
+      ["ลำดับ", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "ชื่อเล่น", "หลักสูตร", "Discussion", "พื้นที่ภาคสนาม", "อาจารย์ที่ปรึกษา"].join("\t")
+    ];
+    list.forEach((s, idx) => {
+      lines.push(
+        [
+          idx + 1,
+          s.id,
+          s.fullName,
+          s.nickname || "-",
+          s.program || "MD",
+          `กลุ่ม ${s.disc}`,
+          s.area,
+          s.advisor || "-"
+        ].join("\t")
+      );
+    });
+    copyTextWithFeedback(lines.join("\n"), btn, `คัดลอก ${list.length} รายชื่อ ✓`);
+  }
+
+  /* ---------- Sticky User-Centric Roster Command Dock, Multi-View & Zoom Controller ---------- */
+  let rosterDeckKeyBound = false;
+
+  function clampRosterZoom(val) {
+    const n = Math.round((Number(val) || 100) / 10) * 10;
+    return Math.max(50, Math.min(160, n));
+  }
+
+  function applyRosterZoomVars() {
+    const pct = clampRosterZoom(state.rosterZoomPct);
+    state.rosterZoomPct = pct;
+    localStorage.setItem("racm303_roster_zoom", String(pct));
+    const cardMin = Math.round(Math.max(112, Math.min(300, 192 * (pct / 100))));
+    const sorterMin = Math.round(Math.max(195, Math.min(480, 310 * (pct / 100))));
+    const fontScale = (0.82 + (pct - 50) * 0.0034).toFixed(3);
+    const chipAvatar = Math.round(Math.max(20, Math.min(42, 28 * (pct / 100))));
+
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty("--roster-card-min", `${cardMin}px`);
+    rootStyle.setProperty("--gsorter-col-min", `${sorterMin}px`);
+    rootStyle.setProperty("--roster-scale", fontScale);
+    rootStyle.setProperty("--gsorter-avatar-px", `${chipAvatar}px`);
+
+    document.querySelectorAll("[data-roster-zoom-range]").forEach((el) => {
+      if (Number(el.value) !== pct) el.value = String(pct);
+    });
+    document.querySelectorAll("[data-roster-zoom-reset]").forEach((btn) => {
+      btn.textContent = `${pct}%`;
+    });
+  }
+
+  function setRosterZoom(nextPct) {
+    state.rosterZoomPct = clampRosterZoom(nextPct);
+    applyRosterZoomVars();
+  }
+
+  function ensureRosterSuite(scope) {
+    const isDisc = scope === "discussion";
+    const cardsEl = $(isDisc ? "discCardsContainer" : "fieldCardsContainer");
+    if (!cardsEl || !cardsEl.parentElement) return null;
+    const parent = cardsEl.parentElement;
+
+    let dock = parent.querySelector(`.roster-sticky-dock[data-scope="${scope}"]`);
+    if (dock) {
+      return {
+        dock,
+        sorterStage: parent.querySelector(`.roster-gsorter-stage[data-scope="${scope}"]`),
+        deckStage: parent.querySelector(`.roster-gdeck-stage[data-scope="${scope}"]`),
+        tableStage: parent.querySelector(`.roster-admin-table-stage[data-scope="${scope}"]`),
+        cardsEl
+      };
+    }
+
+    dock = make("div", null, "roster-sticky-dock");
+    dock.dataset.scope = scope;
+    dock.setAttribute("aria-label", isDisc ? "แถบค้นหาและสลับมุมมองกลุ่ม Discussion" : "แถบค้นหาและสลับมุมมอง 9 พื้นที่ภาคสนาม");
+
+    const topRow = make("div", null, "roster-dock-top");
+
+    // 1. Live Search Input (Focus-safe!)
+    const searchWrap = make("div", null, "roster-dock-search");
+    const searchIcon = make("span", "🔍", "roster-dock-search-ico");
+    searchIcon.setAttribute("aria-hidden", "true");
+    const searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.className = "roster-dock-search-input";
+    searchInput.placeholder = isDisc
+      ? "ค้นหาด่วนตลอดหน้า: รหัส 7 หลัก, ชื่อ, ชื่อเล่น, พื้นที่, อาจารย์…"
+      : "ค้นหาด่วนตลอดหน้า: รหัส 7 หลัก, ชื่อ, ชื่อเล่น, รพช., อาจารย์ที่ปรึกษา…";
+    searchInput.setAttribute("aria-label", searchInput.placeholder);
+
+    const clearSearchBtn = make("button", "✕", "roster-dock-clear-btn");
+    clearSearchBtn.type = "button";
+    clearSearchBtn.title = "ล้างคำค้นหา";
+    clearSearchBtn.hidden = true;
+
+    const baseSearchInput = $(isDisc ? "discSearchInput" : "fieldSearchInput");
+    searchInput.addEventListener("input", () => {
+      if (baseSearchInput && baseSearchInput.value !== searchInput.value) {
+        baseSearchInput.value = searchInput.value;
+      }
+      clearSearchBtn.hidden = !searchInput.value;
+      if (isDisc) renderDiscussionView();
+      else renderFieldworkView();
+    });
+    clearSearchBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      if (baseSearchInput) baseSearchInput.value = "";
+      clearSearchBtn.hidden = true;
+      searchInput.focus();
+      if (isDisc) renderDiscussionView();
+      else renderFieldworkView();
+    });
+    searchWrap.append(searchIcon, searchInput, clearSearchBtn);
+
+    // 2. 4-Way Segmented View Switcher
+    const viewSeg = make("div", null, "reader-mode-seg roster-view-seg");
+    viewSeg.setAttribute("role", "group");
+    viewSeg.setAttribute("aria-label", "เลือกรูปแบบการแสดงรายชื่อกลุ่ม");
+    const modes = [
+      { id: "cards", label: "☰ การ์ดรูป", title: "มุมมองการ์ดรูปถ่ายต่อเนื่อง (ย่อ-ขยายขนาดการ์ดได้)" },
+      { id: "deck", label: "▣ ทีละกลุ่ม", title: "เลื่อนดูทีละกลุ่มซ้าย-ขวา (ลูกศร ← / → หรือปัดนิ้ว)" },
+      { id: "sorter", label: "⊞ Group Sorter", title: "กระดานภาพรวมทุกกลุ่มพร้อมกัน ย่อ-ขยายเทียบสมาชิกทุกกลุ่ม" },
+      { id: "table", label: "≡ ตาราง Admin", title: "ตารางจัดการรายชื่อสำหรับผู้ประสานงาน เรียงคอลัมน์และส่งออกได้ทันที" }
+    ];
+    modes.forEach((m) => {
+      const b = make("button", m.label, "reader-mode-btn");
+      b.type = "button";
+      b.dataset.rosterView = m.id;
+      b.title = m.title;
+      b.addEventListener("click", () => {
+        if (isDisc) {
+          state.discViewMode = m.id;
+          const curSel = ($("discGroupSelect") && $("discGroupSelect").value) || "";
+          if (m.id === "deck" && curSel) {
+            state.discDeckIdx = Math.max(0, Number(curSel) - 1);
+          }
+          renderDiscussionView();
+        } else {
+          state.fieldViewMode = m.id;
+          const curArea = ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "";
+          if (m.id === "deck" && curArea) {
+            const foundIdx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === curArea);
+            if (foundIdx >= 0) state.fieldDeckIdx = foundIdx;
+          }
+          renderFieldworkView();
+        }
+      });
+      viewSeg.appendChild(b);
+    });
+
+    // 3. Zoom In / Zoom Out Cluster + Admin Copy / CSV
+    const rightCluster = make("div", null, "roster-dock-actions");
+    const zoomBox = make("div", null, "reader-zoom-cluster roster-zoom-cluster");
+    const zOut = make("button", "−", "reader-zoom-step");
+    zOut.type = "button";
+    zOut.title = "ซูมออก (ย่อขนาดการ์ด/ตารางให้เห็นภาพรวมมากขึ้น)";
+    zOut.addEventListener("click", () => setRosterZoom(state.rosterZoomPct - 15));
+
+    const zRange = document.createElement("input");
+    zRange.type = "range";
+    zRange.className = "reader-zoom-range";
+    zRange.min = "50";
+    zRange.max = "160";
+    zRange.step = "10";
+    zRange.value = String(clampRosterZoom(state.rosterZoomPct));
+    zRange.dataset.rosterZoomRange = scope;
+    zRange.setAttribute("aria-label", "แถบซูมย่อ-ขยายรายชื่อกลุ่ม");
+    zRange.addEventListener("input", () => setRosterZoom(Number(zRange.value)));
+
+    const zIn = make("button", "+", "reader-zoom-step");
+    zIn.type = "button";
+    zIn.title = "ซูมเข้า (ขยายรูปถ่ายและตัวอักษรให้ใหญ่ขึ้น)";
+    zIn.addEventListener("click", () => setRosterZoom(state.rosterZoomPct + 15));
+
+    const zReset = make("button", `${clampRosterZoom(state.rosterZoomPct)}%`, "reader-zoom-pct-btn");
+    zReset.type = "button";
+    zReset.dataset.rosterZoomReset = scope;
+    zReset.title = "คลิกเพื่อรีเซ็ตระดับการซูมเป็น 100%";
+    zReset.addEventListener("click", () => setRosterZoom(100));
+
+    zoomBox.append(zOut, zRange, zIn, zReset);
+
+    const copyBtn = make("button", "📋 คัดลอก", "btn sm");
+    copyBtn.type = "button";
+    copyBtn.title = "คัดลอกตารางรายชื่อชุดที่กรองอยู่สำหรับวางใน Excel / Google Sheets";
+    copyBtn.addEventListener("click", () => {
+      const activeList = isDisc ? state.visibleDiscStudents : state.visibleFieldStudents;
+      copyRosterTsv(activeList, copyBtn);
+    });
+
+    const csvBtn = make("button", "⬇ CSV", "btn sm");
+    csvBtn.type = "button";
+    csvBtn.title = "ดาวน์โหลดไฟล์ CSV (UTF-8 รองรับภาษาไทยใน Excel) ของรายชื่อชุดที่แสดงอยู่";
+    csvBtn.addEventListener("click", () => {
+      const activeList = isDisc ? state.visibleDiscStudents : state.visibleFieldStudents;
+      const subLabel = isDisc
+        ? (($("discGroupSelect") && $("discGroupSelect").value) ? `Discussion_G${$("discGroupSelect").value}` : "Discussion_All")
+        : (($("fieldAreaSelect") && $("fieldAreaSelect").value) || "Fieldwork_All");
+      exportRosterCsv(activeList, subLabel);
+    });
+
+    rightCluster.append(zoomBox, copyBtn, csvBtn);
+    topRow.append(searchWrap, viewSeg, rightCluster);
+
+    // Row 2: Persistent Quick-Jump Group Pills
+    const jumpStrip = make("div", null, "roster-jump-strip");
+    jumpStrip.dataset.jumpStrip = scope;
+    dock.append(topRow, jumpStrip);
+
+    const sorterStage = make("div", null, "roster-gsorter-stage");
+    sorterStage.dataset.scope = scope;
+    sorterStage.hidden = true;
+
+    const deckStage = make("div", null, "roster-gdeck-stage");
+    deckStage.dataset.scope = scope;
+    deckStage.hidden = true;
+
+    const tableStage = make("div", null, "roster-admin-table-stage");
+    tableStage.dataset.scope = scope;
+    tableStage.hidden = true;
+
+    const printHeading = $(isDisc ? "discPrintHeading" : "fieldPrintHeading");
+    const anchorBefore = printHeading || cardsEl;
+    parent.insertBefore(dock, anchorBefore);
+    parent.insertBefore(sorterStage, cardsEl);
+    parent.insertBefore(deckStage, cardsEl);
+    parent.insertBefore(tableStage, cardsEl);
+
+    // Alt + Mouse Wheel smooth zoom on any roster stage
+    [cardsEl, sorterStage, deckStage, tableStage].forEach((stageEl) => {
+      stageEl.addEventListener(
+        "wheel",
+        (ev) => {
+          if (!ev.altKey) return;
+          ev.preventDefault();
+          setRosterZoom(state.rosterZoomPct + (ev.deltaY < 0 ? 10 : -10));
+        },
+        { passive: false }
+      );
+    });
+
+    if (!rosterDeckKeyBound) {
+      rosterDeckKeyBound = true;
+      document.addEventListener("keydown", (ev) => {
+        if (ev.defaultPrevented || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+        const tag = (ev.target && ev.target.tagName) || "";
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (ev.target && ev.target.isContentEditable)) return;
+        if (($("imageLightbox") && !$("imageLightbox").hidden) || ($("studentQuickModal") && !$("studentQuickModal").hidden) || ($("globalSpotlightModal") && !$("globalSpotlightModal").hidden)) {
+          return;
+        }
+        if (state.activeTab === "discussion" && state.discViewMode === "deck") {
+          const total = (SCHED.hsGroups || []).length || 6;
+          if (ev.key === "ArrowRight") {
+            ev.preventDefault();
+            state.discDeckIdx = (state.discDeckIdx + 1) % total;
+            renderDiscussionView();
+          } else if (ev.key === "ArrowLeft") {
+            ev.preventDefault();
+            state.discDeckIdx = (state.discDeckIdx - 1 + total) % total;
+            renderDiscussionView();
+          }
+        } else if (state.activeTab === "fieldwork" && state.fieldViewMode === "deck") {
+          const total = (SCHED.fieldworkSites || []).length || 9;
+          if (ev.key === "ArrowRight") {
+            ev.preventDefault();
+            state.fieldDeckIdx = (state.fieldDeckIdx + 1) % total;
+            renderFieldworkView();
+          } else if (ev.key === "ArrowLeft") {
+            ev.preventDefault();
+            state.fieldDeckIdx = (state.fieldDeckIdx - 1 + total) % total;
+            renderFieldworkView();
+          }
+        }
+      });
+    }
+
+    applyRosterZoomVars();
+    return { dock, sorterStage, deckStage, tableStage, cardsEl };
+  }
+
+  function printSingleGroupHelper(scope, groupValue) {
+    if (scope === "discussion") {
+      const sel = $("discGroupSelect");
+      const prev = sel ? sel.value : "";
+      if (sel) sel.value = String(groupValue || "");
+      renderDiscussionView();
+      printRosterOnePage("discussion").finally(() => {
+        if (sel && prev !== String(groupValue || "") && state.discViewMode !== "cards") {
+          sel.value = prev;
+          renderDiscussionView();
+        }
+      });
+    } else {
+      const sel = $("fieldAreaSelect");
+      const prev = sel ? sel.value : "";
+      if (sel) sel.value = String(groupValue || "");
+      renderFieldworkView();
+      printRosterOnePage("fieldwork").finally(() => {
+        if (sel && prev !== String(groupValue || "") && state.fieldViewMode !== "cards") {
+          sel.value = prev;
+          renderFieldworkView();
+        }
+      });
+    }
+  }
+
+  function renderRosterMiniChip(s) {
+    const chip = make("button", null, "gsorter-member-chip");
+    chip.type = "button";
+    if (state.myStudent && state.myStudent.id === s.id) chip.classList.add("is-mine");
+    const siteId = getSiteIdByAreaName(s.area);
+    chip.title = `${s.id} ${s.fullName}${s.nickname ? " (" + s.nickname + ")" : ""} · พื้นที่ ${siteId}. ${s.area}`;
+
+    const av = make("span", null, "gsorter-chip-avatar");
+    if (state.showPhotos && s.id) {
+      const img = document.createElement("img");
+      img.src = `assets/photos/${encodeURIComponent(s.id)}.jpg`;
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.onerror = () => {
+        av.textContent = studentInitials(s);
+      };
+      av.appendChild(img);
+    } else {
+      av.textContent = studentInitials(s);
+    }
+
+    const label = make("span", s.nickname || s.name || s.fullName, "gsorter-chip-name");
+    const dot = make("i", null, `gsorter-site-dot area-site-${siteId}`);
+    chip.append(av, label, dot);
+    chip.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openStudentQuickModal(s);
+    });
+    return chip;
+  }
+
+  function renderRosterGroupSorter(scope, stageEl, q, areaSubVal, activeGroupVal) {
+    if (!stageEl) return;
+    stageEl.replaceChildren();
+    const isDisc = scope === "discussion";
+
+    const bar = make("div", null, "gsorter-info-bar");
+    bar.innerHTML = isDisc
+      ? `<span><strong>⊞ Group Sorter (6 กลุ่ม Discussion)</strong> — ย่อ/ขยายด้วยปุ่ม <code>−</code> <code>+</code> หรือ <code>Alt + เลื่อนเมาส์</code> · คลิกชื่อนักศึกษาเพื่อดูตารางรายบุคคล หรือคลิกการ์ดกลุ่มเพื่อซูมเข้าโหมด <em>ทีละกลุ่ม</em></span>`
+      : `<span><strong>⊞ Group Sorter (9 พื้นที่ภาคสนาม)</strong> — เปรียบเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางครบทั้ง 9 รพช. ในมุมสูง · คลิกชื่อนักศึกษาเพื่อดูข้อมูลด่วน</span>`;
+    stageEl.appendChild(bar);
+
+    const grid = make("div", null, "gsorter-grid");
+    const matchStudent = (s) => {
+      if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
+      if (!q) return true;
+      const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+      return hay.includes(q);
+    };
+
+    if (isDisc) {
+      (SCHED.hsGroups || []).forEach((g, idx) => {
+        const rot = (SCHED.hsRotation || []).find((r) => r.group === g.id) || {};
+        const allMembers = ROSTER.students.filter((s) => s.disc === g.id).sort((a, b) => compareTH(a.id, b.id));
+        const matched = allMembers.filter(matchStudent);
+        const hasFilter = Boolean(q || areaSubVal);
+
+        const card = make(
+          "article",
+          null,
+          `gsorter-group-card${String(g.id) === activeGroupVal ? " is-highlighted" : ""}${hasFilter && !matched.length ? " is-dimmed" : ""}`
+        );
+        const head = make("div", null, "gsorter-card-head");
+        const countBadge = hasFilter
+          ? `<span class="badge ${matched.length ? "cat-HS" : ""}">พบ ${matched.length} / ${allMembers.length} คน</span>`
+          : `<span class="badge cat-HS">${allMembers.length} คน</span>`;
+        head.innerHTML = `
+          <div>
+            <h4>กลุ่ม Discussion ที่ ${g.id}</h4>
+            <p class="gsorter-sub">ห้องหลัก ${escapeHtml(rot.room || g.defaultRoom)}</p>
+          </div>
+          ${countBadge}
+        `;
+        card.appendChild(head);
+
+        const teachersListWrap = make("div", null, "gsorter-teachers-wrap");
+        teachersListWrap.innerHTML = buildHsSixBulletListHtml(rot);
+        card.appendChild(teachersListWrap);
+
+        const mixWrap = make("div", null, "disc-site-mix gsorter-mix");
+        mixWrap.innerHTML = buildDiscSiteBreakdownHtml(matched.length ? matched : allMembers, g.id);
+        card.appendChild(mixWrap);
+
+        const mosaic = make("div", null, "gsorter-avatar-mosaic");
+        (hasFilter ? matched : allMembers).forEach((s) => mosaic.appendChild(renderRosterMiniChip(s)));
+        if (hasFilter && !matched.length) {
+          mosaic.appendChild(make("span", "ไม่มีสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "gsorter-empty-note"));
+        }
+        card.appendChild(mosaic);
+
+        const foot = make("div", null, "gsorter-card-foot");
+        const zoomGroupBtn = make("button", `▶ ซูมเข้ากลุ่มที่ ${g.id}`, "btn sm primary");
+        zoomGroupBtn.type = "button";
+        zoomGroupBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          state.discDeckIdx = idx;
+          state.discViewMode = "deck";
+          renderDiscussionView();
+        });
+        const printOneBtn = make("button", "🖨 พิมพ์ A4", "btn sm");
+        printOneBtn.type = "button";
+        printOneBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          printSingleGroupHelper("discussion", g.id);
+        });
+        foot.append(zoomGroupBtn, printOneBtn);
+        card.appendChild(foot);
+
+        card.addEventListener("click", () => {
+          state.discDeckIdx = idx;
+          state.discViewMode = "deck";
+          renderDiscussionView();
+        });
+        grid.appendChild(card);
+      });
+    } else {
+      (SCHED.fieldworkSites || []).forEach((site, idx) => {
+        const allMembers = ROSTER.students.filter((s) => s.area === site.shortName).sort((a, b) => compareTH(a.id, b.id));
+        const matched = allMembers.filter(matchStudent);
+        const hasFilter = Boolean(q);
+
+        const card = make(
+          "article",
+          null,
+          `gsorter-group-card site-accent-${site.id}${site.shortName === activeGroupVal ? " is-highlighted" : ""}${hasFilter && !matched.length ? " is-dimmed" : ""}`
+        );
+        const head = make("div", null, "gsorter-card-head");
+        const countBadge = hasFilter
+          ? `<span class="badge ${matched.length ? "cat-SG" : ""}">พบ ${matched.length} / ${allMembers.length} คน</span>`
+          : `<span class="badge cat-SG">${allMembers.length} คน</span>`;
+        head.innerHTML = `
+          <div>
+            <h4><span class="area-sub-pill area-site-${site.id}"><i class="area-dot"></i>${site.id}. ${escapeHtml(site.shortName)}</span></h4>
+            <p class="gsorter-sub">${escapeHtml(site.hospital)} (${escapeHtml(site.province)})</p>
+          </div>
+          ${countBadge}
+        `;
+        card.appendChild(head);
+
+        const metaP = make("p", null, "gsorter-teachers");
+        metaP.textContent = `อ.ที่ปรึกษา: ${site.advisors} · ห้อง ${site.room} · ${site.datesTH}`;
+        card.appendChild(metaP);
+        if (ROLE === "faculty" && site.staffRef) {
+          card.appendChild(make("p", `ผู้ประสานงาน: ${site.staffRef}`, "gsorter-staff-line"));
+        }
+
+        const mosaic = make("div", null, "gsorter-avatar-mosaic");
+        (hasFilter ? matched : allMembers).forEach((s) => mosaic.appendChild(renderRosterMiniChip(s)));
+        if (hasFilter && !matched.length) {
+          mosaic.appendChild(make("span", "ไม่มีสมาชิกที่ตรงกับคำค้นในพื้นที่นี้", "gsorter-empty-note"));
+        }
+        card.appendChild(mosaic);
+
+        const foot = make("div", null, "gsorter-card-foot");
+        const zoomSiteBtn = make("button", `▶ ซูมเข้า ${site.shortName}`, "btn sm primary");
+        zoomSiteBtn.type = "button";
+        zoomSiteBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          state.fieldDeckIdx = idx;
+          state.fieldViewMode = "deck";
+          renderFieldworkView();
+        });
+        const printOneBtn = make("button", "🖨 พิมพ์ A4", "btn sm");
+        printOneBtn.type = "button";
+        printOneBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          printSingleGroupHelper("fieldwork", site.shortName);
+        });
+        foot.append(zoomSiteBtn, printOneBtn);
+        card.appendChild(foot);
+
+        card.addEventListener("click", () => {
+          state.fieldDeckIdx = idx;
+          state.fieldViewMode = "deck";
+          renderFieldworkView();
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    stageEl.appendChild(grid);
+  }
+
+  function renderRosterGroupDeck(scope, stageEl, q, areaSubVal) {
+    if (!stageEl) return;
+    stageEl.replaceChildren();
+    const isDisc = scope === "discussion";
+    const groups = isDisc ? SCHED.hsGroups || [] : SCHED.fieldworkSites || [];
+    if (!groups.length) return;
+
+    const rawIdx = isDisc ? state.discDeckIdx : state.fieldDeckIdx;
+    const idx = ((rawIdx % groups.length) + groups.length) % groups.length;
+    if (isDisc) state.discDeckIdx = idx;
+    else state.fieldDeckIdx = idx;
+
+    const navBar = make("div", null, "deck-nav-bar");
+    const prevBtn = make("button", "‹ กลุ่มก่อนหน้า", "btn sm");
+    prevBtn.type = "button";
+    prevBtn.addEventListener("click", () => {
+      if (isDisc) {
+        state.discDeckIdx = (idx - 1 + groups.length) % groups.length;
+        renderDiscussionView();
+      } else {
+        state.fieldDeckIdx = (idx - 1 + groups.length) % groups.length;
+        renderFieldworkView();
+      }
+    });
+
+    const mid = make("div", null, "deck-mid-controls");
+    const sel = document.createElement("select");
+    sel.className = "deck-slide-select";
+    sel.setAttribute("aria-label", "เลือกกลุ่มที่ต้องการเปิดดู");
+    groups.forEach((g, i) => {
+      const label = isDisc
+        ? `กลุ่มที่ ${i + 1}/${groups.length} — Discussion กลุ่มที่ ${g.id} (ห้อง ${g.defaultRoom.split(" ")[0]} · ${g.count} คน)`
+        : `พื้นที่ ${i + 1}/${groups.length} — ${g.id}. ${g.shortName} (${g.hospital} ${g.province} · ${g.count} คน)`;
+      sel.add(new Option(label, String(i), i === idx, i === idx));
+    });
+    sel.addEventListener("change", () => {
+      const next = Number(sel.value) || 0;
+      if (isDisc) {
+        state.discDeckIdx = next;
+        renderDiscussionView();
+      } else {
+        state.fieldDeckIdx = next;
+        renderFieldworkView();
+      }
+    });
+
+    const toSorterBtn = make("button", "⊞ Group Sorter", "btn sm");
+    toSorterBtn.type = "button";
+    toSorterBtn.addEventListener("click", () => {
+      if (isDisc) {
+        state.discViewMode = "sorter";
+        renderDiscussionView();
+      } else {
+        state.fieldViewMode = "sorter";
+        renderFieldworkView();
+      }
+    });
+
+    const curGroupObj = groups[idx];
+    const printGroupBtn = make("button", "🖨 พิมพ์ A4 กลุ่มนี้", "btn sm primary");
+    printGroupBtn.type = "button";
+    printGroupBtn.addEventListener("click", () => {
+      printSingleGroupHelper(scope, isDisc ? curGroupObj.id : curGroupObj.shortName);
+    });
+
+    mid.append(sel, toSorterBtn, printGroupBtn);
+
+    const nextBtn = make("button", "กลุ่มถัดไป ›", "btn sm");
+    nextBtn.type = "button";
+    nextBtn.addEventListener("click", () => {
+      if (isDisc) {
+        state.discDeckIdx = (idx + 1) % groups.length;
+        renderDiscussionView();
+      } else {
+        state.fieldDeckIdx = (idx + 1) % groups.length;
+        renderFieldworkView();
+      }
+    });
+
+    navBar.append(prevBtn, mid, nextBtn);
+
+    const progTrack = make("div", null, "deck-progress-track");
+    const progFill = make("div", null, "deck-progress-fill");
+    progFill.style.width = `${((idx + 1) / groups.length) * 100}%`;
+    progTrack.appendChild(progFill);
+
+    const slideCard = make("div", null, "deck-slide-card roster-deck-card anim-next");
+    // Touch swipe left / right
+    let touchX = null;
+    slideCard.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches && e.touches.length === 1) touchX = e.touches[0].clientX;
+      },
+      { passive: true }
+    );
+    slideCard.addEventListener(
+      "touchend",
+      (e) => {
+        if (touchX === null || !e.changedTouches || !e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) < 55) return;
+        if (dx < 0) nextBtn.click();
+        else prevBtn.click();
+      },
+      { passive: true }
+    );
+
+    const matchStudent = (s) => {
+      if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
+      if (!q) return true;
+      const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+      return hay.includes(q);
+    };
+
+    if (isDisc) {
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === curGroupObj.id) || {};
+      const groupAll = ROSTER.students.filter((s) => s.disc === curGroupObj.id).sort((a, b) => compareTH(a.id, b.id));
+      const members = groupAll.filter(matchStudent);
+
+      const banner = make("div", null, "gdeck-info-banner");
+      banner.innerHTML = `
+        <div class="gdeck-banner-top">
+          <div>
+            <span class="deck-slide-eyebrow">กลุ่มที่ ${idx + 1} จาก ${groups.length} · กดปุ่มลูกศร ← / → เพื่อเลื่อนกลุ่ม</span>
+            <h3>กลุ่มอภิปราย Discussion ที่ ${curGroupObj.id} (${members.length}/${groupAll.length} คน · ห้องหลัก ${escapeHtml(rot.room || curGroupObj.defaultRoom)})</h3>
+          </div>
+          <div class="disc-header-site-pills">${buildDiscSiteBreakdownHtml(members.length ? members : groupAll, curGroupObj.id)}</div>
+        </div>
+        <div class="disc-rot-slots" style="margin-top:10px">
+          ${HS_SLOTS_META.map((m) => {
+            const c = rot[m.mod] || {};
+            return `<div class="disc-rot-slot"><span class="slot-code">${escapeHtml(m.label)}</span><span class="slot-inst">${escapeHtml(c.instructor || "-")}</span><span class="slot-room${c.highlightRoom ? " room-changed" : ""}">ห้อง ${escapeHtml(c.room || rot.room || "-")}</span></div>`;
+          }).join("")}
+        </div>
+      `;
+      slideCard.appendChild(banner);
+
+      const grid = make("div", null, "student-cards");
+      if (!members.length) {
+        grid.appendChild(make("div", "ไม่มีสมาชิกในกลุ่มนี้ที่ตรงกับคำค้นหา/ป้ายพื้นที่ที่เลือก", "empty-state"));
+      } else {
+        members.forEach((s) => grid.appendChild(renderStudentCardElement(s, "discussion")));
+      }
+      slideCard.appendChild(grid);
+    } else {
+      const site = curGroupObj;
+      const groupAll = ROSTER.students.filter((s) => s.area === site.shortName).sort((a, b) => compareTH(a.id, b.id));
+      const members = groupAll.filter(matchStudent);
+      const staffLine =
+        ROLE === "faculty" && site.staffRef
+          ? ` · <strong>ผู้ประสานงาน:</strong> ${escapeHtml(site.staffRef)}`
+          : "";
+
+      const banner = make("div", null, "gdeck-info-banner");
+      banner.innerHTML = `
+        <div class="gdeck-banner-top">
+          <div>
+            <span class="deck-slide-eyebrow">พื้นที่ที่ ${idx + 1} จาก ${groups.length} · กดปุ่มลูกศร ← / → เพื่อเลื่อนพื้นที่</span>
+            <h3><span class="area-sub-pill area-site-${site.id}" style="font-size:15px;padding:4px 12px"><i class="area-dot"></i>${site.id}. ${escapeHtml(site.shortName)}</span> ${escapeHtml(site.hospital)} (${escapeHtml(site.province)}) · ${members.length}/${groupAll.length} คน</h3>
+            <p style="margin:6px 0 0;font-size:13.8px;color:var(--ink-body)"><strong>อาจารย์ที่ปรึกษา:</strong> ${escapeHtml(site.advisors)} · <strong>ห้องกลุ่มย่อย:</strong> ${escapeHtml(site.room)} · <strong>ช่วงฝึก:</strong> ${escapeHtml(site.datesTH)}${staffLine}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--muted)">${escapeHtml(site.travelNote || "")}</p>
+          </div>
+          <div class="header-actions">
+            <a class="btn sm teal" href="calendars/group_${site.id}_${site.slug}.ics" download="RACM303_2569_group_${site.id}_${site.slug}.ics">📅 ปฏิทิน .ics กลุ่มนี้</a>
+          </div>
+        </div>
+      `;
+      slideCard.appendChild(banner);
+
+      const grid = make("div", null, "student-cards");
+      if (!members.length) {
+        grid.appendChild(make("div", "ไม่มีสมาชิกในพื้นที่นี้ที่ตรงกับคำค้นหา", "empty-state"));
+      } else {
+        members.forEach((s) => grid.appendChild(renderStudentCardElement(s, "fieldwork")));
+      }
+      slideCard.appendChild(grid);
+    }
+
+    const filmstrip = make("div", null, "deck-filmstrip");
+    groups.forEach((g, i) => {
+      const chip = make(
+        "button",
+        isDisc ? `G${g.id} (${g.count})` : `${g.id}.${g.shortName} (${g.count})`,
+        `deck-film-chip${i === idx ? " is-active" : ""}`
+      );
+      chip.type = "button";
+      chip.addEventListener("click", () => {
+        if (isDisc) {
+          state.discDeckIdx = i;
+          renderDiscussionView();
+        } else {
+          state.fieldDeckIdx = i;
+          renderFieldworkView();
+        }
+      });
+      filmstrip.appendChild(chip);
+    });
+
+    stageEl.append(navBar, progTrack, slideCard, filmstrip);
+  }
+
+  function renderRosterAdminTable(scope, stageEl, list) {
+    if (!stageEl) return;
+    stageEl.replaceChildren();
+    if (!list.length) {
+      stageEl.appendChild(make("div", "ไม่พบรายชื่อนักศึกษาที่ตรงกับเงื่อนไขการค้นหา", "empty-state"));
+      return;
+    }
+
+    const siteOrder = new Map((SCHED.fieldworkSites || []).map((s, idx) => [s.shortName, idx]));
+    const field = state.adminSortField || "id";
+    const dir = state.adminSortAsc ? 1 : -1;
+
+    const sorted = [...list].sort((a, b) => {
+      let cmp = 0;
+      if (field === "id") cmp = compareTH(a.id, b.id);
+      else if (field === "name") cmp = compareTH(a.name || a.fullName, b.name || b.fullName);
+      else if (field === "nickname") cmp = compareTH(a.nickname || "", b.nickname || "");
+      else if (field === "program") cmp = compareTH(a.program || "MD", b.program || "MD");
+      else if (field === "disc") cmp = a.disc - b.disc || compareTH(a.id, b.id);
+      else if (field === "area") {
+        cmp = (siteOrder.get(a.area) ?? 99) - (siteOrder.get(b.area) ?? 99) || compareTH(a.id, b.id);
+      } else if (field === "advisor") cmp = compareTH(a.advisor || "", b.advisor || "");
+      return cmp * dir;
+    });
+
+    const wrap = make("div", null, "clean-table-wrap admin-roster-table-wrap");
+    const table = make("table", null, "clean-table admin-roster-table");
+    const thead = document.createElement("thead");
+    const headTr = document.createElement("tr");
+
+    const cols = [
+      { key: null, label: "#" },
+      { key: "id", label: "รหัสนักศึกษา" },
+      { key: "name", label: "ชื่อ-นามสกุล" },
+      { key: "nickname", label: "ชื่อเล่น" },
+      { key: "program", label: "หลักสูตร" },
+      { key: "disc", label: "Discussion" },
+      { key: "area", label: "กลุ่มพื้นที่ภาคสนาม" },
+      { key: "advisor", label: "อาจารย์ที่ปรึกษา" },
+      { key: null, label: "ทางลัด" }
+    ];
+
+    cols.forEach((c) => {
+      const th = document.createElement("th");
+      if (c.key) {
+        th.className = `is-sortable${field === c.key ? " is-sorted" : ""}`;
+        const arrow = field === c.key ? (state.adminSortAsc ? " ▲" : " ▼") : " ⇅";
+        th.textContent = c.label + arrow;
+        th.tabIndex = 0;
+        const toggleSort = () => {
+          if (state.adminSortField === c.key) state.adminSortAsc = !state.adminSortAsc;
+          else {
+            state.adminSortField = c.key;
+            state.adminSortAsc = true;
+          }
+          if (scope === "discussion") renderDiscussionView();
+          else renderFieldworkView();
+        };
+        th.addEventListener("click", toggleSort);
+        th.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            toggleSort();
+          }
+        });
+      } else {
+        th.textContent = c.label;
+      }
+      headTr.appendChild(th);
+    });
+    thead.appendChild(headTr);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    sorted.forEach((s, idx) => {
+      const tr = document.createElement("tr");
+      if (state.myStudent && state.myStudent.id === s.id) tr.classList.add("is-my-row");
+      const siteId = getSiteIdByAreaName(s.area);
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
+
+      const tdNum = make("td", String(idx + 1), "td-num");
+      const tdId = make("td", s.id, "sid-mono");
+
+      const tdName = make("td", null, "td-student-name");
+      const nameFlex = make("div", null, "admin-row-person");
+      if (state.showPhotos && s.id) {
+        const av = make("span", null, "gsorter-chip-avatar");
+        const img = document.createElement("img");
+        img.src = `assets/photos/${encodeURIComponent(s.id)}.jpg`;
+        img.alt = "";
+        img.loading = "lazy";
+        img.decoding = "async";
+        img.onerror = () => {
+          av.textContent = studentInitials(s);
+        };
+        av.appendChild(img);
+        nameFlex.appendChild(av);
+      }
+      nameFlex.appendChild(make("strong", s.fullName));
+      tdName.appendChild(nameFlex);
+
+      const tdNick = make("td", s.nickname || "-");
+      const tdProg = make("td", s.program === "MD-M.Eng" ? "MD-M.Eng" : "พ.บ.");
+
+      const tdDisc = document.createElement("td");
+      const discBtn = make("button", `G${s.disc} · ${rot.room || ""}`, "admin-inline-pill");
+      discBtn.type = "button";
+      discBtn.title = `กรองเฉพาะกลุ่ม Discussion ที่ ${s.disc}`;
+      discBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
+        switchTab("discussion");
+      });
+      tdDisc.appendChild(discBtn);
+
+      const tdArea = document.createElement("td");
+      const areaBtn = make("button", null, `area-sub-pill area-site-${siteId} is-btn`);
+      areaBtn.type = "button";
+      areaBtn.innerHTML = `<i class="area-dot"></i>${siteId}. ${escapeHtml(s.area)}`;
+      areaBtn.title = `เปิดดูสมาชิกกลุ่มพื้นที่ ${s.area}`;
+      areaBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = s.area;
+        switchTab("fieldwork");
+      });
+      tdArea.appendChild(areaBtn);
+
+      const tdAdv = make("td", s.advisor || "-", "td-advisor");
+
+      const tdAct = document.createElement("td");
+      const openBtn = make("button", "ดูข้อมูล ↗", "btn sm");
+      openBtn.type = "button";
+      openBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openStudentQuickModal(s);
+      });
+      tdAct.appendChild(openBtn);
+
+      tr.append(tdNum, tdId, tdName, tdNick, tdProg, tdDisc, tdArea, tdAdv, tdAct);
+      tr.addEventListener("click", () => openStudentQuickModal(s));
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    stageEl.appendChild(wrap);
+  }
+
+  function syncRosterSuiteUI(scope, opts) {
+    const suite = ensureRosterSuite(scope);
+    if (!suite) return;
+    const isDisc = scope === "discussion";
+    const viewMode = isDisc ? state.discViewMode : state.fieldViewMode;
+    const { q, activeGroupVal, areaSubVal, list } = opts;
+
+    // Sync search input without stealing cursor focus
+    const dockInput = suite.dock.querySelector(".roster-dock-search-input");
+    const clearBtn = suite.dock.querySelector(".roster-dock-clear-btn");
+    const rawInputVal = ($(isDisc ? "discSearchInput" : "fieldSearchInput") && $(isDisc ? "discSearchInput" : "fieldSearchInput").value) || "";
+    if (dockInput && document.activeElement !== dockInput && dockInput.value !== rawInputVal) {
+      dockInput.value = rawInputVal;
+    }
+    if (clearBtn) clearBtn.hidden = !rawInputVal;
+
+    // Sync active view button
+    suite.dock.querySelectorAll("[data-roster-view]").forEach((btn) => {
+      btn.setAttribute("aria-pressed", btn.dataset.rosterView === viewMode ? "true" : "false");
+    });
+
+    // Rebuild Row 2 Quick-Jump Pills with live match counts
+    const jumpStrip = suite.dock.querySelector("[data-jump-strip]");
+    if (jumpStrip) {
+      jumpStrip.replaceChildren();
+      const matchQueryOnly = (s) => {
+        if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
+        if (!q) return true;
+        const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+        return hay.includes(q);
+      };
+      const allMatched = ROSTER.students.filter(matchQueryOnly);
+
+      const allPill = make(
+        "button",
+        isDisc ? `ทุกกลุ่ม (${allMatched.length})` : `ทุกพื้นที่ (${allMatched.length})`,
+        `roster-jump-pill${!activeGroupVal && viewMode !== "deck" ? " is-active" : ""}`
+      );
+      allPill.type = "button";
+      allPill.addEventListener("click", () => {
+        if (isDisc) {
+          if ($("discGroupSelect")) $("discGroupSelect").value = "";
+          if (state.discViewMode === "deck") state.discViewMode = "cards";
+          renderDiscussionView();
+        } else {
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = "";
+          if (state.fieldViewMode === "deck") state.fieldViewMode = "cards";
+          renderFieldworkView();
+        }
+      });
+      jumpStrip.appendChild(allPill);
+
+      if (isDisc) {
+        (SCHED.hsGroups || []).forEach((g, idx) => {
+          const cnt = allMatched.filter((s) => s.disc === g.id).length;
+          const isAct = viewMode === "deck" ? state.discDeckIdx === idx : activeGroupVal === String(g.id);
+          const p = make(
+            "button",
+            `G${g.id} · ${g.defaultRoom.split(" ")[0]} (${cnt})`,
+            `roster-jump-pill${isAct ? " is-active" : ""}${cnt === 0 ? " is-zero" : ""}`
+          );
+          p.type = "button";
+          p.dataset.hoverDiscOnly = String(g.id);
+          p.addEventListener("click", () => {
+            if (state.discViewMode === "deck") {
+              state.discDeckIdx = idx;
+              renderDiscussionView();
+              return;
+            }
+            const sel = $("discGroupSelect");
+            if (sel) sel.value = sel.value === String(g.id) ? "" : String(g.id);
+            state.discContext = null;
+            renderDiscussionView();
+          });
+          jumpStrip.appendChild(p);
+        });
+      } else {
+        (SCHED.fieldworkSites || []).forEach((site, idx) => {
+          const cnt = allMatched.filter((s) => s.area === site.shortName).length;
+          const isAct = viewMode === "deck" ? state.fieldDeckIdx === idx : activeGroupVal === site.shortName;
+          const p = make(
+            "button",
+            null,
+            `roster-jump-pill area-site-${site.id}${isAct ? " is-active" : ""}${cnt === 0 ? " is-zero" : ""}`
+          );
+          p.type = "button";
+          p.dataset.hoverArea = site.shortName;
+          p.innerHTML = `<i class="area-dot"></i><span>${site.id}. ${escapeHtml(site.shortName)}</span><strong>(${cnt})</strong>`;
+          p.addEventListener("click", () => {
+            if (state.fieldViewMode === "deck") {
+              state.fieldDeckIdx = idx;
+              renderFieldworkView();
+              return;
+            }
+            const sel = $("fieldAreaSelect");
+            if (sel) sel.value = sel.value === site.shortName ? "" : site.shortName;
+            state.fieldContext = null;
+            renderFieldworkView();
+          });
+          jumpStrip.appendChild(p);
+        });
+      }
+    }
+
+    applyRosterZoomVars();
+
+    // Toggle visible stage while keeping cardsEl populated for 1-page A4 printing
+    suite.cardsEl.hidden = viewMode !== "cards";
+    suite.sorterStage.hidden = viewMode !== "sorter";
+    suite.deckStage.hidden = viewMode !== "deck";
+    suite.tableStage.hidden = viewMode !== "table";
+
+    if (viewMode === "sorter") {
+      renderRosterGroupSorter(scope, suite.sorterStage, q, areaSubVal, activeGroupVal);
+    } else if (viewMode === "deck") {
+      renderRosterGroupDeck(scope, suite.deckStage, q, areaSubVal);
+    } else if (viewMode === "table") {
+      renderRosterAdminTable(scope, suite.tableStage, list);
+    }
+  }
+
+  function buildHsSixBulletListHtml(rot) {
+    const r = rot || {};
+    const items = ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].map((mod) => {
+      const cell = r[mod] || {};
+      const inst = escapeHtml(cell.instructor || "-");
+      const roomChangedBadge = cell.highlightRoom
+        ? ` <span class="disc-bullet-room-flag">ห้อง ${escapeHtml(cell.room)}</span>`
+        : "";
+      return `<li><span class="disc-hs-code">${mod}</span><span class="disc-hs-inst">${inst}${roomChangedBadge}</span></li>`;
+    });
+    return `<ul class="disc-hs-bullets">${items.join("")}</ul>`;
+  }
+
+  function buildDiscSiteBreakdownHtml(groupStudents, discGroupId) {
     const counts = new Map();
     groupStudents.forEach((st) => {
       counts.set(st.area, (counts.get(st.area) || 0) + 1);
     });
+    const discAttr = discGroupId ? ` data-hover-disc="${escapeHtml(String(discGroupId))}"` : "";
     return (SCHED.fieldworkSites || [])
       .filter((site) => counts.get(site.shortName))
       .map(
         (site) =>
-          `<span class="area-sub-pill sm area-site-${site.id}" title="${escapeHtml(site.hospital)} ${escapeHtml(site.province)}"><i class="area-dot"></i>${site.id}.${escapeHtml(site.shortName)} (${counts.get(site.shortName)})</span>`
+          `<span class="area-sub-pill sm area-site-${site.id} has-hover-peek" data-hover-area="${escapeHtml(site.shortName)}"${discAttr}><i class="area-dot"></i>${site.id}.${escapeHtml(site.shortName)} (${counts.get(site.shortName)})</span>`
       )
       .join("");
+  }
+
+  /* ---------- Compact Non-Blocking Hover Peek Card (Photos + Nickname + Name) ---------- */
+  let groupHoverWired = false;
+  let groupHoverHideTimer = null;
+  let activeHoverAnchor = null;
+
+  function ensureGroupHoverPreview() {
+    if (groupHoverWired || typeof document === "undefined") return;
+    groupHoverWired = true;
+
+    const pop = make("div", null, "group-hover-popover");
+    pop.id = "groupHoverPopover";
+    pop.hidden = true;
+    document.body.appendChild(pop);
+
+    const scheduleHide = () => {
+      if (groupHoverHideTimer) clearTimeout(groupHoverHideTimer);
+      groupHoverHideTimer = setTimeout(() => {
+        pop.hidden = true;
+        activeHoverAnchor = null;
+      }, 130);
+    };
+
+    const cancelHide = () => {
+      if (groupHoverHideTimer) {
+        clearTimeout(groupHoverHideTimer);
+        groupHoverHideTimer = null;
+      }
+    };
+
+    pop.addEventListener("mouseenter", cancelHide);
+    pop.addEventListener("mouseleave", scheduleHide);
+
+    const positionPopover = (anchor) => {
+      if (!anchor || !anchor.getBoundingClientRect) return;
+      const rect = anchor.getBoundingClientRect();
+      const vw = window.innerWidth || 1200;
+      const vh = window.innerHeight || 800;
+      const pw = pop.offsetWidth || 290;
+      const ph = pop.offsetHeight || 160;
+
+      let left = rect.left + rect.width / 2 - pw / 2;
+      left = Math.max(10, Math.min(vw - pw - 10, left));
+
+      // Prefer placing cleanly ABOVE the pill so it doesn't cover content below; flip below if near top
+      let top = rect.top - ph - 10;
+      if (top < 10) {
+        top = Math.min(vh - ph - 10, rect.bottom + 10);
+      }
+      pop.style.left = `${Math.round(left)}px`;
+      pop.style.top = `${Math.round(top)}px`;
+    };
+
+    const showHoverForAnchor = (anchor) => {
+      cancelHide();
+      if (activeHoverAnchor === anchor && !pop.hidden) return;
+      activeHoverAnchor = anchor;
+
+      const areaName = anchor.dataset.hoverArea || "";
+      const discId = anchor.dataset.hoverDisc || "";
+      const discOnly = anchor.dataset.hoverDiscOnly || "";
+
+      let members = [];
+      let headHtml = "";
+
+      if (areaName) {
+        const site = (SCHED.fieldworkSites || []).find((x) => x.shortName === areaName);
+        const siteId = site ? site.id : getSiteIdByAreaName(areaName);
+        members = ROSTER.students
+          .filter((s) => s.area === areaName && (!discId || String(s.disc) === String(discId)))
+          .sort((a, b) => compareTH(a.id, b.id));
+        const subCtx = discId
+          ? `ในกลุ่ม Discussion ${escapeHtml(discId)} · ${members.length} คน`
+          : `${site ? escapeHtml(site.hospital) + " · " : ""}${members.length} คน`;
+        headHtml = `<span class="area-sub-pill sm area-site-${siteId}"><i class="area-dot"></i>${siteId}. ${escapeHtml(areaName)}</span><span class="ghp-count">${subCtx}</span>`;
+      } else if (discOnly) {
+        members = ROSTER.students
+          .filter((s) => String(s.disc) === String(discOnly))
+          .sort((a, b) => compareTH(a.id, b.id));
+        headHtml = `<span class="badge cat-HS">กลุ่ม Discussion ที่ ${escapeHtml(discOnly)}</span><span class="ghp-count">${members.length} คน</span>`;
+      }
+
+      if (!members.length) {
+        pop.hidden = true;
+        return;
+      }
+
+      pop.replaceChildren();
+      const head = make("div", null, "ghp-head");
+      head.innerHTML = headHtml;
+      pop.appendChild(head);
+
+      const listEl = make("div", null, `ghp-list${members.length > 6 ? " is-two-col" : ""}`);
+      members.forEach((s) => {
+        const row = make("button", null, "ghp-person");
+        row.type = "button";
+        const av = make("span", null, "ghp-avatar");
+        if (s.id) {
+          const img = document.createElement("img");
+          img.src = `assets/photos/${encodeURIComponent(s.id)}.jpg`;
+          img.alt = "";
+          img.loading = "lazy";
+          img.onerror = () => {
+            av.textContent = studentInitials(s);
+          };
+          av.appendChild(img);
+        } else {
+          av.textContent = studentInitials(s);
+        }
+        const txt = make("span", null, "ghp-txt");
+        const nick = s.nickname ? `${s.nickname}` : s.name || s.fullName;
+        const shortFull = s.nickname ? (s.name || s.fullName) : `รหัส ${s.id}`;
+        txt.innerHTML = `<strong>${escapeHtml(nick)}</strong><small>${escapeHtml(shortFull)}</small>`;
+        row.append(av, txt);
+        row.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          pop.hidden = true;
+          openStudentQuickModal(s);
+        });
+        listEl.appendChild(row);
+      });
+      pop.appendChild(listEl);
+
+      pop.hidden = false;
+      positionPopover(anchor);
+    };
+
+    document.addEventListener("mouseover", (ev) => {
+      const target = ev.target && ev.target.closest ? ev.target.closest("[data-hover-area], [data-hover-disc-only]") : null;
+      if (target) showHoverForAnchor(target);
+    });
+    document.addEventListener("mouseout", (ev) => {
+      const target = ev.target && ev.target.closest ? ev.target.closest("[data-hover-area], [data-hover-disc-only]") : null;
+      if (!target) return;
+      const related = ev.relatedTarget;
+      if (related && (target.contains(related) || pop.contains(related))) return;
+      scheduleHide();
+    });
+    window.addEventListener("scroll", () => {
+      if (!pop.hidden) pop.hidden = true;
+    }, { passive: true });
   }
 
   /* ---------- Tab 2: Separated Discussion Group Roster (HS1–HS6 · 6 Groups) ---------- */
@@ -2201,6 +3641,7 @@
   ];
 
   function initDiscussionControls() {
+    ensureGroupHoverPreview();
     const discSel = $("discGroupSelect");
     if (discSel) {
       (SCHED.hsGroups || []).forEach((g) => {
@@ -2208,6 +3649,9 @@
       });
       discSel.addEventListener("change", () => {
         state.discContext = null;
+        if (discSel.value && state.discViewMode === "deck") {
+          state.discDeckIdx = Math.max(0, Number(discSel.value) - 1);
+        }
         renderDiscussionView();
       });
     }
@@ -2215,7 +3659,7 @@
     const areaSubSel = $("discAreaSubFilter");
     if (areaSubSel) {
       (SCHED.fieldworkSites || []).forEach((site) => {
-        areaSubSel.add(new Option(`${site.id}. ${site.shortName} (${site.hospital} ${site.province})`, site.shortName));
+        areaSubSel.add(new Option(site.shortName, site.shortName));
       });
       areaSubSel.addEventListener("change", renderDiscussionView);
     }
@@ -2259,20 +3703,17 @@
 
     if (!grid.dataset.rendered) {
       grid.dataset.rendered = "1";
-      (SCHED.hsGroups || []).forEach((g) => {
+      (SCHED.hsGroups || []).forEach((g, idx) => {
         const rot = (SCHED.hsRotation || []).find((r) => r.group === g.id) || {};
         const groupMembers = ROSTER.students.filter((st) => st.disc === g.id);
-        const siteMixHtml = buildDiscSiteBreakdownHtml(groupMembers);
+        const siteMixHtml = buildDiscSiteBreakdownHtml(groupMembers, g.id);
         const card = make("div", null, "disc-card");
         card.dataset.discId = String(g.id);
         card.setAttribute("role", "button");
         card.tabIndex = 0;
 
         const roomNote = g.id === 6 ? "ห้องหลัก 1C1-07 (ยกเว้น HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03)" : g.defaultRoom;
-        const instructorsPreview = ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"]
-          .map((m) => `${m}: ${(rot[m] && rot[m].instructor) || "-"}`)
-          .slice(0, 3)
-          .join(" · ");
+        const sixHsBulletsHtml = buildHsSixBulletListHtml(rot);
 
         card.innerHTML = `
           <div class="disc-card-head">
@@ -2280,12 +3721,31 @@
             <span class="badge cat-HS">${g.count} คน</span>
           </div>
           <p class="disc-meta"><strong>ห้องเรียน:</strong> ${escapeHtml(roomNote)}</p>
-          <p class="disc-meta">${escapeHtml(instructorsPreview)} ฯลฯ</p>
+          ${sixHsBulletsHtml}
           <div class="disc-site-mix">${siteMixHtml}</div>
-          <div class="disc-card-foot" data-disc-foot="${g.id}">คลิกเพื่อดูสมาชิกกลุ่มที่ ${g.id} &amp; ตารางอาจารย์ HS1–HS6 →</div>
+          <div class="disc-card-foot" data-disc-foot="${g.id}">คลิกเพื่อดูสมาชิกกลุ่มที่ ${g.id} · ชี้ที่ป้ายพื้นที่เพื่อดูรูปและชื่อเล่น →</div>
         `;
 
+        // Clicking a site sub-pill inside a Discussion card filters straight to that group + site!
+        card.querySelectorAll("[data-hover-area]").forEach((pillEl) => {
+          pillEl.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const areaTarget = pillEl.dataset.hoverArea || "";
+            if ($("discGroupSelect")) $("discGroupSelect").value = String(g.id);
+            if ($("discAreaSubFilter")) {
+              $("discAreaSubFilter").value = $("discAreaSubFilter").value === areaTarget ? "" : areaTarget;
+            }
+            state.discContext = null;
+            renderDiscussionView();
+          });
+        });
+
         const selectGroup = () => {
+          if (state.discViewMode === "deck") {
+            state.discDeckIdx = idx;
+            renderDiscussionView();
+            return;
+          }
           const sel = $("discGroupSelect");
           if (!sel) return;
           sel.value = sel.value === String(g.id) ? "" : String(g.id);
@@ -2314,9 +3774,9 @@
         if (isSelected) {
           foot.textContent = `✓ กำลังแสดงสมาชิกกลุ่มที่ ${id} (คลิกซ้ำเพื่อดูครบทั้ง 6 กลุ่ม)`;
         } else if (isMine) {
-          foot.textContent = `★ กลุ่ม Discussion ของฉัน · คลิกเพื่อดูสมาชิกและอาจารย์ HS1–HS6`;
+          foot.textContent = `★ กลุ่ม Discussion ของฉัน · ชี้ป้ายสีดูเพื่อน หรือคลิกดูครบกลุ่ม`;
         } else {
-          foot.textContent = `คลิกเพื่อดูสมาชิกกลุ่มที่ ${id} & ตารางอาจารย์ HS1–HS6 →`;
+          foot.textContent = `คลิกเพื่อดูสมาชิกกลุ่มที่ ${id} · ชี้ที่ป้ายพื้นที่เพื่อดูรูปและชื่อเล่น →`;
         }
       }
     });
@@ -2351,7 +3811,10 @@
         `area-filter-pill area-site-${site.id}${activeAreaVal === site.shortName ? " is-active" : ""}${cnt === 0 ? " is-zero" : ""}`
       );
       pill.type = "button";
-      pill.title = `คลิกเพื่อกรองเฉพาะสมาชิกกลุ่มพื้นที่ ${site.hospital} ${site.province}`;
+      if (cnt > 0) {
+        pill.dataset.hoverArea = site.shortName;
+        if (discVal) pill.dataset.hoverDisc = discVal;
+      }
       pill.innerHTML = `<i class="area-dot"></i><span>${site.id}. ${escapeHtml(site.shortName)}</span><strong class="pill-cnt">${cnt}</strong>`;
       pill.addEventListener("click", () => {
         const sel = $("discAreaSubFilter");
@@ -2468,7 +3931,9 @@
       if (discVal && String(s.disc) !== discVal) return false;
       if (areaSubVal && s.area !== areaSubVal) return false;
       if (q) {
-        const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area}`.toLocaleLowerCase("th");
+        const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
+        const teachers = HS_SLOTS_META.map((m) => (rot[m.mod] && rot[m.mod].instructor) || "").join(" ");
+        const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""} ${teachers}`.toLocaleLowerCase("th");
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -2511,43 +3976,103 @@
 
     if (!list.length) {
       cardsEl.appendChild(make("div", "ไม่พบรายชื่อสมาชิกกลุ่ม Discussion ที่ตรงกับเงื่อนไขที่เลือก", "empty-state"));
-      return;
+    } else {
+      let lastDisc = null;
+      list.forEach((s) => {
+        if (!discVal && s.disc !== lastDisc) {
+          lastDisc = s.disc;
+          const gMeta = (SCHED.hsGroups || []).find((g) => g.id === s.disc);
+          const rMeta = (SCHED.hsRotation || []).find((r) => r.group === s.disc);
+          const groupMembers = list.filter((st) => st.disc === s.disc);
+          const h = make("div", null, "area-group-header");
+          const instLine = rMeta
+            ? HS_SLOTS_META.map((m) => `${m.mod}: ${(rMeta[m.mod] && rMeta[m.mod].instructor) || "-"}`).join(" · ")
+            : "";
+          const leftCol = make("div", null, "area-group-title-col");
+          leftCol.append(
+            make("h3", `กลุ่มอภิปราย Discussion ที่ ${s.disc} (${gMeta ? gMeta.count : ""} คน · ห้อง ${gMeta ? gMeta.defaultRoom : ""})`),
+            make("p", `อาจารย์ประจำกลุ่มหมุนเวียน — ${instLine}`)
+          );
+          const mixRow = make("div", null, "disc-header-site-pills");
+          mixRow.innerHTML = buildDiscSiteBreakdownHtml(groupMembers, s.disc);
+          h.append(leftCol, mixRow);
+          cardsEl.appendChild(h);
+        }
+        cardsEl.appendChild(renderStudentCardElement(s, "discussion"));
+      });
     }
 
-    let lastDisc = null;
-    list.forEach((s) => {
-      if (!discVal && s.disc !== lastDisc) {
-        lastDisc = s.disc;
-        const gMeta = (SCHED.hsGroups || []).find((g) => g.id === s.disc);
-        const rMeta = (SCHED.hsRotation || []).find((r) => r.group === s.disc);
-        const groupMembers = list.filter((st) => st.disc === s.disc);
-        const h = make("div", null, "area-group-header");
-        const instLine = rMeta
-          ? HS_SLOTS_META.map((m) => `${m.mod}: ${(rMeta[m.mod] && rMeta[m.mod].instructor) || "-"}`).join(" · ")
-          : "";
-        const leftCol = make("div", null, "area-group-title-col");
-        leftCol.append(
-          make("h3", `กลุ่มอภิปราย Discussion ที่ ${s.disc} (${gMeta ? gMeta.count : ""} คน · ห้อง ${gMeta ? gMeta.defaultRoom : ""})`),
-          make("p", `อาจารย์ประจำกลุ่มหมุนเวียน — ${instLine}`)
-        );
-        const mixRow = make("div", null, "disc-header-site-pills");
-        mixRow.innerHTML = buildDiscSiteBreakdownHtml(groupMembers);
-        h.append(leftCol, mixRow);
-        cardsEl.appendChild(h);
-      }
-      cardsEl.appendChild(renderStudentCardElement(s, "discussion"));
+    syncRosterSuiteUI("discussion", {
+      q,
+      activeGroupVal: discVal,
+      areaSubVal,
+      list
     });
   }
 
-  /* ---------- Tab 3: Separated 9 Fieldwork Sites & Community Hospital Roster ---------- */
+  /* ---------- Tab 3: Interactive Thailand Fieldwork Map + 9 Community Hospital Roster ---------- */
+  const THAILAND_OUTLINE_LATLON = [
+    [20.46, 99.88], [20.15, 100.09], [20.35, 100.35], [19.78, 100.52], [19.55, 101.08],
+    [19.08, 101.28], [18.42, 101.05], [17.78, 101.02], [17.55, 101.42], [17.85, 101.78],
+    [18.18, 102.12], [17.88, 102.68], [18.35, 103.25], [18.42, 103.85], [17.98, 104.28],
+    [17.42, 104.78], [16.85, 104.75], [16.22, 105.05], [15.65, 105.55], [15.18, 105.52],
+    [14.45, 105.22], [14.32, 104.25], [14.42, 103.18], [14.18, 102.58], [13.55, 102.55],
+    [12.82, 102.48], [12.18, 102.75], [11.65, 102.90], [12.15, 102.35], [12.58, 101.95],
+    [12.65, 101.25], [13.28, 100.92], [13.55, 100.58], [13.45, 100.08], [12.95, 99.98],
+    [12.10, 99.98], [11.20, 99.55], [10.45, 99.25], [9.95, 99.15], [9.32, 99.28],
+    [9.22, 99.88], [8.45, 100.20], [7.65, 100.42], [6.92, 100.68], [6.75, 101.55],
+    [6.22, 102.08], [5.78, 101.82], [5.62, 101.12], [6.15, 100.92], [6.45, 100.22],
+    [6.55, 99.68], [7.28, 99.52], [7.88, 98.98], [8.18, 98.32], [8.88, 98.24],
+    [9.65, 98.48], [9.98, 98.62], [10.55, 98.85], [10.95, 99.12], [11.75, 99.62],
+    [12.52, 99.52], [13.25, 99.32], [13.85, 99.05], [14.55, 98.52], [15.25, 98.32],
+    [15.65, 98.58], [15.95, 98.65], [16.45, 98.52], [17.05, 98.12], [17.65, 97.72],
+    [18.25, 97.42], [18.85, 97.78], [19.45, 97.92], [19.78, 98.42], [19.65, 98.95],
+    [20.08, 99.25], [20.46, 99.88]
+  ];
+
+  const SITE_GEO_COORDS = {
+    1: { lat: 16.54, lon: 104.05, region: "ภาคตะวันออกเฉียงเหนือ", dx: 10, dy: 4, anchor: "start" }, // กุฉินารายณ์ จ.กาฬสินธุ์
+    2: { lat: 17.32, lon: 101.15, region: "ภาคตะวันออกเฉียงเหนือตอนบน", dx: 0, dy: -12, anchor: "middle" }, // ด่านซ้าย จ.เลย
+    3: { lat: 8.87, lon: 98.38, region: "ภาคใต้ฝั่งอันดามัน", dx: 12, dy: 4, anchor: "start" }, // ตะกั่วป่า จ.พังงา
+    4: { lat: 19.12, lon: 100.80, region: "ภาคเหนือ", dx: 11, dy: 4, anchor: "start" }, // ท่าวังผา จ.น่าน
+    5: { lat: 16.50, lon: 101.02, region: "ภาคกลางตอนบน", dx: -10, dy: -4, anchor: "end" }, // เพชรบูรณ์ 1
+    6: { lat: 16.12, lon: 101.28, region: "ภาคกลางตอนบน", dx: 11, dy: 8, anchor: "start" }, // เพชรบูรณ์ 2
+    7: { lat: 16.75, lon: 102.63, region: "ภาคตะวันออกเฉียงเหนือ", dx: 0, dy: -12, anchor: "middle" }, // อุบลรัตน์ จ.ขอนแก่น
+    8: { lat: 17.32, lon: 98.18, region: "ภาคตะวันตก (ชายแดนเหนือ)", dx: 11, dy: -2, anchor: "start" }, // ท่าสองยาง จ.ตาก
+    9: { lat: 15.98, lon: 98.86, region: "ภาคตะวันตก (ชายแดนใต้)", dx: 11, dy: 5, anchor: "start" } // อุ้มผาง จ.ตาก
+  };
+
+  const SITE_PIN_COLORS = {
+    1: "#007aff",
+    2: "#28a745",
+    3: "#0097a7",
+    4: "#e67e22",
+    5: "#5856d6",
+    6: "#af52de",
+    7: "#d97706",
+    8: "#0d9488",
+    9: "#e11d48"
+  };
+
+  function projectThailandLatLon(lat, lon) {
+    const x = 34 + (lon - 97.2) * 44.5;
+    const y = 26 + (20.6 - lat) * 43.2;
+    return [Number(x.toFixed(1)), Number(y.toFixed(1))];
+  }
+
   function initFieldworkControls() {
+    ensureGroupHoverPreview();
     const areaSel = $("fieldAreaSelect");
     if (areaSel) {
       (SCHED.fieldworkSites || []).forEach((s) => {
-        areaSel.add(new Option(`${s.id}. ${s.shortName} (${s.hospital} ${s.province}) · ${s.advisors} (${s.count} คน)`, s.shortName));
+        areaSel.add(new Option(s.shortName, s.shortName));
       });
       areaSel.addEventListener("change", () => {
         state.fieldContext = null;
+        if (areaSel.value && state.fieldViewMode === "deck") {
+          const foundIdx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === areaSel.value);
+          if (foundIdx >= 0) state.fieldDeckIdx = foundIdx;
+        }
         renderFieldworkView();
       });
     }
@@ -2559,6 +4084,7 @@
     if ($("fieldClearFiltersBtn")) {
       $("fieldClearFiltersBtn").addEventListener("click", () => {
         state.fieldContext = null;
+        state.mapHoverSite = "";
         if ($("fieldSearchInput")) $("fieldSearchInput").value = "";
         if (areaSel) areaSel.value = "";
         renderFieldworkView();
@@ -2575,12 +4101,13 @@
 
     const toggleSitesBtn = $("toggleSitesOverviewBtn");
     if (toggleSitesBtn) {
+      toggleSitesBtn.textContent = "ซ่อนแผนที่ 9 พื้นที่";
       toggleSitesBtn.addEventListener("click", () => {
         state.showSitesOverview = !state.showSitesOverview;
         if ($("sitesOverviewGrid")) $("sitesOverviewGrid").hidden = !state.showSitesOverview;
         toggleSitesBtn.textContent = state.showSitesOverview
-          ? "ซ่อนการ์ดข้อมูล 9 พื้นที่"
-          : "แสดงการ์ดข้อมูล 9 พื้นที่ภาคสนาม";
+          ? "ซ่อนแผนที่ 9 พื้นที่"
+          : "แสดงแผนที่ประเทศไทย 9 พื้นที่";
       });
     }
 
@@ -2591,16 +4118,46 @@
     syncPhotoToggleButtons();
   }
 
-  function renderFieldworkView() {
-    const areaVal = ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "";
-    const q = (($("fieldSearchInput") && $("fieldSearchInput").value) || "").trim().toLocaleLowerCase("th");
+  function renderSitesOverviewSection(sitesGrid, activeAreaVal) {
+    if (!sitesGrid) return;
+    sitesGrid.hidden = !state.showSitesOverview;
+    sitesGrid.className = state.fieldOverviewStyle === "map" ? "th-fieldwork-overview-wrap" : "th-fieldwork-overview-wrap is-cards-mode";
+    sitesGrid.replaceChildren();
 
-    const sitesGrid = $("sitesOverviewGrid");
-    if (sitesGrid && !sitesGrid.dataset.rendered) {
-      sitesGrid.dataset.rendered = "1";
-      sitesGrid.hidden = !state.showSitesOverview;
-      (SCHED.fieldworkSites || []).forEach((site) => {
-        const c = make("div", null, "site-card");
+    const sites = SCHED.fieldworkSites || [];
+    if (!sites.length) return;
+
+    // Top mode bar: Map (default) vs 9 Cards
+    const modeHead = make("div", null, "th-map-topbar");
+    const modeInfo = make("div", null, "th-map-topbar-info");
+    modeInfo.innerHTML =
+      `<strong>🗺 แผนที่โรงพยาบาลชุมชน 9 พื้นที่ภาคสนามทั่วประเทศ</strong>` +
+      `<span>เลื่อนเมาส์ชี้ (Hover) บนหมุดจังหวัดในแผนที่เพื่อดูข้อมูลโรงพยาบาล วันเดินทาง และรูปสมาชิกทันที · คลิกที่หมุดเพื่อล็อกกรองรายชื่อด้านล่าง</span>`;
+
+    const seg = make("div", null, "reader-mode-seg");
+    const mapBtn = make("button", "🗺 แผนที่ประเทศไทย (Hover)", "reader-mode-btn");
+    mapBtn.type = "button";
+    mapBtn.setAttribute("aria-pressed", state.fieldOverviewStyle === "map" ? "true" : "false");
+    mapBtn.addEventListener("click", () => {
+      state.fieldOverviewStyle = "map";
+      renderSitesOverviewSection(sitesGrid, ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "");
+    });
+
+    const cardsBtn = make("button", "▦ การ์ด 9 พื้นที่แบบเต็ม", "reader-mode-btn");
+    cardsBtn.type = "button";
+    cardsBtn.setAttribute("aria-pressed", state.fieldOverviewStyle === "cards" ? "true" : "false");
+    cardsBtn.addEventListener("click", () => {
+      state.fieldOverviewStyle = "cards";
+      renderSitesOverviewSection(sitesGrid, ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "");
+    });
+    seg.append(mapBtn, cardsBtn);
+    modeHead.append(modeInfo, seg);
+    sitesGrid.appendChild(modeHead);
+
+    if (state.fieldOverviewStyle === "cards") {
+      const classicGrid = make("div", null, "sites-grid");
+      sites.forEach((site, idx) => {
+        const c = make("div", null, `site-card${site.shortName === activeAreaVal ? " active-site" : ""}`);
         c.dataset.siteName = site.shortName;
         const friBadge = site.hasFri11Dec
           ? `<span class="badge cat-HS">ศ. 11 ธ.ค. มีเรียนกลุ่มย่อย 5–6</span>`
@@ -2612,7 +4169,7 @@
 
         c.innerHTML = `
           <div class="site-card-head">
-            <h3>${site.id}. ${escapeHtml(site.shortName)}</h3>
+            <h3><span class="area-sub-pill area-site-${site.id}" data-hover-area="${escapeHtml(site.shortName)}"><i class="area-dot"></i>${site.id}. ${escapeHtml(site.shortName)}</span></h3>
             <span class="badge cat-SG">${site.count} คน</span>
           </div>
           <p class="site-meta"><strong>${escapeHtml(site.hospital)}</strong> (${escapeHtml(site.province)})</p>
@@ -2626,33 +4183,323 @@
 
         const actRow = make("div", null, "header-actions");
         actRow.style.marginTop = "10px";
-
         const filterBtn = make("button", `ดูรายชื่อกลุ่ม ${site.shortName}`, "btn sm primary");
         filterBtn.type = "button";
         filterBtn.addEventListener("click", () => {
+          if (state.fieldViewMode === "deck") {
+            state.fieldDeckIdx = idx;
+            renderFieldworkView();
+            return;
+          }
           const sel = $("fieldAreaSelect");
           if (sel) sel.value = sel.value === site.shortName ? "" : site.shortName;
           state.fieldContext = null;
           renderFieldworkView();
-          const target = $("fieldCardsContainer");
-          if (target && sel && sel.value) target.scrollIntoView({ behavior: "smooth", block: "start" });
         });
-
         const icsLink = make("a", "ปฏิทิน .ics กลุ่มนี้", "btn sm teal");
         icsLink.href = `calendars/group_${site.id}_${site.slug}.ics`;
         icsLink.setAttribute("download", `RACM303_2569_group_${site.id}_${site.slug}.ics`);
-
         actRow.append(filterBtn, icsLink);
         c.appendChild(actRow);
-        sitesGrid.appendChild(c);
+        classicGrid.appendChild(c);
       });
+      sitesGrid.appendChild(classicGrid);
+      return;
     }
 
-    if (sitesGrid) {
-      sitesGrid.hidden = !state.showSitesOverview;
-      sitesGrid.querySelectorAll(".site-card").forEach((c) => {
-        c.classList.toggle("active-site", c.dataset.siteName === areaVal);
+    // Interactive Thailand SVG Map + Right-Hand Hover Inspector
+    const split = make("div", null, "th-map-studio-grid");
+    const mapCard = make("div", null, "th-map-canvas-card");
+    const inspector = make("div", null, "th-map-inspector-card");
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 440 680");
+    svg.setAttribute("class", "th-svg-map");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "แผนที่ประเทศไทยแสดงตำแหน่งโรงพยาบาลชุมชน 9 พื้นที่ภาคสนาม");
+
+    // Ocean / Sea labels
+    const seaGulf = document.createElementNS(svgNS, "text");
+    seaGulf.setAttribute("x", "252");
+    seaGulf.setAttribute("y", "445");
+    seaGulf.setAttribute("class", "th-sea-label");
+    seaGulf.textContent = "อ่าวไทย";
+
+    const seaAndaman = document.createElementNS(svgNS, "text");
+    seaAndaman.setAttribute("x", "38");
+    seaAndaman.setAttribute("y", "492");
+    seaAndaman.setAttribute("class", "th-sea-label");
+    seaAndaman.textContent = "ทะเลอันดามัน";
+
+    // Thailand Mainland Polygon
+    const poly = document.createElementNS(svgNS, "polygon");
+    const ptsStr = THAILAND_OUTLINE_LATLON.map(([la, lo]) => projectThailandLatLon(la, lo).join(",")).join(" ");
+    poly.setAttribute("points", ptsStr);
+    poly.setAttribute("class", "th-land-poly");
+
+    // Phuket & Koh Samui mini-islands
+    const phuket = document.createElementNS(svgNS, "ellipse");
+    const [pkx, pky] = projectThailandLatLon(7.92, 98.34);
+    phuket.setAttribute("cx", String(pkx));
+    phuket.setAttribute("cy", String(pky));
+    phuket.setAttribute("rx", "4.5");
+    phuket.setAttribute("ry", "9");
+    phuket.setAttribute("class", "th-land-poly");
+
+    const samui = document.createElementNS(svgNS, "circle");
+    const [smx, smy] = projectThailandLatLon(9.52, 100.00);
+    samui.setAttribute("cx", String(smx));
+    samui.setAttribute("cy", String(smy));
+    samui.setAttribute("r", "4.5");
+    samui.setAttribute("class", "th-land-poly");
+
+    svg.append(poly, phuket, samui, seaGulf, seaAndaman);
+
+    // Origin Hub: Ramathibodi / CNMI (Bangkok - Samut Prakan)
+    const [bx, by] = projectThailandLatLon(13.62, 100.62);
+    const routesGroup = document.createElementNS(svgNS, "g");
+    const pinsGroup = document.createElementNS(svgNS, "g");
+
+    // Origin marker
+    const hubG = document.createElementNS(svgNS, "g");
+    hubG.setAttribute("class", "th-origin-hub");
+    const hubCircle = document.createElementNS(svgNS, "circle");
+    hubCircle.setAttribute("cx", String(bx));
+    hubCircle.setAttribute("cy", String(by));
+    hubCircle.setAttribute("r", "5.5");
+    hubCircle.setAttribute("fill", "#002d72");
+    hubCircle.setAttribute("stroke", "#ffb81c");
+    hubCircle.setAttribute("stroke-width", "2");
+    const hubTxt = document.createElementNS(svgNS, "text");
+    hubTxt.setAttribute("x", String(bx + 9));
+    hubTxt.setAttribute("y", String(by + 4));
+    hubTxt.setAttribute("class", "th-hub-label");
+    hubTxt.textContent = "★ รามาฯ / CNMI";
+    hubG.append(hubCircle, hubTxt);
+
+    const resolveInspectedSite = () => {
+      const targetName =
+        state.mapHoverSite ||
+        activeAreaVal ||
+        (state.myStudent && state.myStudent.area) ||
+        (sites[0] && sites[0].shortName);
+      return sites.find((x) => x.shortName === targetName) || sites[0];
+    };
+
+    const renderMapInspectorContent = () => {
+      const curSite = resolveInspectedSite();
+      if (!curSite) return;
+      const isLocked = activeAreaVal === curSite.shortName;
+      const isMine = state.myStudent && state.myStudent.area === curSite.shortName;
+      const geo = SITE_GEO_COORDS[curSite.id] || {};
+
+      // Highlight active pin & route in SVG
+      svg.querySelectorAll("[data-map-site]").forEach((el) => {
+        el.classList.toggle("is-focused", el.dataset.mapSite === curSite.shortName);
+        el.classList.toggle("is-locked", el.dataset.mapSite === activeAreaVal);
       });
+
+      inspector.replaceChildren();
+
+      // Quick 1-9 pill bar at top of inspector for fast hover/tap
+      const miniBar = make("div", null, "th-inspector-pills");
+      sites.forEach((st) => {
+        const p = make(
+          "button",
+          `${st.id}.${st.shortName}`,
+          `th-mini-site-pill area-site-${st.id}${st.shortName === curSite.shortName ? " is-current" : ""}`
+        );
+        p.type = "button";
+        p.addEventListener("mouseenter", () => {
+          state.mapHoverSite = st.shortName;
+          renderMapInspectorContent();
+        });
+        p.addEventListener("click", () => {
+          const sel = $("fieldAreaSelect");
+          if (sel) sel.value = sel.value === st.shortName ? "" : st.shortName;
+          state.mapHoverSite = st.shortName;
+          state.fieldContext = null;
+          renderFieldworkView();
+        });
+        miniBar.appendChild(p);
+      });
+      inspector.appendChild(miniBar);
+
+      const cardBody = make("div", null, "th-inspector-body");
+      const friBadge = curSite.hasFri11Dec
+        ? `<span class="badge cat-HS">ศ. 11 ธ.ค. มีเรียนกลุ่มย่อย 5–6</span>`
+        : `<span class="badge cat-SG">เดินทาง พฤ. 10 / พ. 9 ธ.ค. (ไม่มีเรียน 11 ธ.ค.)</span>`;
+      const lockBadge = isLocked
+        ? `<span class="badge cat-EP">📌 ล็อกกรองรายชื่อด้านล่างอยู่</span>`
+        : `<span class="badge">ชี้หมุดอื่นเพื่อเทียบข้อมูลทันที</span>`;
+      const staffHtml =
+        ROLE === "faculty" && curSite.staffRef
+          ? `<div class="th-meta-row"><strong>เจ้าหน้าที่ประสานงาน:</strong> <span>${escapeHtml(curSite.staffRef)}</span></div>`
+          : "";
+
+      cardBody.innerHTML = `
+        <div class="th-ins-head">
+          <div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+              <span class="area-sub-pill area-site-${curSite.id}"><i class="area-dot"></i>พื้นที่ที่ ${curSite.id} · ${escapeHtml(geo.region || "")}</span>
+              <span class="badge cat-SG">${curSite.count} คน</span>
+              ${isMine ? `<span class="badge cat-HS">★ พื้นที่ของฉัน</span>` : ""}
+              ${lockBadge}
+            </div>
+            <h3>${escapeHtml(curSite.hospital)} (${escapeHtml(curSite.province)})</h3>
+          </div>
+        </div>
+        <div class="th-ins-meta-grid">
+          <div class="th-meta-row"><strong>อาจารย์ที่ปรึกษา:</strong> <span>${escapeHtml(curSite.advisors)}</span></div>
+          <div class="th-meta-row"><strong>ห้องประชุมกลุ่มย่อย:</strong> <span>${escapeHtml(curSite.room)}</span></div>
+          <div class="th-meta-row"><strong>ช่วงฝึกภาคสนาม:</strong> <span>${escapeHtml(curSite.datesTH)}</span></div>
+          <div class="th-meta-row"><strong>การเดินทาง:</strong> <span>${escapeHtml(curSite.travelNote)}</span></div>
+          ${staffHtml}
+        </div>
+        <div style="margin:6px 0 8px">${friBadge}</div>
+      `;
+
+      const members = ROSTER.students
+        .filter((s) => s.area === curSite.shortName)
+        .sort((a, b) => compareTH(a.id, b.id));
+
+      const memTitle = make("p", `สมาชิกในกลุ่ม ${curSite.shortName} (${members.length} คน — คลิกที่ชื่อเพื่อดูข้อมูล & ตารางเรียน):`, "cq-sub-label");
+      cardBody.appendChild(memTitle);
+
+      const mosaic = make("div", null, "gsorter-avatar-mosaic th-ins-mosaic");
+      members.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      cardBody.appendChild(mosaic);
+
+      const actRow = make("div", null, "header-actions");
+      actRow.style.marginTop = "12px";
+      const lockBtn = make(
+        "button",
+        isLocked ? `✓ กำลังกรองกลุ่ม ${curSite.shortName} (คลิกแสดงทุกกลุ่ม)` : `👥 กรองเฉพาะสมาชิกกลุ่ม ${curSite.shortName} ด้านล่าง`,
+        "btn sm primary"
+      );
+      lockBtn.type = "button";
+      lockBtn.addEventListener("click", () => {
+        const sel = $("fieldAreaSelect");
+        if (sel) sel.value = isLocked ? "" : curSite.shortName;
+        state.fieldContext = null;
+        renderFieldworkView();
+        const dockEl = document.querySelector('.roster-sticky-dock[data-scope="fieldwork"]') || $("fieldCardsContainer");
+        if (dockEl && !isLocked) dockEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      const printSiteBtn = make("button", "🖨 พิมพ์ A4 กลุ่มนี้", "btn sm");
+      printSiteBtn.type = "button";
+      printSiteBtn.addEventListener("click", () => printSingleGroupHelper("fieldwork", curSite.shortName));
+
+      const icsLink = make("a", "📅 ปฏิทิน .ics กลุ่มนี้", "btn sm teal");
+      icsLink.href = `calendars/group_${curSite.id}_${curSite.slug}.ics`;
+      icsLink.setAttribute("download", `RACM303_2569_group_${curSite.id}_${curSite.slug}.ics`);
+
+      actRow.append(lockBtn, printSiteBtn, icsLink);
+      cardBody.appendChild(actRow);
+      inspector.appendChild(cardBody);
+    };
+
+    sites.forEach((site) => {
+      const geo = SITE_GEO_COORDS[site.id] || { lat: 15.0, lon: 101.0, dx: 10, dy: 4, anchor: "start" };
+      const [sx, sy] = projectThailandLatLon(geo.lat, geo.lon);
+      const pinColor = SITE_PIN_COLORS[site.id] || "#007aff";
+      const isMine = state.myStudent && state.myStudent.area === site.shortName;
+
+      // Curved dashed route from Ramathibodi/CNMI to hospital
+      const route = document.createElementNS(svgNS, "path");
+      const mx = ((bx + sx) / 2 + (sy < by ? -12 : 12)).toFixed(1);
+      const my = ((by + sy) / 2).toFixed(1);
+      route.setAttribute("d", `M ${bx} ${by} Q ${mx} ${my} ${sx} ${sy}`);
+      route.setAttribute("class", "th-route-arc");
+      route.dataset.mapSite = site.shortName;
+      route.style.setProperty("--pin-color", pinColor);
+      routesGroup.appendChild(route);
+
+      const pinG = document.createElementNS(svgNS, "g");
+      pinG.setAttribute("class", `th-map-pin-group${isMine ? " is-mine" : ""}`);
+      pinG.dataset.mapSite = site.shortName;
+      pinG.style.setProperty("--pin-color", pinColor);
+      pinG.setAttribute("tabindex", "0");
+      pinG.setAttribute("role", "button");
+      pinG.setAttribute("aria-label", `${site.id}. ${site.shortName} ${site.hospital} ${site.province} ${site.count} คน`);
+
+      const halo = document.createElementNS(svgNS, "circle");
+      halo.setAttribute("cx", String(sx));
+      halo.setAttribute("cy", String(sy));
+      halo.setAttribute("r", "12");
+      halo.setAttribute("class", "th-pin-halo");
+
+      const dot = document.createElementNS(svgNS, "circle");
+      dot.setAttribute("cx", String(sx));
+      dot.setAttribute("cy", String(sy));
+      dot.setAttribute("r", "7.5");
+      dot.setAttribute("fill", pinColor);
+      dot.setAttribute("stroke", "#ffffff");
+      dot.setAttribute("stroke-width", "2.2");
+      dot.setAttribute("class", "th-pin-dot");
+
+      const numTxt = document.createElementNS(svgNS, "text");
+      numTxt.setAttribute("x", String(sx));
+      numTxt.setAttribute("y", String(sy + 3.4));
+      numTxt.setAttribute("text-anchor", "middle");
+      numTxt.setAttribute("class", "th-pin-num");
+      numTxt.textContent = String(site.id);
+
+      const lbl = document.createElementNS(svgNS, "text");
+      lbl.setAttribute("x", String(sx + geo.dx));
+      lbl.setAttribute("y", String(sy + geo.dy));
+      lbl.setAttribute("text-anchor", geo.anchor || "start");
+      lbl.setAttribute("class", "th-pin-label");
+      lbl.textContent = `${site.id}.${site.shortName}`;
+
+      pinG.append(halo, dot, numTxt, lbl);
+
+      const focusSite = () => {
+        state.mapHoverSite = site.shortName;
+        renderMapInspectorContent();
+      };
+      const toggleLockSite = () => {
+        const sel = $("fieldAreaSelect");
+        if (sel) sel.value = sel.value === site.shortName ? "" : site.shortName;
+        state.mapHoverSite = site.shortName;
+        state.fieldContext = null;
+        renderFieldworkView();
+      };
+
+      pinG.addEventListener("mouseenter", focusSite);
+      pinG.addEventListener("focus", focusSite);
+      pinG.addEventListener("click", toggleLockSite);
+      pinG.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          toggleLockSite();
+        }
+      });
+
+      pinsGroup.appendChild(pinG);
+    });
+
+    svg.append(routesGroup, hubG, pinsGroup);
+    mapCard.appendChild(svg);
+
+    const mapFoot = make("div", null, "th-map-caption");
+    mapFoot.innerHTML = `<span>★ จุดเริ่มต้น: คณะแพทยศาสตร์ รพ.รามาธิบดี / CNMI</span><span>คลิกหมุดเพื่อล็อกกลุ่ม · คลิกซ้ำเพื่อดูครบ 9 แห่ง</span>`;
+    mapCard.appendChild(mapFoot);
+
+    split.append(mapCard, inspector);
+    sitesGrid.appendChild(split);
+    renderMapInspectorContent();
+  }
+
+  function renderFieldworkView() {
+    const areaVal = ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "";
+    const q = (($("fieldSearchInput") && $("fieldSearchInput").value) || "").trim().toLocaleLowerCase("th");
+
+    const sitesGrid = $("sitesOverviewGrid");
+    if (sitesGrid) {
+      renderSitesOverviewSection(sitesGrid, areaVal);
     }
 
     const ctxBox = $("fieldContextBanner");
@@ -2687,7 +4534,8 @@
     const list = ROSTER.students.filter((s) => {
       if (areaVal && s.area !== areaVal) return false;
       if (q) {
-        const hay = `${s.id} ${s.fullName} ${s.nickname} ${s.area} ${s.advisor}`.toLocaleLowerCase("th");
+        const siteMeta = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area) || {};
+        const hay = `${s.id} ${s.fullName} ${s.nickname} ${s.area} ${siteMeta.hospital || ""} ${siteMeta.province || ""} ${s.advisor} discussion กลุ่มที่ ${s.disc}`.toLocaleLowerCase("th");
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -2734,22 +4582,28 @@
 
     if (!list.length) {
       cardsEl.appendChild(make("div", "ไม่พบรายชื่อนักศึกษาในกลุ่มพื้นที่ภาคสนามตามเงื่อนไขที่เลือก", "empty-state"));
-      return;
+    } else {
+      let lastArea = null;
+      list.forEach((s) => {
+        if (!areaVal && s.area !== lastArea) {
+          lastArea = s.area;
+          const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area);
+          const h = make("div", null, "area-group-header");
+          h.append(
+            make("h3", `${siteObj ? siteObj.id + ". " : ""}กลุ่มพื้นที่ ${s.area}${siteObj ? " (" + siteObj.hospital + " " + siteObj.province + " · " + siteObj.count + " คน)" : ""}`),
+            make("p", `อาจารย์ที่ปรึกษา: ${s.advisor}${siteObj ? " · ห้อง " + siteObj.room + " · " + siteObj.datesTH : ""}`)
+          );
+          cardsEl.appendChild(h);
+        }
+        cardsEl.appendChild(renderStudentCardElement(s, "fieldwork"));
+      });
     }
 
-    let lastArea = null;
-    list.forEach((s) => {
-      if (!areaVal && s.area !== lastArea) {
-        lastArea = s.area;
-        const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area);
-        const h = make("div", null, "area-group-header");
-        h.append(
-          make("h3", `${siteObj ? siteObj.id + ". " : ""}กลุ่มพื้นที่ ${s.area}${siteObj ? " (" + siteObj.hospital + " " + siteObj.province + " · " + siteObj.count + " คน)" : ""}`),
-          make("p", `อาจารย์ที่ปรึกษา: ${s.advisor}${siteObj ? " · ห้อง " + siteObj.room + " · " + siteObj.datesTH : ""}`)
-        );
-        cardsEl.appendChild(h);
-      }
-      cardsEl.appendChild(renderStudentCardElement(s, "fieldwork"));
+    syncRosterSuiteUI("fieldwork", {
+      q,
+      activeGroupVal: areaVal,
+      areaSubVal: "",
+      list
     });
   }
 
@@ -2909,12 +4763,12 @@
 
     if (typeof fetch !== "function") {
       badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● เชื่อมต่อห้องวิชา 3/2569 RACM 303 (course/view.php?id=398) พร้อมใช้งาน";
+      badge.textContent = "● ห้องเรียนออนไลน์ RACM 303 พร้อมใช้งาน";
       return;
     }
 
     badge.className = "elearning-status-pill is-checking";
-    badge.textContent = "● กำลังตรวจสอบการเชื่อมต่อห้องวิชา id=398…";
+    badge.textContent = "● กำลังตรวจสอบสถานะห้องเรียนออนไลน์…";
 
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 6500) : null;
@@ -2927,11 +4781,11 @@
       });
       if (timer) clearTimeout(timer);
       badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● เชื่อมต่อห้องวิชาออนไลน์แล้ว (3/2569 RACM 303 · id=398)";
+      badge.textContent = "● เชื่อมต่อห้องเรียนออนไลน์ RACM 303 แล้ว";
     } catch (_) {
       if (timer) clearTimeout(timer);
       badge.className = "elearning-status-pill is-checking";
-      badge.textContent = "● ลิงก์ห้องวิชา id=398 พร้อมใช้งาน (คลิกเข้าสู่ระบบตามสิทธิ์ Login)";
+      badge.textContent = "● ห้องเรียนออนไลน์พร้อมเข้าสู่ระบบตามรหัสผู้ใช้";
     }
   }
 
@@ -3116,7 +4970,7 @@
 
       const channelSpan = make(
         "span",
-        d.backendType === "ramed" ? "ห้องวิชา: .../ramed/course/view.php?id=398" : "ระบบรับงานกลุ่ม: forms.gle/1Gsg2SmSfuuEwmcE9"
+        d.backendType === "ramed" ? "ช่องทางส่ง: ห้องเรียนออนไลน์ RACM 303" : "ช่องทางส่ง: แบบฟอร์มส่งงานกลุ่มประจำวิชา"
       );
       channelSpan.style.fontSize = "12px";
       channelSpan.style.color = "var(--muted)";
@@ -3131,7 +4985,7 @@
     const srnAreaSel = $("srnAreaSelect");
     if (srnAreaSel) {
       (SCHED.fieldworkSites || []).forEach((s) => {
-        srnAreaSel.add(new Option(`${s.shortName} (${s.hospital})`, s.shortName));
+        srnAreaSel.add(new Option(s.shortName, s.shortName));
       });
     }
 
@@ -3248,11 +5102,233 @@
     });
 
     syncPinnedRamedCourseUI();
+    ensureRamedPerUserIdentityUI();
+    syncRamedPerUserIdentityUI();
     updateSrnFilename();
+  }
+
+  /* ---------- Per-User RAMED Course 398 Login & Role Separation (รหัสใคร รหัสมัน) ---------- */
+  function buildRamedPerUserLoginUrl(uid) {
+    const clean = String(uid || "").trim();
+    if (!clean) return RAMED_LOGIN_URL;
+    return `${RAMED_LOGIN_URL}?username=${encodeURIComponent(clean)}`;
+  }
+
+  function exportMoodleEnrolmentCsv() {
+    const header = ["username", "firstname", "lastname", "idnumber", "course1", "role1", "group1", "group2"].join(",");
+    const rows = [header];
+    ROSTER.students.forEach((s) => {
+      const rawParts = String(s.name || s.fullName || "").trim().split(/\s+/);
+      const fname = rawParts[0] || s.fullName;
+      const lname = rawParts.slice(1).join(" ") || "-";
+      rows.push(
+        [
+          csvCell(s.id),
+          csvCell(fname),
+          csvCell(lname),
+          csvCell(s.id),
+          csvCell("RACM303"),
+          csvCell("student"),
+          csvCell(`Discussion_${s.disc}`),
+          csvCell(`Fieldwork_${s.area}`)
+        ].join(",")
+      );
+    });
+    triggerBlobDownload(
+      "\uFEFF" + rows.join("\r\n") + "\r\n",
+      "text/csv;charset=utf-8",
+      "RACM303_2569_Moodle_Course398_Students_169.csv"
+    );
+  }
+
+  function ensureRamedPerUserIdentityUI() {
+    const bridge = $("ramedBackendBridge");
+    if (!bridge || $("ramedPerUserBar")) return;
+
+    const bar = make("div", null, "ramed-per-user-bar");
+    bar.id = "ramedPerUserBar";
+
+    if (ROLE === "student") {
+      bar.innerHTML = `
+        <div class="rpu-top">
+          <div class="rpu-input-col">
+            <label for="ramedMyLoginIdInput">🔑 เข้าห้องเรียนออนไลน์ด้วยรหัสนักศึกษาของฉัน (รหัสใคร รหัสมัน):</label>
+            <div class="rpu-input-row">
+              <input id="ramedMyLoginIdInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลักของตัวเอง (เช่น 6702006)…">
+              <a class="btn primary sm" id="ramedLaunchWithMyIdBtn" href="${escapeHtml(RAMED_LOGIN_URL)}" target="_blank" rel="noopener">ล็อกอินด้วยรหัสของฉัน ↗</a>
+              <a class="btn sm" id="ramedSwitchAccountBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/logout.php" target="_blank" rel="noopener" title="กดเพื่อออกจากบัญชีเดิมหากเครื่องนี้ค้างรหัสอาจารย์หรือเพื่อนคนอื่นอยู่">🔄 สลับบัญชีผู้ใช้งาน</a>
+            </div>
+          </div>
+          <div class="rpu-status-box" id="ramedMyIdentityStatus">ยังไม่ได้ระบุรหัสนักศึกษา · พิมพ์รหัส 7 หลักเพื่อให้ปุ่มเข้าห้องเรียนและชื่อไฟล์ SRN ผูกเป็นรหัสของคุณเอง</div>
+        </div>
+      `;
+    } else {
+      bar.innerHTML = `
+        <div class="rpu-top">
+          <div class="rpu-input-col">
+            <label for="ramedMyLoginIdInput">🔑 เข้าจัดการห้องวิชาตามรหัสอาจารย์/บุคลากรแต่ละท่าน (รหัสใคร รหัสมัน — ไม่ผูกติดรหัสเดียว):</label>
+            <div class="rpu-input-row">
+              <input id="ramedMyLoginIdInput" type="search" placeholder="กรอกรหัสบุคลากร 6 หลัก / C-life ของอาจารย์แต่ละท่าน (เช่น 02xxxx)…">
+              <select id="ramedTeacherPairSelect" class="rpu-teacher-select" aria-label="เลือกชื่ออาจารย์คู่กับรหัสบุคลากร">
+                <option value="">— ผูกชื่ออาจารย์ผู้สอน —</option>
+              </select>
+              <a class="btn primary sm" id="ramedLaunchWithMyIdBtn" href="${escapeHtml(RAMED_LOGIN_URL)}" target="_blank" rel="noopener">ล็อกอินด้วยรหัสอาจารย์ ↗</a>
+              <a class="btn sm" id="ramedSwitchAccountBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/logout.php" target="_blank" rel="noopener" title="ออกจากรหัสเดิมที่ค้างในเบราว์เซอร์ เพื่อล็อกอินด้วยรหัสของอาจารย์ท่านอื่น">🔄 สลับบัญชีในระบบ</a>
+            </div>
+          </div>
+          <div class="rpu-status-box" id="ramedMyIdentityStatus">กรอกรหัสบุคลากร 6 หลัก / C-life ของท่านเองเพื่อเข้าโหมดอาจารย์ตามสิทธิ์จริงรายบุคคล</div>
+        </div>
+        <div class="rpu-faculty-checklist">
+          <div>
+            <strong>⚙ สำหรับผู้ประสานงานรายวิชา (เปิดสิทธิ์ให้ครบทุกรหัส &amp; เปิดหัวข้อเรียนที่ซ่อนอยู่):</strong>
+            <span>1) เพิ่มรหัสอาจารย์ร่วมสอนเป็น <em>Teacher</em> และนำเข้ารหัสนักศึกษาทั้ง 169 คนเป็น <em>Student</em> ที่เมนู <a href="https://elearning.ra.mahidol.ac.th/ramed/user/index.php?id=398" target="_blank" rel="noopener">จัดการรายชื่อผู้เรียน ↗</a> · 2) หัวข้อที่ขึ้นป้าย <code>Hidden from students</code> ให้เปิดสวิตช์ <strong>Edit mode</strong> มุมขวาบนของหน้าวิชา แล้วกด <code>⋯ → Show topic</code> เมื่อพร้อมเปิดให้นักศึกษาเห็น</span>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="btn sm teal" id="exportMoodle169CsvBtn">⬇ CSV นักศึกษา 169 รหัส (นำเข้าระบบ)</button>
+            <a class="btn sm" href="https://elearning.ra.mahidol.ac.th/ramed/course/switchrole.php?id=398&amp;switchrole=5" target="_blank" rel="noopener">👁 ทดสอบมุมมองนักศึกษา ↗</a>
+          </div>
+        </div>
+      `;
+    }
+
+    const topHead = bridge.querySelector(".elearning-bridge-top");
+    if (topHead && topHead.nextSibling) {
+      bridge.insertBefore(bar, topHead.nextSibling);
+    } else {
+      bridge.prepend(bar);
+    }
+
+    const uidInp = $("ramedMyLoginIdInput");
+    const tPairSel = $("ramedTeacherPairSelect");
+    if (tPairSel) {
+      getAllCourseTeachers().forEach((t) => tPairSel.add(new Option(t.label, t.key)));
+      tPairSel.addEventListener("change", () => {
+        selectActiveTeacher(tPairSel.value, true);
+        syncRamedPerUserIdentityUI();
+      });
+    }
+
+    if (uidInp) {
+      const handleUidChange = () => {
+        const raw = uidInp.value.trim();
+        const m7 = raw.match(/^(\d{7})\b/);
+        if (m7) {
+          const stu = ROSTER.students.find((s) => s.id === m7[1]);
+          if (stu) {
+            state.calScope = "student";
+            applyMyStudent(stu, true);
+            return;
+          }
+        }
+        const byQuery = ROLE === "student" ? findStudentByQuery(raw) : null;
+        if (byQuery) {
+          state.calScope = "student";
+          applyMyStudent(byQuery, true);
+          return;
+        }
+        const cleanUid = raw.split(/\s+/)[0] || "";
+        state.ramedLoginId = cleanUid;
+        if (cleanUid) localStorage.setItem("racm303_login_uid", cleanUid);
+        else localStorage.removeItem("racm303_login_uid");
+        syncRamedPerUserIdentityUI();
+      };
+      uidInp.addEventListener("input", handleUidChange);
+      uidInp.addEventListener("change", handleUidChange);
+    }
+
+    const launchBtn = $("ramedLaunchWithMyIdBtn");
+    if (launchBtn) {
+      launchBtn.addEventListener("click", () => {
+        const activeId = (state.myStudent && state.myStudent.id) || state.ramedLoginId || "";
+        if (activeId && navigator.clipboard) {
+          navigator.clipboard.writeText(activeId).catch(() => {});
+        }
+      });
+    }
+
+    if ($("exportMoodle169CsvBtn")) {
+      $("exportMoodle169CsvBtn").addEventListener("click", exportMoodleEnrolmentCsv);
+    }
+  }
+
+  function syncRamedPerUserIdentityUI() {
+    ensureRamedPerUserIdentityUI();
+    const uidInp = $("ramedMyLoginIdInput");
+    const statusBox = $("ramedMyIdentityStatus");
+    const launchBtn = $("ramedLaunchWithMyIdBtn");
+    const primaryCourseBtn = $("openRamedLoginPrimaryBtn");
+    const topNavRamedLink = $(ROLE === "faculty" ? "facRamedTopLink" : "studentElearningLink");
+    const loginCardLink = $("ramedLinkLogin");
+    const tPairSel = $("ramedTeacherPairSelect");
+
+    if (tPairSel && tPairSel.value !== (state.myTeacherKey || "")) {
+      tPairSel.value = state.myTeacherKey || "";
+    }
+
+    const activeStudent = state.myStudent;
+    const rawUid = activeStudent ? activeStudent.id : (state.ramedLoginId || "");
+
+    if (uidInp && document.activeElement !== uidInp) {
+      const disp = activeStudent && ROLE === "student" ? `${activeStudent.id} — ${activeStudent.fullName}` : rawUid;
+      if (uidInp.value !== disp) uidInp.value = disp;
+    }
+
+    const loginUrl = buildRamedPerUserLoginUrl(rawUid);
+    if (launchBtn) {
+      launchBtn.href = loginUrl;
+      launchBtn.textContent = rawUid
+        ? `🔑 ล็อกอินรหัส ${rawUid} ↗`
+        : "🔑 ล็อกอินด้วยรหัสตัวเอง ↗";
+    }
+    if (loginCardLink) {
+      loginCardLink.href = loginUrl;
+    }
+
+    if (ROLE === "student") {
+      if (activeStudent) {
+        if (statusBox) {
+          statusBox.innerHTML =
+            `<strong>✓ กำลังเข้าใช้งานฝั่งนักศึกษา รหัส <code>${escapeHtml(activeStudent.id)}</code> (${escapeHtml(activeStudent.fullName)})</strong> · ` +
+            `กลุ่มพื้นที่ ${escapeHtml(activeStudent.area)} · Discussion ${activeStudent.disc} — กดปุ่มล็อกอินเพื่อส่งงาน SRN และดูคะแนนเฉพาะรหัสของคุณ`;
+        }
+        if (primaryCourseBtn) primaryCourseBtn.textContent = `เข้าห้องเรียน RACM 303 (รหัส ${activeStudent.id}) ↗`;
+        if (topNavRamedLink) topNavRamedLink.textContent = `ห้องเรียน E-learning (${activeStudent.id}) ↗`;
+      } else {
+        if (statusBox) {
+          statusBox.textContent =
+            "ยังไม่ได้ระบุรหัสนักศึกษา · พิมพ์รหัส 7 หลักของตัวเองด้านซ้าย เพื่อเข้าห้องเรียนแบบรหัสใครรหัสมัน (ไม่ปะปนกับบัญชีผู้อื่น)";
+        }
+        if (primaryCourseBtn) primaryCourseBtn.textContent = "เข้าห้องเรียน RACM 303 ↗";
+        if (topNavRamedLink) topNavRamedLink.textContent = "ห้องเรียน E-learning ↗";
+      }
+    } else {
+      const tObj = getAllCourseTeachers().find((t) => t.key === state.myTeacherKey);
+      const tShort = tObj ? tObj.label.replace(/\s*\([^)]*\)/g, "") : "";
+      if (rawUid || tShort) {
+        const whoParts = [rawUid ? `รหัส <code>${escapeHtml(rawUid)}</code>` : "", tShort ? escapeHtml(tShort) : ""].filter(Boolean).join(" · ");
+        if (statusBox) {
+          statusBox.innerHTML = `<strong>✓ กำลังเข้าใช้งานฝั่งอาจารย์/บุคลากร (${whoParts})</strong> — ลิงก์ Login ตั้งค่ารหัสของท่านไว้พร้อมเข้าจัดการห้องเรียนรายบุคคล`;
+        }
+        if (primaryCourseBtn) {
+          primaryCourseBtn.textContent = `เข้าจัดการห้องเรียน (${rawUid || state.myTeacherKey}) ↗`;
+        }
+        if (topNavRamedLink) {
+          topNavRamedLink.textContent = `ห้องเรียน E-learning (${rawUid || state.myTeacherKey}) ↗`;
+        }
+      } else {
+        if (statusBox) {
+          statusBox.textContent =
+            "กรอกรหัสบุคลากร 6 หลัก / C-life ของอาจารย์แต่ละท่าน (ไม่ใช่รหัสใดรหัสหนึ่งตายตัว) เพื่อเข้าจัดการห้องวิชาตามสิทธิ์ของท่านเอง";
+        }
+        if (primaryCourseBtn) primaryCourseBtn.textContent = "เข้าจัดการห้องวิชา RACM 303 ↗";
+        if (topNavRamedLink) topNavRamedLink.textContent = "ห้องเรียน E-learning ↗";
+      }
+    }
   }
 
   function renderSubmissionsView() {
     syncPinnedRamedCourseUI();
+    syncRamedPerUserIdentityUI();
     updateSrnFilename();
     renderDeliverablesCards();
     checkRamedBackendReachability();
@@ -5203,83 +7279,129 @@
     });
   }
 
-  /* ---------- Faculty Tab 6: Schedule Audit, Apps Script Sync & Sign-Off ---------- */
+  /* ---------- Faculty Tab 6: Schedule Audit, Apps Script Sync & Sign-Off (With Sticky Search & Jump Bar) ---------- */
   function renderAuditView() {
     const wrap = $("auditContentContainer");
-    if (!wrap || wrap.dataset.rendered) return;
-    wrap.dataset.rendered = "1";
+    if (!wrap) return;
 
     const items = SCHED.auditItems || [];
-    const auditCards = items
-      .map(
-        (a, idx) => `
-      <div class="audit-card">
-        <h4>${idx + 1}. ${escapeHtml(a.session)}</h4>
-        <p><strong>ประเด็นที่พบ:</strong> ${escapeHtml(a.issue)}</p>
-        <p><strong>ข้อเสนอดำเนินการ:</strong> ${escapeHtml(a.action)}</p>
-      </div>`
-      )
-      .join("");
+    const reconList = ROSTER.appsScriptReconciliation || [];
+    const fixedList = SCHED.fixedSummary || [];
 
-    const reconRows = (ROSTER.appsScriptReconciliation || [])
-      .map(
-        (r) => `
-      <tr>
-        <td><strong>${escapeHtml(r.rows)}</strong><br><small>${escapeHtml(r.topic)}</small></td>
-        <td>${escapeHtml(r.inSheetV1)}</td>
-        <td><strong>${escapeHtml(r.revisedFix)}</strong></td>
-      </tr>`
-      )
-      .join("");
-
-    const fixedBlocks = (SCHED.fixedSummary || [])
-      .map(
-        (f) => `
-      <div class="data-card">
-        <h3>${escapeHtml(f.title)}</h3>
-        <ul>${f.items.map((li) => `<li>${escapeHtml(li)}</li>`).join("")}</ul>
-      </div>`
-      )
-      .join("");
-
-    wrap.innerHTML = `
-      <div class="data-card" style="border-color:var(--amber-line);background:#fffdf8">
-        <h3>ส่วนที่ 1: ประเด็น [รอยืนยัน] ก่อนประกาศใช้ตารางสอนและคู่มือปีการศึกษา 2569 (${items.length} รายการ)</h3>
-        <div class="audit-grid">${auditCards}</div>
-      </div>
-
-      <div class="data-card">
-        <div class="section-header" style="margin-bottom:12px">
-          <div>
-            <h3 style="margin:0">ส่วนที่ 2: การเชื่อมโยงและอัปเดตฐานข้อมูล Google Apps Script (schedule-racm303-v1)</h3>
-            <p style="margin:4px 0 0;font-size:14px;color:var(--muted)">เปรียบเทียบข้อมูลในชีต <code>schedule-racm303-v1</code> กับตารางฉบับปรับปรุง พร้อมไฟล์ CSV โครงสร้าง 16 คอลัมน์ที่อัปเดตลิงก์ Zoom และยืนยัน อ. นพ.ปวินท์ วันที่ 1 ธ.ค. 2569 เรียบร้อยแล้ว</p>
-          </div>
-          <div class="header-actions">
-            <a class="btn teal sm" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>ดาวน์โหลด CSV อัปเดตชีต (v2)</a>
-            <a class="btn sm" href="${escapeHtml(ROSTER.appsScriptSheetUrl)}" target="_blank" rel="noopener">เปิด Google Sheet ต้นฉบับ</a>
-            <a class="btn sm" href="${escapeHtml(ROSTER.appsScriptUrl)}" target="_blank" rel="noopener">เปิด Apps Script Web App</a>
-          </div>
+    const dock = make("div", null, "roster-sticky-dock admin-sticky-dock");
+    dock.innerHTML = `
+      <div class="roster-dock-top">
+        <div class="roster-dock-search">
+          <span class="dock-search-icon">🔎</span>
+          <input id="auditAdminSearchInput" type="search" placeholder="ค้นหาจุดตรวจตาราง [รอยืนยัน], คาบเรียน, ชื่ออาจารย์, ห้องเรียน…">
         </div>
-        <div class="clean-table-wrap">
-          <table class="clean-table">
-            <thead>
-              <tr>
-                <th>แถวข้อมูล / คาบเรียน</th>
-                <th>ข้อมูลเดิมใน schedule-racm303-v1</th>
-                <th>ข้อมูลที่ปรับปรุงแล้วในพอร์ทัลและไฟล์ CSV (v2)</th>
-              </tr>
-            </thead>
-            <tbody>${reconRows}</tbody>
-          </table>
+        <div class="header-actions">
+          <button type="button" class="btn sm" data-audit-jump="sec-audit-pending">1. ประเด็นรอยืนยัน (${items.length})</button>
+          <button type="button" class="btn sm" data-audit-jump="sec-audit-sheet">2. ซิงค์ตาราง (${reconList.length})</button>
+          <button type="button" class="btn sm" data-audit-jump="sec-audit-signoff">3. เช็กลิสต์ก่อนลงนาม</button>
+          <a class="btn sm teal" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>⬇ CSV อัปเดตชีต (v2)</a>
         </div>
       </div>
+    `;
 
-      <div class="data-card editorial-prose">
-        <h3>ส่วนที่ 3: รายการตรวจสอบก่อนลงนามประกาศใช้คู่มือรายวิชา RACM 303 ปีการศึกษา 2569</h3>
-        ${MANUAL.verifySection ? MANUAL.verifySection.html : ""}
-      </div>
+    const contentHost = make("div");
+    const drawFilteredAudit = () => {
+      const q = ((dock.querySelector("#auditAdminSearchInput") && dock.querySelector("#auditAdminSearchInput").value) || "")
+        .trim()
+        .toLocaleLowerCase("th");
+      const fItems = !q
+        ? items
+        : items.filter((a) => `${a.session} ${a.issue} ${a.action}`.toLocaleLowerCase("th").includes(q));
+      const fRecon = !q
+        ? reconList
+        : reconList.filter((r) => `${r.rows} ${r.topic} ${r.inSheetV1} ${r.revisedFix}`.toLocaleLowerCase("th").includes(q));
+      const fFixed = !q
+        ? fixedList
+        : fixedList.filter((f) => `${f.title} ${(f.items || []).join(" ")}`.toLocaleLowerCase("th").includes(q));
 
-      ${fixedBlocks}`;
+      const auditCards = fItems.length
+        ? fItems
+            .map(
+              (a, idx) => `
+          <div class="audit-card">
+            <h4>${idx + 1}. ${escapeHtml(a.session)}</h4>
+            <p><strong>ประเด็นที่พบ:</strong> ${escapeHtml(a.issue)}</p>
+            <p><strong>ข้อเสนอดำเนินการ:</strong> ${escapeHtml(a.action)}</p>
+          </div>`
+            )
+            .join("")
+        : `<div class="empty-state">ไม่พบประเด็นที่ตรงกับคำค้นหา</div>`;
+
+      const reconRows = fRecon
+        .map(
+          (r) => `
+        <tr>
+          <td><strong>${escapeHtml(r.rows)}</strong><br><small>${escapeHtml(r.topic)}</small></td>
+          <td>${escapeHtml(r.inSheetV1)}</td>
+          <td><strong>${escapeHtml(r.revisedFix)}</strong></td>
+        </tr>`
+        )
+        .join("");
+
+      const fixedBlocks = fFixed
+        .map(
+          (f) => `
+        <div class="data-card">
+          <h3>${escapeHtml(f.title)}</h3>
+          <ul>${f.items.map((li) => `<li>${escapeHtml(li)}</li>`).join("")}</ul>
+        </div>`
+        )
+        .join("");
+
+      contentHost.innerHTML = `
+        <div class="data-card" id="sec-audit-pending" style="border-color:var(--amber-line);background:#fffdf8">
+          <h3>ส่วนที่ 1: ประเด็น [รอยืนยัน] ก่อนประกาศใช้ตารางสอนและคู่มือปีการศึกษา 2569 (${fItems.length} รายการ)</h3>
+          <div class="audit-grid">${auditCards}</div>
+        </div>
+
+        <div class="data-card" id="sec-audit-sheet">
+          <div class="section-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0">ส่วนที่ 2: การเปรียบเทียบและอัปเดตฐานข้อมูลตารางสอน</h3>
+              <p style="margin:4px 0 0;font-size:14px;color:var(--muted)">เปรียบเทียบข้อมูลตารางเดิมกับตารางฉบับปรับปรุง พร้อมไฟล์ CSV โครงสร้าง 16 คอลัมน์</p>
+            </div>
+            <div class="header-actions">
+              <a class="btn teal sm" href="${escapeHtml(ROSTER.revisedCsvPath)}" download>ดาวน์โหลด CSV อัปเดตชีต (v2)</a>
+              <a class="btn sm" href="${escapeHtml(ROSTER.appsScriptSheetUrl)}" target="_blank" rel="noopener">เปิดตารางฐานข้อมูล ↗</a>
+            </div>
+          </div>
+          <div class="clean-table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>แถวข้อมูล / คาบเรียน</th>
+                  <th>ข้อมูลเดิม</th>
+                  <th>ข้อมูลที่ปรับปรุงแล้วในพอร์ทัลและไฟล์ CSV (v2)</th>
+                </tr>
+              </thead>
+              <tbody>${reconRows}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="data-card editorial-prose" id="sec-audit-signoff">
+          <h3>ส่วนที่ 3: รายการตรวจสอบก่อนลงนามประกาศใช้คู่มือรายวิชา RACM 303 ปีการศึกษา 2569</h3>
+          ${MANUAL.verifySection ? MANUAL.verifySection.html : ""}
+        </div>
+
+        ${fixedBlocks}`;
+    };
+
+    dock.querySelector("#auditAdminSearchInput").addEventListener("input", drawFilteredAudit);
+    dock.querySelectorAll("[data-audit-jump]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const el = $(btn.dataset.auditJump);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    wrap.replaceChildren(dock, contentHost);
+    drawFilteredAudit();
   }
 
   /* ---------- Faculty Tab 7: Teacher Guides, Revision Notes & Canonical Drive Directory ---------- */
@@ -5343,30 +7465,3898 @@
         prose.innerHTML = cur.html;
         attachProseEnhancements(prose, toc);
       }
-    } else if (!linksWrap.dataset.rendered) {
-      linksWrap.dataset.rendered = "1";
-      const groups = new Map();
-      (FACULTY.links || []).forEach((l) => {
-        const cat = l.category || "ลิงก์เอกสาร";
-        if (!groups.has(cat)) groups.set(cat, []);
-        groups.get(cat).push(l);
-      });
-      let html = "";
-      groups.forEach((items, cat) => {
-        html += `<div class="data-card"><h3>${escapeHtml(cat)}</h3><div class="links-grid">`;
-        items.forEach((it) => {
-          html += `
-            <div class="link-card">
-              <div>
-                <h4>${escapeHtml(it.title)}</h4>
-                <p>${escapeHtml(it.note || "")}</p>
-              </div>
-              <div><a class="btn sm primary" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">เปิดลิงก์ต้นฉบับ</a></div>
-            </div>`;
+    } else {
+      const allLinks = FACULTY.links || [];
+      const cats = ["ทั้งหมด", ...new Set(allLinks.map((l) => l.category || "ลิงก์เอกสาร"))];
+      let activeCat = "ทั้งหมด";
+
+      const dock = make("div", null, "roster-sticky-dock admin-sticky-dock");
+      const top = make("div", null, "roster-dock-top");
+      const searchBox = make("div", null, "roster-dock-search");
+      searchBox.innerHTML = `<span class="dock-search-icon">🔎</span><input id="facLinksSearchInput" type="search" placeholder="ค้นหาคู่มือผู้สอน, ไฟล์ต้นฉบับ, ข้อสอบ…">`;
+      top.appendChild(searchBox);
+
+      const catStrip = make("div", null, "roster-jump-strip");
+      const cardsContainer = make("div");
+
+      const refreshLinksUI = () => {
+        const q = ((dock.querySelector("#facLinksSearchInput") && dock.querySelector("#facLinksSearchInput").value) || "")
+          .trim()
+          .toLocaleLowerCase("th");
+        catStrip.replaceChildren();
+        cats.forEach((c) => {
+          const pill = make("button", c, `roster-jump-pill${activeCat === c ? " is-active" : ""}`);
+          pill.type = "button";
+          pill.addEventListener("click", () => {
+            activeCat = c;
+            refreshLinksUI();
+          });
+          catStrip.appendChild(pill);
         });
-        html += `</div></div>`;
+
+        const groups = new Map();
+        allLinks
+          .filter((l) => {
+            if (activeCat !== "ทั้งหมด" && (l.category || "ลิงก์เอกสาร") !== activeCat) return false;
+            if (q && !`${l.title} ${l.note || ""} ${l.category || ""}`.toLocaleLowerCase("th").includes(q)) return false;
+            return true;
+          })
+          .forEach((l) => {
+            const cat = l.category || "ลิงก์เอกสาร";
+            if (!groups.has(cat)) groups.set(cat, []);
+            groups.get(cat).push(l);
+          });
+
+        let html = "";
+        groups.forEach((items, cat) => {
+          html += `<div class="data-card"><h3>${escapeHtml(cat)} (${items.length})</h3><div class="links-grid">`;
+          items.forEach((it) => {
+            html += `
+              <div class="link-card">
+                <div>
+                  <h4>${escapeHtml(it.title)}</h4>
+                  <p>${escapeHtml(it.note || "")}</p>
+                </div>
+                <div><a class="btn sm primary" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">เปิดเอกสาร ↗</a></div>
+              </div>`;
+          });
+          html += `</div></div>`;
+        });
+        cardsContainer.innerHTML = html || `<div class="empty-state">ไม่พบรายการที่ตรงกับคำค้นหา</div>`;
+      };
+
+      dock.append(top, catStrip);
+      dock.querySelector("#facLinksSearchInput").addEventListener("input", refreshLinksUI);
+      linksWrap.replaceChildren(dock, cardsContainer);
+      refreshLinksUI();
+    }
+  }
+
+  /* ---------- Role-Specific Question-Driven Concierge (My Day · My Rooms · My Groupmates / Students) ---------- */
+  function getAllCourseTeachers() {
+    const base = [...(ROSTER.courseTeachers || [])];
+    if (!base.some((t) => t.key === "วิชัย")) {
+      base.push({ key: "วิชัย", label: "ศ. นพ.วิชัย เอกพลากร" });
+    }
+    return base;
+  }
+
+  function getBangkokTodayISO() {
+    try {
+      const now = new Date();
+      const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+      const bkk = new Date(utcMs + 7 * 3600000);
+      const y = bkk.getFullYear();
+      const m = String(bkk.getMonth() + 1).padStart(2, "0");
+      const d = String(bkk.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    } catch (_) {
+      return "2026-11-25";
+    }
+  }
+
+  function formatCourseDateOptionLabel(iso) {
+    const dt = parseISODate(iso);
+    const dowIdx = (dt.getUTCDay() + 6) % 7;
+    const [y, m, d] = iso.split("-").map(Number);
+    return `${TH_DOW_SHORT[dowIdx]} ${d} ${TH_MONTHS_SHORT[m]} ${y + 543}`;
+  }
+
+  function getCourseDistinctDates() {
+    const set = new Set();
+    (SCHED.sessions || []).forEach((s) => {
+      if (ROLE === "student" && s.studentVisible === false) return;
+      if (s.dateISO) set.add(s.dateISO);
+    });
+    return [...set].sort();
+  }
+
+  function sessionOccursOnDate(s, dateISO, ctx) {
+    if (ROLE === "student" && s.studentVisible === false) return false;
+    if (ctx && ctx.siteObj && s.allowedSites && !s.allowedSites.includes(ctx.siteObj.id)) {
+      return false;
+    }
+    if (s.code === "TRAVEL" && ctx && ctx.siteObj && ctx.siteObj.departDateISO) {
+      return ctx.siteObj.departDateISO === dateISO;
+    }
+    if (s.code === "RETURN" && ctx && ctx.siteObj && ctx.siteObj.returnDateISO) {
+      return ctx.siteObj.returnDateISO === dateISO;
+    }
+    if (s.code === "FIELD") {
+      const start = (ctx && ctx.siteObj && ctx.siteObj.startDateISO) || s.dateISO;
+      const end = (ctx && ctx.siteObj && ctx.siteObj.endDateISO) || s.endDateISO || s.dateISO;
+      return dateISO >= start && dateISO <= end;
+    }
+    return s.dateISO === dateISO;
+  }
+
+  function describeTeacherRoleForSession(session, teacherKey) {
+    const assignments = getSessionAssignments(session);
+    if (session.hsModule) {
+      const matches = assignments.filter((a) => String(a.lecturer || "").includes(teacherKey));
+      if (matches.length) {
+        const m = matches[0];
+        return {
+          roleBadge: "🚪 คุมกลุ่ม Discussion",
+          badgeCls: "cat-HS",
+          roomText: `กลุ่มที่ ${m.shortGroup} · ห้อง ${m.room}${m.highlightRoom ? " (ย้ายห้องเฉพาะคาบนี้)" : ""}`,
+          assignment: m
+        };
+      }
+    }
+    if (session.isFieldGroupSession) {
+      const matches = assignments.filter((a) => String(a.lecturer || "").includes(teacherKey));
+      if (matches.length) {
+        const m = matches[0];
+        return {
+          roleBadge: "🏥 ที่ปรึกษากลุ่มพื้นที่",
+          badgeCls: "cat-SG",
+          roomText: `กลุ่ม${m.shortGroup} · ${m.room}`,
+          assignment: m
+        };
+      }
+    }
+    if (session.category === "EXAM") {
+      return { roleBadge: "📝 คุมสอบ / ประเมินผล", badgeCls: "cat-EXAM", roomText: session.room || "-", assignment: null };
+    }
+    if (session.category === "PANEL") {
+      return { roleBadge: "🎙 เสวนา / ดำเนินการอภิปราย", badgeCls: "cat-PANEL", roomText: session.room || "-", assignment: null };
+    }
+    return { roleBadge: "🎤 สอนบรรยาย", badgeCls: session.category === "HS" ? "cat-HS" : "cat-EP", roomText: session.room || "-", assignment: null };
+  }
+
+  function selectActiveTeacher(teacherKey, jumpNearestDay = true) {
+    state.myTeacherKey = teacherKey || "";
+    if (state.myTeacherKey) {
+      localStorage.setItem("racm303_my_teacher", state.myTeacherKey);
+      state.myStudent = null;
+      localStorage.removeItem("racm303_my_sid");
+      ["personalStudentInput", "studioStudentInput", "subStudentQuickInput", "conciergeStudentInput"].forEach((id) => {
+        if ($(id)) $(id).value = "";
       });
-      linksWrap.innerHTML = html;
+      if ($("schedAreaFilter")) $("schedAreaFilter").value = "";
+      if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
+      state.calScope = "teacher";
+    } else {
+      localStorage.removeItem("racm303_my_teacher");
+      if (!state.myStudent) state.calScope = "all";
+    }
+
+    ["schedTeacherFilter", "studioTeacherSelect", "personalTeacherSelect", "conciergeTeacherSelect"].forEach((id) => {
+      if ($(id) && $(id).value !== state.myTeacherKey) $(id).value = state.myTeacherKey;
+    });
+
+    if (jumpNearestDay && state.myTeacherKey) {
+      const dates = getCourseDistinctDates();
+      const hasOnCur = (SCHED.sessions || []).some(
+        (s) => sessionOccursOnDate(s, state.conciergeDateISO, {}) && sessionMatchesTeacher(s, state.myTeacherKey, getSessionAssignments(s))
+      );
+      if (!hasOnCur) {
+        const bkk = getBangkokTodayISO();
+        const nextMatch =
+          dates.find(
+            (d) => d >= bkk && (SCHED.sessions || []).some((s) => sessionOccursOnDate(s, d, {}) && sessionMatchesTeacher(s, state.myTeacherKey, getSessionAssignments(s)))
+          ) ||
+          dates.find((d) =>
+            (SCHED.sessions || []).some((s) => sessionOccursOnDate(s, d, {}) && sessionMatchesTeacher(s, state.myTeacherKey, getSessionAssignments(s)))
+          );
+        if (nextMatch) state.conciergeDateISO = nextMatch;
+      }
+    }
+
+    updatePersonalBanner();
+    refreshCalendarStudioUI();
+    if (state.activeTab === "schedule") renderScheduleCurrent();
+  }
+
+  function initRoleConcierge() {
+    const mainEl = document.querySelector(".portal-main");
+    if (!mainEl || $("roleConciergeShell")) return;
+
+    const allDates = getCourseDistinctDates();
+    const todayISO = getBangkokTodayISO();
+    if (!state.conciergeDateISO) {
+      const upcoming = allDates.find((d) => d >= todayISO);
+      state.conciergeDateISO = upcoming || allDates[0] || "2026-11-25";
+    }
+
+    // Add Teacher quick selector into Faculty masthead .personal-bar for 1-click access anywhere
+    if (ROLE === "faculty") {
+      const pBar = document.querySelector(".personal-bar");
+      if (pBar && !$("personalTeacherSelect")) {
+        const tWrap = make("div", null, "personal-teacher-wrap");
+        const tLab = make("label", "อาจารย์ประจำตัว:");
+        tLab.setAttribute("for", "personalTeacherSelect");
+        const tSel = document.createElement("select");
+        tSel.id = "personalTeacherSelect";
+        tSel.className = "personal-teacher-select";
+        tSel.add(new Option("— เลือกอาจารย์เพื่อดูคาบสอน & ห้องคุมกลุ่ม —", ""));
+        getAllCourseTeachers().forEach((t) => tSel.add(new Option(t.label, t.key)));
+        tSel.addEventListener("change", () => selectActiveTeacher(tSel.value, true));
+        tWrap.append(tLab, tSel);
+        pBar.insertBefore(tWrap, pBar.firstChild);
+      }
+      // Also ensure schedTeacherFilter & studioTeacherSelect include ศ. นพ.วิชัย if absent
+      ["schedTeacherFilter", "studioTeacherSelect"].forEach((id) => {
+        const sel = $(id);
+        if (sel && ![...sel.options].some((o) => o.value === "วิชัย")) {
+          sel.add(new Option("ศ. นพ.วิชัย เอกพลากร", "วิชัย"));
+        }
+      });
+    }
+
+    const shell = make("section", null, `concierge-shell role-${ROLE}`);
+    shell.id = "roleConciergeShell";
+    shell.setAttribute(
+      "aria-label",
+      ROLE === "faculty"
+        ? "ผู้ช่วยภาระงานอาจารย์: วันนี้สอนคาบไหน ห้องไหน และคุมกลุ่ม Discussion ห้องใด"
+        : "ผู้ช่วยประจำตัวนักศึกษา: วันนี้เรียนเรื่องอะไร ห้องไหน อยู่ห้อง Discussion ไหน และเพื่อนกลุ่มพื้นที่มีใครบ้าง"
+    );
+
+    const headBar = make("div", null, "concierge-head");
+    const headLeft = make("div", null, "concierge-head-left");
+    const badgeIcon = make("span", ROLE === "faculty" ? "👨‍⚕️" : "🧭", "concierge-badge-ico");
+    const titleWrap = make("div", null, "concierge-head-titles");
+    const hTitle = make(
+      "strong",
+      ROLE === "faculty"
+        ? "เช็กด่วนสำหรับอาจารย์ — วันนี้สอน/คุมคาบไหน · ตอน Discussion เดินไปคุมห้องไหน · นักศึกษาในกลุ่มมีใครบ้าง"
+        : "เช็กด่วนประจำตัวนักศึกษา — วันนี้เรียนคาบอะไร ห้องไหน · อยู่ห้อง Discussion ไหน · เพื่อนในกลุ่มพื้นที่มีใครบ้าง",
+      "concierge-title"
+    );
+    const liveSummary = make("span", "", "concierge-live-pill");
+    liveSummary.id = "conciergeLiveSummary";
+    titleWrap.append(hTitle, liveSummary);
+    headLeft.append(badgeIcon, titleWrap);
+
+    const headRight = make("div", null, "concierge-head-right");
+    const spotTriggerBtn = make("button", "🔍 ค้นหาทุกอย่าง (⌘K)", "btn sm");
+    spotTriggerBtn.type = "button";
+    spotTriggerBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openGlobalSpotlight();
+    });
+
+    const toggleOpenBtn = make("button", state.conciergeOpen ? "ย่อแผงด่วน ▴" : "เปิดดูคำตอบด่วน ▾", "btn sm teal");
+    toggleOpenBtn.id = "conciergeToggleOpenBtn";
+    toggleOpenBtn.type = "button";
+    toggleOpenBtn.setAttribute("aria-expanded", state.conciergeOpen ? "true" : "false");
+    toggleOpenBtn.addEventListener("click", () => {
+      state.conciergeOpen = !state.conciergeOpen;
+      localStorage.setItem("racm303_concierge_open", state.conciergeOpen ? "1" : "0");
+      renderRoleConcierge();
+    });
+
+    headRight.append(spotTriggerBtn, toggleOpenBtn);
+    headBar.append(headLeft, headRight);
+
+    const bodyWrap = make("div", null, "concierge-body");
+    bodyWrap.id = "conciergeBodyWrap";
+    bodyWrap.hidden = !state.conciergeOpen;
+
+    // Persistent Controls Bar inside Concierge (never destroyed on typing!)
+    const ctrlRow = make("div", null, "concierge-ctrl-row");
+    const whoWrap = make("div", null, "concierge-who-wrap");
+
+    if (ROLE === "faculty") {
+      const tLab = make("label", "👨‍⚕️ เลือกชื่ออาจารย์:", "concierge-ctrl-label");
+      tLab.setAttribute("for", "conciergeTeacherSelect");
+      const tSel = document.createElement("select");
+      tSel.id = "conciergeTeacherSelect";
+      tSel.className = "concierge-select";
+      tSel.add(new Option("— เลือกชื่ออาจารย์ (แสดงภาระงาน & ห้องคุมกลุ่มทันที) —", ""));
+      getAllCourseTeachers().forEach((t) => tSel.add(new Option(t.label, t.key)));
+      tSel.addEventListener("change", () => selectActiveTeacher(tSel.value, true));
+      whoWrap.append(tLab, tSel);
+    } else {
+      const sLab = make("label", "👤 ตัวฉัน:", "concierge-ctrl-label");
+      sLab.setAttribute("for", "conciergeStudentInput");
+      const sInput = document.createElement("input");
+      sInput.type = "search";
+      sInput.id = "conciergeStudentInput";
+      sInput.className = "concierge-student-input";
+      sInput.setAttribute("list", "studentLookupList");
+      sInput.placeholder = "พิมพ์รหัส 7 หลัก หรือชื่อเล่น/ชื่อจริง (เช่น 6702006)…";
+      sInput.addEventListener("change", () => {
+        const found = findStudentByQuery(sInput.value);
+        if (found) {
+          state.calScope = "student";
+          applyMyStudent(found, true);
+        }
+      });
+      sInput.addEventListener("input", () => {
+        const val = sInput.value.trim();
+        const m = val.match(/^(\d{7})\b/);
+        if (m) {
+          const found = ROSTER.students.find((st) => st.id === m[1]);
+          if (found) {
+            state.calScope = "student";
+            applyMyStudent(found, true);
+          }
+        }
+      });
+      whoWrap.append(sLab, sInput);
+    }
+
+    const dayWrap = make("div", null, "concierge-day-wrap");
+    const prevDayBtn = make("button", "‹ วันก่อนหน้า", "btn sm");
+    prevDayBtn.type = "button";
+    prevDayBtn.addEventListener("click", () => {
+      const dates = getCourseDistinctDates();
+      const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
+      state.conciergeDateISO = dates[(curIdx - 1 + dates.length) % dates.length];
+      state.conciergeTeacherAllDays = false;
+      renderRoleConcierge();
+    });
+
+    const dateSel = document.createElement("select");
+    dateSel.id = "conciergeDateSelect";
+    dateSel.className = "concierge-date-select";
+    dateSel.setAttribute("aria-label", "เลือกวันที่ต้องการตรวจสอบตารางเรียนหรือตารางสอน");
+    dateSel.addEventListener("change", () => {
+      state.conciergeDateISO = dateSel.value;
+      state.conciergeTeacherAllDays = false;
+      renderRoleConcierge();
+    });
+
+    const nextDayBtn = make("button", "วันถัดไป ›", "btn sm");
+    nextDayBtn.type = "button";
+    nextDayBtn.addEventListener("click", () => {
+      const dates = getCourseDistinctDates();
+      const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
+      state.conciergeDateISO = dates[(curIdx + 1) % dates.length];
+      state.conciergeTeacherAllDays = false;
+      renderRoleConcierge();
+    });
+
+    dayWrap.append(prevDayBtn, dateSel, nextDayBtn);
+
+    if (ROLE === "faculty") {
+      const allDaysBtn = make("button", "📋 ดูรวมทุกวันของอาจารย์", "btn sm");
+      allDaysBtn.id = "conciergeToggleAllDaysBtn";
+      allDaysBtn.type = "button";
+      allDaysBtn.addEventListener("click", () => {
+        state.conciergeTeacherAllDays = !state.conciergeTeacherAllDays;
+        renderRoleConcierge();
+      });
+      dayWrap.appendChild(allDaysBtn);
+    }
+
+    const presetsRow = make("div", null, "concierge-presets-row");
+    presetsRow.id = "conciergePresetsRow";
+
+    ctrlRow.append(whoWrap, dayWrap);
+
+    const cardsStage = make("div", null, "concierge-cards-stage");
+    cardsStage.id = "conciergeCardsStage";
+
+    bodyWrap.append(ctrlRow, presetsRow, cardsStage);
+    shell.append(headBar, bodyWrap);
+    mainEl.insertBefore(shell, mainEl.firstChild);
+
+    renderRoleConcierge();
+  }
+
+  function renderRoleConcierge() {
+    const shell = $("roleConciergeShell");
+    const bodyWrap = $("conciergeBodyWrap");
+    const stage = $("conciergeCardsStage");
+    const toggleBtn = $("conciergeToggleOpenBtn");
+    const liveSummary = $("conciergeLiveSummary");
+    const dateSel = $("conciergeDateSelect");
+    const presetsRow = $("conciergePresetsRow");
+    if (!shell || !bodyWrap || !stage) return;
+
+    bodyWrap.hidden = !state.conciergeOpen;
+    if (toggleBtn) {
+      toggleBtn.textContent = state.conciergeOpen ? "ย่อแผงด่วน ▴" : "เปิดดูคำตอบด่วน ▾";
+      toggleBtn.setAttribute("aria-expanded", state.conciergeOpen ? "true" : "false");
+    }
+
+    const allDates = getCourseDistinctDates();
+    if (!state.conciergeDateISO || !allDates.includes(state.conciergeDateISO)) {
+      const bkk = getBangkokTodayISO();
+      state.conciergeDateISO = allDates.find((d) => d >= bkk) || allDates[0] || "2026-11-25";
+    }
+    const curDate = state.conciergeDateISO;
+    const todayBkk = getBangkokTodayISO();
+
+    // Populate / refresh date select options (showing ★ on days with sessions for active teacher!)
+    if (dateSel) {
+      const tKey = ROLE === "faculty" ? state.myTeacherKey : "";
+      dateSel.replaceChildren();
+      allDates.forEach((d) => {
+        const sampleS = (SCHED.sessions || []).find((x) => x.dateISO === d);
+        const shortTopic = sampleS ? sampleS.code : "";
+        const teacherHas =
+          tKey &&
+          (SCHED.sessions || []).some((s) => sessionOccursOnDate(s, d, {}) && sessionMatchesTeacher(s, tKey, getSessionAssignments(s)));
+        const prefix = d === todayBkk ? "📍 วันนี้ · " : teacherHas ? "★ มีสอน · " : "";
+        dateSel.add(
+          new Option(`${prefix}${formatCourseDateOptionLabel(d)}${shortTopic ? " (" + shortTopic + ")" : ""}`, d, d === curDate, d === curDate)
+        );
+      });
+    }
+
+    if (ROLE === "faculty") {
+      renderFacultyConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk);
+    } else {
+      renderStudentConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk);
+    }
+  }
+
+  function renderStudentConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk) {
+    const s = state.myStudent;
+    const sInput = $("conciergeStudentInput");
+    const expectedVal = s ? `${s.id} — ${s.fullName}` : "";
+    if (sInput && document.activeElement !== sInput && sInput.value !== expectedVal) {
+      sInput.value = expectedVal;
+    }
+
+    const siteObj = s ? (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area) || null : null;
+    const siteId = s ? getSiteIdByAreaName(s.area) : 1;
+    const rotObj = s ? (SCHED.hsRotation || []).find((r) => r.group === s.disc) || null : null;
+    const personalCtx = {
+      discVal: s ? String(s.disc) : "",
+      areaVal: s ? s.area : "",
+      teacherVal: "",
+      siteObj
+    };
+
+    const daySessions = (SCHED.sessions || []).filter((sess) => sessionOccursOnDate(sess, curDate, personalCtx));
+
+    if (liveSummary) {
+      if (s) {
+        liveSummary.textContent = `★ ${s.nickname || s.name} (${s.id}) · Discussion กลุ่ม ${s.disc} (ห้อง ${rotObj ? rotObj.room : "-"}) · พื้นที่ ${siteId}.${s.area} · ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} กิจกรรม)`;
+      } else {
+        liveSummary.textContent = `ยังไม่ได้ระบุรหัสนักศึกษา · กำลังแสดงตารางวันที่ ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} กิจกรรม)`;
+      }
+    }
+
+    if (presetsRow) {
+      presetsRow.replaceChildren();
+      const quickDates = [
+        { iso: "2026-11-25", label: "พ. 25 พ.ย. (เปิดวิชา)" },
+        { iso: "2026-11-26", label: "พฤ. 26 พ.ย. (HS1 + ห้อง Discussion)" },
+        { iso: "2026-11-30", label: "จ. 30 พ.ย. (HS2–HS3)" },
+        { iso: "2026-12-01", label: "อ. 1 ธ.ค. (HS4–HS5)" },
+        { iso: "2026-12-04", label: "ศ. 4 ธ.ค. (HS6)" },
+        { iso: "2026-12-08", label: "อ. 8 ธ.ค. (สอบ EP)" },
+        { iso: "2026-12-22", label: "อ. 22 ธ.ค. (สอบ HS)" }
+      ];
+      quickDates.forEach((qd) => {
+        const b = make("button", qd.label, `concierge-preset-chip${curDate === qd.iso ? " is-active" : ""}`);
+        b.type = "button";
+        b.addEventListener("click", () => {
+          state.conciergeDateISO = qd.iso;
+          renderRoleConcierge();
+        });
+        presetsRow.appendChild(b);
+      });
+    }
+
+    stage.replaceChildren();
+    const grid = make("div", null, "concierge-q-grid");
+
+    // QUESTION 1: วันนี้เรียนเลคเชอร์ / คาบเรื่องอะไร ห้องไหน?
+    const q1 = make("article", null, "concierge-q-card");
+    const dayTag = curDate === todayBkk ? "วันนี้" : formatCourseDateOptionLabel(curDate);
+    q1.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">คำถามที่ 1</span>
+        <span class="badge cat-EP">${daySessions.length} คาบ</span>
+      </div>
+      <h3 class="cq-title">📚 ${escapeHtml(dayTag)} เรียนคาบเรื่องอะไร · ไปห้องไหน?</h3>
+    `;
+    const sessList = make("div", null, "cq-session-list");
+    if (!daySessions.length) {
+      sessList.appendChild(make("p", "ไม่มีคาบเรียนในวันที่เลือก · ลองกดปุ่มเลือกวันเรียนด้านบน", "cq-empty"));
+    } else {
+      daySessions.forEach((sess) => {
+        const eff = resolveEffectiveSessionDetails(sess, personalCtx);
+        const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
+        const roomShort = eff.room || sess.room || "-";
+        const topLine = make("div", null, "cq-sess-top");
+        topLine.innerHTML = `<span class="cq-time">${escapeHtml(sess.timeLabel || "ตลอดวัน")}</span><span class="cq-room-pill">📍 ${escapeHtml(roomShort)}</span>`;
+        const titleEl = make("strong", eff.title, "cq-sess-title");
+        const lecEl = make("span", `ผู้สอน: ${eff.lecturer || sess.lecturers || "-"}`, "cq-sess-lec");
+        item.append(topLine, titleEl, lecEl);
+
+        const actRow = make("div", null, "cq-mini-actions");
+        const detailBtn = make("button", "รายละเอียดคาบ", "cq-link-btn");
+        detailBtn.type = "button";
+        detailBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          openEventModal(sess);
+        });
+        actRow.appendChild(detailBtn);
+
+        if (sess.zoom && sess.zoom.url) {
+          const zLink = make("a", "เข้า Zoom ↗", "cq-link-btn is-zoom");
+          zLink.href = sess.zoom.url;
+          zLink.target = "_blank";
+          zLink.rel = "noopener";
+          actRow.appendChild(zLink);
+        }
+        if (sess.conciseLink || sess.docLink) {
+          const readBtn = make("button", `อ่านสรุป ${sess.code.replace("-DISC", "")} →`, "cq-link-btn");
+          readBtn.type = "button";
+          readBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            openTextbookDoc(sess.conciseLink || sess.docLink);
+          });
+          actRow.appendChild(readBtn);
+        }
+        item.appendChild(actRow);
+        item.addEventListener("click", () => openEventModal(sess));
+        sessList.appendChild(item);
+      });
+    }
+    q1.appendChild(sessList);
+
+    // QUESTION 2: อยู่กลุ่มห้อง Discussion ห้องไหน ต้องไปห้องไหน?
+    const q2 = make("article", null, "concierge-q-card");
+    q2.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">คำถามที่ 2</span>
+        <span class="badge cat-HS">${s ? `กลุ่มที่ ${s.disc}` : "6 กลุ่มย่อย"}</span>
+      </div>
+      <h3 class="cq-title">🚪 อยู่กลุ่มห้อง Discussion ไหน · ต้องไปห้องไหน?</h3>
+    `;
+    if (s && rotObj) {
+      const roomCallout = make("div", null, "cq-room-hero is-disc");
+      roomCallout.innerHTML = `
+        <div>
+          <span class="cq-hero-kicker">กลุ่มอภิปราย HS1–HS6 ของคุณ</span>
+          <strong>กลุ่มที่ ${s.disc} → ห้องหลัก ${escapeHtml(rotObj.room)}</strong>
+          <small>ชั้น 1 อาคารพรีคลินิก (${rotObj.count} คน)</small>
+        </div>
+      `;
+      q2.appendChild(roomCallout);
+      if (s.disc === 6) {
+        q2.appendChild(
+          make("div", "⚠️ เฉพาะวันอังคารที่ 1 ธ.ค. เช้า (HS4 · 09.40–12.00 น.) กลุ่มที่ 6 ย้ายไปเรียนที่ห้อง 2C2-03 ชั่วคราว!", "cq-alert-note")
+        );
+      }
+
+      const slotList = make("div", null, "cq-slot-mini-table");
+      ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
+        const discSess = (SCHED.sessions || []).find((x) => x.hsModule === mod);
+        const cell = rotObj[mod] || {};
+        const isTodayMod = discSess && discSess.dateISO === curDate;
+        const row = make("div", null, `cq-slot-row${isTodayMod ? " is-today" : ""}`);
+        row.innerHTML = `
+          <span class="cq-slot-mod">${mod}${isTodayMod ? " • วันนี้" : ""}</span>
+          <span class="cq-slot-when">${discSess ? formatCourseDateOptionLabel(discSess.dateISO).replace(" 2569", "") + " · " + discSess.timeLabel.replace(" น.", "") : ""}</span>
+          <strong class="cq-slot-rm${cell.highlightRoom ? " is-changed" : ""}">ห้อง ${escapeHtml(cell.room || rotObj.room)}</strong>
+          <span class="cq-slot-inst">${escapeHtml(cell.instructor || "-")}</span>
+        `;
+        slotList.appendChild(row);
+      });
+      q2.appendChild(slotList);
+
+      const q2Foot = make("div", null, "cq-card-actions");
+      const openDiscRosterBtn = make("button", `👥 ดูเพื่อนในห้อง Discussion ${s.disc} (${rotObj.count} คน) →`, "btn sm primary");
+      openDiscRosterBtn.type = "button";
+      openDiscRosterBtn.addEventListener("click", () => {
+        if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
+        if ($("discAreaSubFilter")) $("discAreaSubFilter").value = "";
+        if (state.discViewMode === "deck") state.discDeckIdx = Math.max(0, Number(s.disc) - 1);
+        switchTab("discussion");
+      });
+      const openDiscSorterBtn = make("button", "⊞ เทียบ 6 กลุ่ม", "btn sm");
+      openDiscSorterBtn.type = "button";
+      openDiscSorterBtn.addEventListener("click", () => {
+        state.discViewMode = "sorter";
+        switchTab("discussion");
+      });
+      q2Foot.append(openDiscRosterBtn, openDiscSorterBtn);
+      q2.appendChild(q2Foot);
+    } else {
+      q2.appendChild(
+        make("p", "พิมพ์รหัส 7 หลักในช่อง “ตัวฉัน” ด้านบนเพื่อดูห้องเรียนประจำตัว หรือคลิกเลือกดูห้องของทั้ง 6 กลุ่มด้านล่าง:", "cq-hint")
+      );
+      const gPills = make("div", null, "cq-quick-pills");
+      (SCHED.hsRotation || []).forEach((r) => {
+        const b = make("button", `กลุ่ม ${r.group} · ห้อง ${r.room} (${r.count} คน)`, "btn sm");
+        b.type = "button";
+        b.addEventListener("click", () => {
+          if ($("discGroupSelect")) $("discGroupSelect").value = String(r.group);
+          switchTab("discussion");
+        });
+        gPills.appendChild(b);
+      });
+      q2.appendChild(gPills);
+    }
+
+    // QUESTION 3: ในกลุ่มพื้นที่เรามีใครด้วยบ้าง · ไป รพช. ไหน?
+    const q3 = make("article", null, "concierge-q-card");
+    q3.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">คำถามที่ 3</span>
+        <span class="badge cat-SG">${s && siteObj ? `${siteObj.count} คน` : "9 พื้นที่ รพช."}</span>
+      </div>
+      <h3 class="cq-title">🏥 ในกลุ่มพื้นที่เรามีใครด้วยบ้าง · ไป รพช. ไหน?</h3>
+    `;
+    if (s && siteObj) {
+      const siteHero = make("div", null, "cq-room-hero is-field");
+      siteHero.innerHTML = `
+        <div>
+          <span class="area-sub-pill area-site-${siteId}"><i class="area-dot"></i>${siteId}. ${escapeHtml(s.area)} · ${escapeHtml(siteObj.hospital)} (${escapeHtml(siteObj.province)})</span>
+          <p class="cq-field-meta"><strong>ห้องประชุมกลุ่มย่อยในคณะฯ:</strong> ${escapeHtml(siteObj.room)}<br>
+          <strong>อาจารย์ที่ปรึกษา:</strong> ${escapeHtml(s.advisor || siteObj.advisors)}<br>
+          <strong>ช่วงลงพื้นที่:</strong> ${escapeHtml(siteObj.datesTH)} (${escapeHtml(siteObj.departShortTH || "")})</p>
+        </div>
+      `;
+      q3.appendChild(siteHero);
+
+      const mates = ROSTER.students.filter((st) => st.area === s.area).sort((a, b) => compareTH(a.id, b.id));
+      const matesLabel = make("p", `เพื่อนร่วมทีมพื้นที่ ${s.area} ทั้งหมด ${mates.length} คน (คลิกชื่อเพื่อดูโปรไฟล์):`, "cq-sub-label");
+      q3.appendChild(matesLabel);
+
+      const mosaic = make("div", null, "gsorter-avatar-mosaic cq-teammates-mosaic");
+      mates.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      q3.appendChild(mosaic);
+
+      const q3Foot = make("div", null, "cq-card-actions");
+      const openAreaBtn = make("button", `👥 เปิดหน้ากลุ่ม ${s.area} ครบ ${mates.length} คน →`, "btn sm primary");
+      openAreaBtn.type = "button";
+      openAreaBtn.addEventListener("click", () => {
+        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = s.area;
+        if (state.fieldViewMode === "deck") {
+          const fIdx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === s.area);
+          if (fIdx >= 0) state.fieldDeckIdx = fIdx;
+        }
+        switchTab("fieldwork");
+      });
+      const printAreaBtn = make("button", "🖨 พิมพ์ A4 กลุ่มเรา", "btn sm");
+      printAreaBtn.type = "button";
+      printAreaBtn.addEventListener("click", () => {
+        switchTab("fieldwork");
+        printSingleGroupHelper("fieldwork", s.area);
+      });
+      q3Foot.append(openAreaBtn, printAreaBtn);
+      q3.appendChild(q3Foot);
+    } else {
+      q3.appendChild(make("p", "ระบุรหัสนักศึกษาด้านบนเพื่อดูรูปถ่ายเพื่อนร่วมพื้นที่ของคุณทันที หรือคลิกสำรวจทั้ง 9 โรงพยาบาลชุมชน:", "cq-hint"));
+      const sPills = make("div", null, "cq-quick-pills");
+      (SCHED.fieldworkSites || []).forEach((st) => {
+        const b = make("button", null, `area-sub-pill area-site-${st.id} is-btn`);
+        b.type = "button";
+        b.innerHTML = `<i class="area-dot"></i>${st.id}. ${escapeHtml(st.shortName)} (${st.count})`;
+        b.addEventListener("click", () => {
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = st.shortName;
+          switchTab("fieldwork");
+        });
+        sPills.appendChild(b);
+      });
+      q3.appendChild(sPills);
+    }
+
+    grid.append(q1, q2, q3);
+    stage.appendChild(grid);
+  }
+
+  function renderFacultyConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk) {
+    const tKey = state.myTeacherKey || "";
+    const allTeachers = getAllCourseTeachers();
+    const tObj = allTeachers.find((t) => t.key === tKey) || null;
+
+    if ($("conciergeTeacherSelect") && $("conciergeTeacherSelect").value !== tKey) {
+      $("conciergeTeacherSelect").value = tKey;
+    }
+    if ($("personalTeacherSelect") && $("personalTeacherSelect").value !== tKey) {
+      $("personalTeacherSelect").value = tKey;
+    }
+    if ($("conciergeToggleAllDaysBtn")) {
+      $("conciergeToggleAllDaysBtn").textContent = state.conciergeTeacherAllDays
+        ? "📅 สลับดูรายวัน"
+        : "📋 ดูรวมทุกวันของอาจารย์";
+      $("conciergeToggleAllDaysBtn").classList.toggle("primary", state.conciergeTeacherAllDays);
+    }
+
+    const teacherAllSessions = tKey
+      ? (SCHED.sessions || []).filter((s) => sessionMatchesTeacher(s, tKey, getSessionAssignments(s)))
+      : [];
+    const daySessions = (SCHED.sessions || []).filter((s) => {
+      if (!sessionOccursOnDate(s, curDate, {})) return false;
+      return tKey ? sessionMatchesTeacher(s, tKey, getSessionAssignments(s)) : true;
+    });
+
+    if (liveSummary) {
+      if (tObj) {
+        liveSummary.textContent = `👨‍⚕️ ${tObj.label} · ภาระงานรวม ${teacherAllSessions.length} คาบ · ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} คาบ)`;
+      } else {
+        liveSummary.textContent = `เลือกชื่ออาจารย์ด้านล่างเพื่อดูคาบสอน ห้องคุม Discussion HS1–HS6 และรายชื่อนักศึกษาในกลุ่มที่ปรึกษา`;
+      }
+    }
+
+    if (presetsRow) {
+      presetsRow.replaceChildren();
+      if (!tKey) {
+        const lbl = make("span", "แตะเลือกอาจารย์ด่วน:", "cq-preset-prefix");
+        presetsRow.appendChild(lbl);
+        allTeachers.slice(0, 13).forEach((t) => {
+          const shortLbl = t.label.replace(/\s*\([^)]*\)/g, "");
+          const chip = make("button", shortLbl, "concierge-preset-chip");
+          chip.type = "button";
+          chip.addEventListener("click", () => selectActiveTeacher(t.key, true));
+          presetsRow.appendChild(chip);
+        });
+      } else {
+        const teachingDates = [...new Set(teacherAllSessions.map((s) => s.dateISO))].sort();
+        const lbl = make("span", `วันที่มีภาระงานของ ${tKey} (${teachingDates.length} วัน):`, "cq-preset-prefix");
+        presetsRow.appendChild(lbl);
+        teachingDates.forEach((d) => {
+          const chip = make(
+            "button",
+            formatCourseDateOptionLabel(d).replace(" 2569", ""),
+            `concierge-preset-chip${!state.conciergeTeacherAllDays && curDate === d ? " is-active" : ""}`
+          );
+          chip.type = "button";
+          chip.addEventListener("click", () => {
+            state.conciergeTeacherAllDays = false;
+            state.conciergeDateISO = d;
+            renderRoleConcierge();
+          });
+          presetsRow.appendChild(chip);
+        });
+        const clearTBtn = make("button", "✕ ล้างชื่ออาจารย์", "concierge-preset-chip is-clear");
+        clearTBtn.type = "button";
+        clearTBtn.addEventListener("click", () => selectActiveTeacher("", false));
+        presetsRow.appendChild(clearTBtn);
+      }
+    }
+
+    stage.replaceChildren();
+    const grid = make("div", null, "concierge-q-grid");
+
+    // FACULTY Q1: วันนี้ต้องสอน / คุมคาบ / คุมสอบไหนบ้าง?
+    const q1 = make("article", null, "concierge-q-card");
+    const shownSessions = state.conciergeTeacherAllDays && tKey ? teacherAllSessions : daySessions;
+    const modeLabel =
+      state.conciergeTeacherAllDays && tKey
+        ? `ครบทุกคาบตลอดรายวิชา (${shownSessions.length} คาบ)`
+        : `${curDate === todayBkk ? "วันนี้" : formatCourseDateOptionLabel(curDate)} (${shownSessions.length} คาบ)`;
+
+    q1.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">ภาระงานที่ 1</span>
+        <span class="badge cat-EP">${escapeHtml(modeLabel)}</span>
+      </div>
+      <h3 class="cq-title">📋 ${tKey ? `อ.${escapeHtml(tKey)} ต้องสอน / คุมคาบไหนบ้าง?` : "ตารางสอน & คุมคาบประจำวันที่เลือก"}</h3>
+    `;
+
+    const sessList = make("div", null, "cq-session-list");
+    if (!shownSessions.length) {
+      const emptyBox = make("div", null, "cq-empty");
+      emptyBox.textContent = tKey
+        ? `ไม่มีคาบสอนของ อ.${tKey} ในวันที่ ${formatCourseDateOptionLabel(curDate)}`
+        : "ไม่มีคาบเรียนในวันที่เลือก";
+      sessList.appendChild(emptyBox);
+
+      if (tKey && teacherAllSessions.length) {
+        const nextSess =
+          teacherAllSessions.find((x) => x.dateISO > curDate) || teacherAllSessions[0];
+        if (nextSess) {
+          const jumpNextBtn = make(
+            "button",
+            `ไปที่คาบถัดไปของอาจารย์: ${formatCourseDateOptionLabel(nextSess.dateISO)} (${nextSess.code}) →`,
+            "btn sm primary"
+          );
+          jumpNextBtn.type = "button";
+          jumpNextBtn.style.marginTop = "8px";
+          jumpNextBtn.addEventListener("click", () => {
+            state.conciergeDateISO = nextSess.dateISO;
+            renderRoleConcierge();
+          });
+          sessList.appendChild(jumpNextBtn);
+        }
+      }
+    } else {
+      shownSessions.forEach((sess) => {
+        const roleInfo = tKey
+          ? describeTeacherRoleForSession(sess, tKey)
+          : { roleBadge: sess.code, badgeCls: `cat-${sess.category}`, roomText: sess.room || "-", assignment: null };
+        const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
+        const datePrefix = state.conciergeTeacherAllDays ? `${formatCourseDateOptionLabel(sess.dateISO).replace(" 2569", "")} · ` : "";
+        const topLine = make("div", null, "cq-sess-top");
+        topLine.innerHTML = `<span class="cq-time">${escapeHtml(datePrefix + (sess.timeLabel || "ตลอดวัน"))}</span><span class="badge ${roleInfo.badgeCls}">${escapeHtml(roleInfo.roleBadge)}</span>`;
+        const roomLine = make("div", `📍 ${roleInfo.roomText}`, "cq-room-line-strong");
+        const titleEl = make("strong", sess.title, "cq-sess-title");
+        item.append(topLine, roomLine, titleEl);
+
+        const actRow = make("div", null, "cq-mini-actions");
+        const detailBtn = make("button", "รายละเอียดคาบ", "cq-link-btn");
+        detailBtn.type = "button";
+        detailBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          openEventModal(sess);
+        });
+        actRow.appendChild(detailBtn);
+
+        if (roleInfo.assignment) {
+          const rosterBtn = make("button", "👥 ใบรายชื่อรูป นศ. ห้องนี้ ↗", "cq-link-btn is-primary");
+          rosterBtn.type = "button";
+          rosterBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            jumpToClassRoster(sess, roleInfo.assignment);
+          });
+          actRow.appendChild(rosterBtn);
+        }
+        if (sess.zoom && sess.zoom.url) {
+          const zLink = make("a", "เข้า Zoom ↗", "cq-link-btn is-zoom");
+          zLink.href = sess.zoom.url;
+          zLink.target = "_blank";
+          zLink.rel = "noopener";
+          actRow.appendChild(zLink);
+        }
+        item.appendChild(actRow);
+        item.addEventListener("click", () => openEventModal(sess));
+        sessList.appendChild(item);
+      });
+    }
+    q1.appendChild(sessList);
+
+    // FACULTY Q2: ตอน Discussion (HS1–HS6) ต้องไปคุมกลุ่มไหน ห้องไหน?
+    const q2 = make("article", null, "concierge-q-card");
+    q2.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">ภาระงานที่ 2</span>
+        <span class="badge cat-HS">HS1–HS6 · 6 คาบ</span>
+      </div>
+      <h3 class="cq-title">🚪 ตอน Discussion ต้องเดินไปคุมกลุ่มไหน · ห้องไหน?</h3>
+    `;
+    if (tKey) {
+      const slotList = make("div", null, "cq-slot-mini-table");
+      let assignedCount = 0;
+      ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
+        const discSess = (SCHED.sessions || []).find((x) => x.hsModule === mod);
+        const matchedRot = (SCHED.hsRotation || []).find(
+          (r) => r[mod] && String(r[mod].instructor || "").includes(tKey)
+        );
+        const isTodayMod = discSess && discSess.dateISO === curDate;
+        const row = make("div", null, `cq-slot-row is-faculty${isTodayMod ? " is-today" : ""}${!matchedRot ? " is-off" : ""}`);
+        const whenTxt = discSess
+          ? `${formatCourseDateOptionLabel(discSess.dateISO).replace(" 2569", "")} (${discSess.timeLabel.replace(" น.", "")})`
+          : mod;
+
+        if (matchedRot) {
+          assignedCount++;
+          const cell = matchedRot[mod] || {};
+          const rm = cell.room || matchedRot.room;
+          const infoSpan = make("div", null, "cq-fac-slot-main");
+          infoSpan.innerHTML = `
+            <span class="cq-slot-mod">${mod}</span>
+            <span class="cq-slot-when">${escapeHtml(whenTxt)}</span>
+            <strong class="cq-slot-rm${cell.highlightRoom ? " is-changed" : ""}">กลุ่ม ${matchedRot.group} · ห้อง ${escapeHtml(rm)}</strong>
+          `;
+          const btnWrap = make("div", null, "cq-fac-slot-btns");
+          const openGroupBtn = make("button", "👥 รูป นศ.", "cq-link-btn is-primary");
+          openGroupBtn.type = "button";
+          openGroupBtn.title = `เปิดใบรายชื่อรูปถ่ายนักศึกษากลุ่ม Discussion ที่ ${matchedRot.group}`;
+          openGroupBtn.addEventListener("click", () => {
+            if (discSess) {
+              jumpToClassRoster(discSess, {
+                type: "discussion",
+                groupId: String(matchedRot.group),
+                label: `Discussion กลุ่มที่ ${matchedRot.group} (${matchedRot.count} คน)`,
+                lecturer: cell.instructor,
+                room: rm
+              });
+            } else {
+              if ($("discGroupSelect")) $("discGroupSelect").value = String(matchedRot.group);
+              switchTab("discussion");
+            }
+          });
+          btnWrap.appendChild(openGroupBtn);
+
+          if (typeof FACULTY !== "undefined" && FACULTY && Array.isArray(FACULTY.docs)) {
+            const tgDoc = FACULTY.docs.find((d) => d.id.toLowerCase().startsWith(mod.toLowerCase()));
+            if (tgDoc) {
+              const tgBtn = make("button", "📖 คู่มือผู้สอน", "cq-link-btn");
+              tgBtn.type = "button";
+              tgBtn.addEventListener("click", () => {
+                state.facultySub = "guides";
+                state.activeFacultyDocId = tgDoc.id;
+                switchTab("faculty-docs");
+              });
+              btnWrap.appendChild(tgBtn);
+            }
+          }
+          row.append(infoSpan, btnWrap);
+        } else {
+          row.innerHTML = `
+            <div class="cq-fac-slot-main">
+              <span class="cq-slot-mod">${mod}</span>
+              <span class="cq-slot-when">${escapeHtml(whenTxt)}</span>
+              <span class="cq-slot-off-txt">— ไม่มีคุมกลุ่มย่อยในคาบนี้ —</span>
+            </div>
+          `;
+        }
+        slotList.appendChild(row);
+      });
+      q2.appendChild(slotList);
+      if (assignedCount === 0) {
+        q2.appendChild(make("p", "อาจารย์ไม่ได้อยู่ในสายหมุนเวียนคุมห้องย่อย HS1–HS6 (ดูตารางหมุนเวียนรวมทั้ง 6 ห้องได้ด้านล่าง)", "cq-hint"));
+      }
+      const rotFullBtn = make("button", "ดูตารางหมุนเวียน HS1–HS6 ครบทั้ง 6 ห้อง →", "btn sm");
+      rotFullBtn.type = "button";
+      rotFullBtn.style.marginTop = "8px";
+      rotFullBtn.addEventListener("click", () => {
+        state.schedSub = "spec";
+        syncSegButtons();
+        switchTab("schedule");
+      });
+      q2.appendChild(rotFullBtn);
+    } else {
+      q2.appendChild(
+        make("p", "เลือกชื่ออาจารย์ด้านบนเพื่อดูตารางห้องคุม Discussion HS1–HS6 เฉพาะตัวท่านทันที (ระบุเลขกลุ่มและเลขห้อง 1C1-02..07 / 2C2-03 รายคาบ)", "cq-hint")
+      );
+      const specBtn = make("button", "เปิดตารางหมุนเวียนอาจารย์ HS1–HS6 ทั้งหมด →", "btn sm primary");
+      specBtn.type = "button";
+      specBtn.addEventListener("click", () => {
+        state.schedSub = "spec";
+        syncSegButtons();
+        switchTab("schedule");
+      });
+      q2.appendChild(specBtn);
+    }
+
+    // FACULTY Q3: กลุ่มพื้นที่ภาคสนามที่ดูแล & รายชื่อนักศึกษาในทีม
+    const q3 = make("article", null, "concierge-q-card");
+    const advisedSites = tKey
+      ? (SCHED.fieldworkSites || []).filter((st) => String(st.advisors || "").includes(tKey))
+      : [];
+    q3.innerHTML = `
+      <div class="cq-head">
+        <span class="cq-step">ภาระงานที่ 3</span>
+        <span class="badge cat-SG">${advisedSites.length ? `ที่ปรึกษา ${advisedSites.length} พื้นที่` : "บริหารรายชื่อ 169 คน"}</span>
+      </div>
+      <h3 class="cq-title">🏥 กลุ่มพื้นที่ภาคสนามที่ดูแล · ห้องกลุ่มย่อย &amp; นศ.</h3>
+    `;
+
+    if (advisedSites.length) {
+      advisedSites.forEach((site) => {
+        const box = make("div", null, "cq-room-hero is-field");
+        box.innerHTML = `
+          <div>
+            <span class="area-sub-pill area-site-${site.id}"><i class="area-dot"></i>${site.id}. ${escapeHtml(site.shortName)} · ${escapeHtml(site.hospital)} (${escapeHtml(site.province)})</span>
+            <p class="cq-field-meta"><strong>ห้องประชุมกลุ่มย่อย:</strong> ${escapeHtml(site.room)}<br>
+            <strong>กำหนดลงพื้นที่:</strong> ${escapeHtml(site.datesTH)}<br>
+            ${site.staffRef ? `<strong>ผู้ประสานงานพื้นที่:</strong> ${escapeHtml(site.staffRef)}` : ""}</p>
+          </div>
+        `;
+        q3.appendChild(box);
+
+        const members = ROSTER.students.filter((s) => s.area === site.shortName).sort((a, b) => compareTH(a.id, b.id));
+        const mosaic = make("div", null, "gsorter-avatar-mosaic cq-teammates-mosaic");
+        members.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+        q3.appendChild(mosaic);
+
+        const actRow = make("div", null, "cq-card-actions");
+        const viewBtn = make("button", `👥 ดูใบรายชื่อ ${site.shortName} (${members.length} คน)`, "btn sm primary");
+        viewBtn.type = "button";
+        viewBtn.addEventListener("click", () => {
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = site.shortName;
+          switchTab("fieldwork");
+        });
+        const printBtn = make("button", "🖨 พิมพ์ A4 1 หน้า", "btn sm");
+        printBtn.type = "button";
+        printBtn.addEventListener("click", () => {
+          switchTab("fieldwork");
+          printSingleGroupHelper("fieldwork", site.shortName);
+        });
+        actRow.append(viewBtn, printBtn);
+        q3.appendChild(actRow);
+      });
+    } else {
+      q3.appendChild(
+        make(
+          "p",
+          tKey
+            ? `อ.${tKey} ไม่ได้เป็นที่ปรึกษาประจำกลุ่มพื้นที่ รพช. โดยตรง · สามารถเปิดกระดาน Group Sorter หรือตาราง Admin รวมนักศึกษา 169 คนได้ทันที:`
+            : "ผู้ประสานงานและอาจารย์สามารถเปิดดู Group Sorter เทียบทั้ง 6 กลุ่ม / 9 พื้นที่ หรือเปิดตาราง Admin ส่งออก CSV ได้ทันที:",
+          "cq-hint"
+        )
+      );
+      const adminBtns = make("div", null, "cq-card-actions");
+      const b1 = make("button", "⊞ Group Sorter (6 กลุ่ม Discussion)", "btn sm primary");
+      b1.type = "button";
+      b1.addEventListener("click", () => {
+        state.discViewMode = "sorter";
+        switchTab("discussion");
+      });
+      const b2 = make("button", "⊞ Group Sorter (9 พื้นที่ รพช.)", "btn sm teal");
+      b2.type = "button";
+      b2.addEventListener("click", () => {
+        state.fieldViewMode = "sorter";
+        switchTab("fieldwork");
+      });
+      const b3 = make("button", "≡ ตาราง Admin 169 คน", "btn sm");
+      b3.type = "button";
+      b3.addEventListener("click", () => {
+        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = "";
+        state.fieldViewMode = "table";
+        switchTab("fieldwork");
+      });
+      adminBtns.append(b1, b2, b3);
+      q3.appendChild(adminBtns);
+    }
+
+    if (tKey) {
+      const icsRow = make("div", null, "cq-card-actions");
+      icsRow.style.marginTop = "8px";
+      const dlTeacherIcs = make("button", `📅 ดาวน์โหลดปฏิทินภาระงาน อ.${tKey} (.ics)`, "btn sm teal");
+      dlTeacherIcs.type = "button";
+      dlTeacherIcs.addEventListener("click", downloadScheduleIcs);
+      icsRow.appendChild(dlTeacherIcs);
+      q3.appendChild(icsRow);
+    }
+
+    grid.append(q1, q2, q3);
+    stage.appendChild(grid);
+  }
+
+  /* ---------- Global Quick-Search & Navigation Spotlight (⌘K / Ctrl+K) + Floating Dock ---------- */
+  let spotlightState = {
+    cat: "all",
+    selectedIdx: 0,
+    results: []
+  };
+
+  function buildSpotlightEntries(rawQuery, catFilter) {
+    const q = String(rawQuery || "").trim().toLocaleLowerCase("th");
+    const items = [];
+
+    const pushIfMatch = (entry) => {
+      if (catFilter !== "all" && entry.cat !== catFilter) return;
+      if (!q) {
+        if (entry.defaultShow) items.push(entry);
+        return;
+      }
+      if (entry.searchHay.includes(q)) items.push(entry);
+    };
+
+    // 1. Quick Navigation & Admin Views
+    const navItems = [
+      {
+        title: "ปฏิทิน & ตารางสอน (Google Calendar / Apple iCal)",
+        sub: "ดูตารางรายเดือน รายสัปดาห์ รายคาบ และตารางหมุนเวียน HS1–HS6",
+        badge: "หน้าหลัก",
+        defaultShow: true,
+        run: () => switchTab("schedule")
+      },
+      {
+        title: "กระดาน Group Sorter — รายชื่อกลุ่ม Discussion (6 กลุ่ม)",
+        sub: "ซูมย่อ-ขยายเทียบสมาชิกและอาจารย์ครบทั้ง 6 ห้องเรียนพร้อมกัน",
+        badge: "Group Sorter",
+        defaultShow: true,
+        run: () => {
+          state.discViewMode = "sorter";
+          switchTab("discussion");
+        }
+      },
+      {
+        title: "กระดาน Group Sorter — 9 พื้นที่ฝึกภาคสนาม (9 รพช.)",
+        sub: "ซูมย่อ-ขยายเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางทั้ง 9 พื้นที่",
+        badge: "Group Sorter",
+        defaultShow: true,
+        run: () => {
+          state.fieldViewMode = "sorter";
+          switchTab("fieldwork");
+        }
+      },
+      {
+        title: "ตาราง Admin รวมรายชื่อนักศึกษา 169 คน (เรียงคอลัมน์ & ดาวน์โหลด CSV)",
+        sub: "ค้นหา เรียงตามรหัส/ชื่อ/กลุ่ม/พื้นที่ คัดลอกลง Excel หรือส่งออก CSV",
+        badge: "Admin Table",
+        defaultShow: true,
+        run: () => {
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = "";
+          state.fieldViewMode = "table";
+          switchTab("fieldwork");
+        }
+      },
+      {
+        title: "ศูนย์การส่งงาน SRN 1 / SRN 2 & ห้องเรียน E-learning (id=398)",
+        sub: "ตั้งชื่อไฟล์ PDF อัตโนมัติ และลิงก์ตรงเข้า Moodle / Google Form",
+        badge: "การส่งงาน",
+        defaultShow: false,
+        run: () => switchTab("submissions")
+      }
+    ];
+    if (ROLE === "faculty") {
+      navItems.push(
+        {
+          title: "ตรวจสอบตารางสอน & ซิงค์ฐานข้อมูล Google Apps Script",
+          sub: "ประเด็นรอยืนยัน 6 จุด · ตารางเทียบ schedule-racm303-v1 & ดาวน์โหลด CSV v2",
+          badge: "Admin ตรวจตาราง",
+          defaultShow: true,
+          run: () => switchTab("audit")
+        },
+        {
+          title: "สารบัญลิงก์ต้นฉบับ Google Drive / Docs / ข้อสอบ",
+          sub: "รวมลิงก์แก้ไขเอกสาร HS1–HS6 คู่มือผู้สอน และคลังข้อสอบสำหรับคณาจารย์",
+          badge: "Admin ลิงก์ต้นฉบับ",
+          defaultShow: true,
+          run: () => {
+            state.facultySub = "links";
+            document.querySelectorAll("[data-fac-sub]").forEach((b) =>
+              b.setAttribute("aria-pressed", b.dataset.facSub === "links" ? "true" : "false")
+            );
+            switchTab("faculty-docs");
+          }
+        }
+      );
+    }
+    navItems.forEach((n) =>
+      pushIfMatch({
+        cat: "docs",
+        icon: "⚡",
+        title: n.title,
+        sub: n.sub,
+        badge: n.badge,
+        defaultShow: n.defaultShow,
+        searchHay: `${n.title} ${n.sub} admin table sorter csv`.toLocaleLowerCase("th"),
+        run: n.run
+      })
+    );
+
+    // 2. 6 Discussion Groups & 9 Fieldwork Sites
+    (SCHED.hsRotation || []).forEach((r) => {
+      const teachers = ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].map((m) => (r[m] && r[m].instructor) || "").join(" · ");
+      pushIfMatch({
+        cat: "groups",
+        icon: "🚪",
+        title: `กลุ่มอภิปราย Discussion ที่ ${r.group} (ห้องหลัก ${r.room} · ${r.count} คน)`,
+        sub: `อาจารย์หมุนเวียน: ${teachers}`,
+        badge: `Discussion ${r.group}`,
+        defaultShow: !q,
+        searchHay: `discussion กลุ่มที่ ${r.group} g${r.group} ห้อง ${r.room} ${teachers}`.toLocaleLowerCase("th"),
+        run: () => {
+          if ($("discGroupSelect")) $("discGroupSelect").value = String(r.group);
+          if (state.discViewMode === "deck") state.discDeckIdx = r.group - 1;
+          switchTab("discussion");
+        }
+      });
+    });
+
+    (SCHED.fieldworkSites || []).forEach((st) => {
+      const staffSearch = ROLE === "faculty" && st.staffRef ? st.staffRef : "";
+      pushIfMatch({
+        cat: "groups",
+        icon: "🏥",
+        title: `พื้นที่ ${st.id}. ${st.shortName} — ${st.hospital} (${st.province})`,
+        sub: `${st.count} คน · ห้อง ${st.room} · อ.ที่ปรึกษา: ${st.advisors} · ${st.datesTH}`,
+        badge: `พื้นที่ ${st.id}`,
+        defaultShow: !q && st.id <= 4,
+        searchHay: `พื้นที่ ${st.id} ${st.shortName} ${st.hospital} ${st.province} ${st.advisors} ${st.room} ${staffSearch}`.toLocaleLowerCase("th"),
+        run: () => {
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = st.shortName;
+          if (state.fieldViewMode === "deck") state.fieldDeckIdx = st.id - 1;
+          switchTab("fieldwork");
+        }
+      });
+    });
+
+    // 3. Course Teachers (20)
+    getAllCourseTeachers().forEach((t) => {
+      pushIfMatch({
+        cat: "teachers",
+        icon: "👨‍⚕️",
+        title: t.label,
+        sub: ROLE === "faculty" ? "คลิกเพื่อตั้งเป็นอาจารย์ประจำตัว ดูคาบสอนและห้องคุม Discussion" : "คลิกเพื่อกรองดูคาบสอนของอาจารย์ในปฏิทิน",
+        badge: "อาจารย์ผู้สอน",
+        defaultShow: false,
+        searchHay: `อาจารย์ ${t.key} ${t.label}`.toLocaleLowerCase("th"),
+        run: () => {
+          if (ROLE === "faculty") {
+            selectActiveTeacher(t.key, true);
+            state.conciergeOpen = true;
+            renderRoleConcierge();
+          } else {
+            if ($("schedTeacherFilter")) $("schedTeacherFilter").value = t.key;
+            refreshCalendarStudioUI();
+            switchTab("schedule");
+          }
+        }
+      });
+    });
+
+    // 4. Sessions / Lectures
+    (SCHED.sessions || []).forEach((sess) => {
+      if (ROLE === "student" && sess.studentVisible === false) return;
+      pushIfMatch({
+        cat: "teachers",
+        icon: "📅",
+        title: `[${sess.code}] ${sess.title}`,
+        sub: `${sess.dateTH} · ${sess.timeLabel || "ตลอดวัน"} · ห้อง ${sess.room || "-"}`,
+        badge: sess.code,
+        defaultShow: false,
+        searchHay: `${sess.code} ${sess.title} ${sess.dateTH} ${sess.room} ${sess.lecturers}`.toLocaleLowerCase("th"),
+        run: () => {
+          state.conciergeDateISO = sess.dateISO;
+          renderRoleConcierge();
+          switchTab("schedule");
+          openEventModal(sess);
+        }
+      });
+    });
+
+    // 5. 169 Students
+    ROSTER.students.forEach((s) => {
+      const siteId = getSiteIdByAreaName(s.area);
+      pushIfMatch({
+        cat: "students",
+        icon: "🎓",
+        studentObj: s,
+        title: `${s.id} — ${s.fullName}${s.nickname ? " (" + s.nickname + ")" : ""}`,
+        sub: `Discussion กลุ่ม ${s.disc} · พื้นที่ ${siteId}. ${s.area} · อ.${s.advisor || "-"}`,
+        badge: `G${s.disc} · ${s.area}`,
+        defaultShow: false,
+        searchHay: `${s.id} ${s.fullName} ${s.nickname || ""} ${s.program || ""} discussion ${s.disc} g${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th"),
+        run: () => openStudentQuickModal(s)
+      });
+    });
+
+    // 6. Textbooks & Manual Chapters (+ Faculty Docs/Links if Faculty)
+    (HS.docs || []).forEach((d) => {
+      pushIfMatch({
+        cat: "docs",
+        icon: "📘",
+        title: `${d.badge} · ${d.title}`,
+        sub: d.sessionInfo || d.subtitle || "เอกสารคำสอน / สรุปกระชับ / สมุดแบบฝึกหัด",
+        badge: d.badge,
+        defaultShow: false,
+        searchHay: `${d.id} ${d.badge} ${d.title} ${d.subtitle || ""}`.toLocaleLowerCase("th"),
+        run: () => openTextbookDoc(d.id)
+      });
+    });
+
+    (MANUAL.chapters || []).forEach((ch) => {
+      pushIfMatch({
+        cat: "docs",
+        icon: "📑",
+        title: `คู่มือรายวิชา: ${ch.title}`,
+        sub: "คลิกเพื่อเปิดอ่านบทนี้ในคู่มือการเรียนการสอน RACM 303 ปี 2569",
+        badge: "คู่มือ 2569",
+        defaultShow: false,
+        searchHay: `คู่มือ ${ch.title}`.toLocaleLowerCase("th"),
+        run: () => {
+          state.manualChapterId = ch.id;
+          switchTab("manual");
+        }
+      });
+    });
+
+    if (ROLE === "faculty" && typeof FACULTY !== "undefined" && FACULTY) {
+      (FACULTY.docs || []).forEach((fd) => {
+        pushIfMatch({
+          cat: "docs",
+          icon: "🔐",
+          title: fd.title,
+          sub: "คู่มือผู้สอนและบันทึกตรวจทานสำหรับคณาจารย์",
+          badge: "Teacher Guide",
+          defaultShow: false,
+          searchHay: `${fd.id} ${fd.title} teacher guide คู่มือผู้สอน`.toLocaleLowerCase("th"),
+          run: () => {
+            state.facultySub = "guides";
+            state.activeFacultyDocId = fd.id;
+            switchTab("faculty-docs");
+          }
+        });
+      });
+      (FACULTY.links || []).forEach((fl) => {
+        pushIfMatch({
+          cat: "docs",
+          icon: "🔗",
+          title: fl.title,
+          sub: `${fl.category || ""} · ${fl.note || ""}`,
+          badge: "Drive / Docs ↗",
+          defaultShow: false,
+          searchHay: `${fl.title} ${fl.category || ""} ${fl.note || ""}`.toLocaleLowerCase("th"),
+          run: () => window.open(fl.url, "_blank", "noopener")
+        });
+      });
+    }
+
+    return items.slice(0, 45);
+  }
+
+  function openGlobalSpotlight(initialCat) {
+    let modal = $("globalSpotlightModal");
+    if (!modal) {
+      modal = make("div", null, "cal-modal-backdrop spotlight-backdrop");
+      modal.id = "globalSpotlightModal";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-label", "ค้นหาและนำทางด่วนทั่วพอร์ทัล");
+      modal.hidden = true;
+
+      const card = make("div", null, "spotlight-card");
+      const top = make("div", null, "spotlight-input-row");
+      const ico = make("span", "🔍", "spotlight-ico");
+      const inp = document.createElement("input");
+      inp.type = "search";
+      inp.id = "globalSpotlightInput";
+      inp.className = "spotlight-input";
+      inp.placeholder =
+        ROLE === "faculty"
+          ? "ค้นหานักศึกษา 169 คน, ชื่ออาจารย์, ห้องคุม Discussion, รพช., คาบสอน, หรือลิงก์ต้นฉบับ…"
+          : "ค้นหารหัสนักศึกษา, ชื่อเพื่อน, ห้องเรียน, กลุ่ม Discussion, รพช., อาจารย์, หรือบทเรียน HS…";
+      const escBtn = make("button", "Esc", "spotlight-esc-btn");
+      escBtn.type = "button";
+      escBtn.addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      top.append(ico, inp, escBtn);
+
+      const catsRow = make("div", null, "spotlight-cats-row");
+      const cats = [
+        { id: "all", label: "ทั้งหมด" },
+        { id: "students", label: "นักศึกษา (169)" },
+        { id: "groups", label: "กลุ่ม & รพช. (15)" },
+        { id: "teachers", label: "อาจารย์ & คาบเรียน" },
+        { id: "docs", label: ROLE === "faculty" ? "บทเรียน & Admin" : "บทเรียน & คู่มือ" }
+      ];
+      cats.forEach((c) => {
+        const b = make("button", c.label, "spotlight-cat-pill");
+        b.type = "button";
+        b.dataset.spotCat = c.id;
+        b.addEventListener("click", () => {
+          spotlightState.cat = c.id;
+          spotlightState.selectedIdx = 0;
+          renderSpotlightResults();
+          inp.focus();
+        });
+        catsRow.appendChild(b);
+      });
+
+      const listEl = make("div", null, "spotlight-results");
+      listEl.id = "globalSpotlightResults";
+
+      const foot = make("div", null, "spotlight-foot");
+      foot.innerHTML = `<span><code>↑</code> <code>↓</code> เลือกรายการ · <code>Enter</code> เปิดทันที · <code>Esc</code> ปิดหน้าต่าง</span><span>กด <code>⌘K</code> หรือ <code>Ctrl+K</code> ได้จากทุกหน้า</span>`;
+
+      card.append(top, catsRow, listEl, foot);
+      modal.appendChild(card);
+      document.body.appendChild(modal);
+
+      modal.addEventListener("click", (ev) => {
+        if (ev.target === modal) modal.hidden = true;
+      });
+      inp.addEventListener("input", () => {
+        spotlightState.selectedIdx = 0;
+        renderSpotlightResults();
+      });
+      inp.addEventListener("keydown", (ev) => {
+        const len = spotlightState.results.length;
+        if (ev.key === "ArrowDown" && len) {
+          ev.preventDefault();
+          spotlightState.selectedIdx = (spotlightState.selectedIdx + 1) % len;
+          syncSpotlightSelection();
+        } else if (ev.key === "ArrowUp" && len) {
+          ev.preventDefault();
+          spotlightState.selectedIdx = (spotlightState.selectedIdx - 1 + len) % len;
+          syncSpotlightSelection();
+        } else if (ev.key === "Enter" && len) {
+          ev.preventDefault();
+          const chosen = spotlightState.results[spotlightState.selectedIdx];
+          if (chosen) {
+            modal.hidden = true;
+            chosen.run();
+          }
+        } else if (ev.key === "Escape") {
+          ev.preventDefault();
+          modal.hidden = true;
+        }
+      });
+    }
+
+    if (initialCat) spotlightState.cat = initialCat;
+    spotlightState.selectedIdx = 0;
+    modal.hidden = false;
+    renderSpotlightResults();
+    const inp = $("globalSpotlightInput");
+    if (inp) {
+      inp.focus();
+      inp.select();
+    }
+  }
+
+  function syncSpotlightSelection() {
+    const listEl = $("globalSpotlightResults");
+    if (!listEl) return;
+    listEl.querySelectorAll(".spotlight-item").forEach((el, i) => {
+      const active = i === spotlightState.selectedIdx;
+      el.classList.toggle("is-selected", active);
+      if (active && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function renderSpotlightResults() {
+    const modal = $("globalSpotlightModal");
+    const inp = $("globalSpotlightInput");
+    const listEl = $("globalSpotlightResults");
+    if (!modal || !listEl) return;
+
+    modal.querySelectorAll("[data-spot-cat]").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.spotCat === spotlightState.cat);
+    });
+
+    const entries = buildSpotlightEntries(inp ? inp.value : "", spotlightState.cat);
+    spotlightState.results = entries;
+    listEl.replaceChildren();
+
+    if (!entries.length) {
+      listEl.appendChild(make("div", "ไม่พบรายการที่ตรงกับคำค้นหา · ลองค้นด้วยรหัสนักศึกษา ชื่อเล่น ชื่อ รพช. หรือชื่ออาจารย์", "spotlight-empty"));
+      return;
+    }
+
+    entries.forEach((entry, idx) => {
+      const row = make("button", null, `spotlight-item${idx === spotlightState.selectedIdx ? " is-selected" : ""}`);
+      row.type = "button";
+      const left = make("div", null, "spotlight-item-left");
+      if (entry.studentObj && state.showPhotos && entry.studentObj.id) {
+        const av = make("span", null, "gsorter-chip-avatar");
+        const img = document.createElement("img");
+        img.src = `assets/photos/${encodeURIComponent(entry.studentObj.id)}.jpg`;
+        img.alt = "";
+        img.loading = "lazy";
+        img.onerror = () => {
+          av.textContent = studentInitials(entry.studentObj);
+        };
+        av.appendChild(img);
+        left.appendChild(av);
+      } else {
+        left.appendChild(make("span", entry.icon || "•", "spotlight-item-ico"));
+      }
+      const txtCol = make("div", null, "spotlight-item-txt");
+      txtCol.append(make("strong", entry.title), make("span", entry.sub));
+      left.appendChild(txtCol);
+
+      const badge = make("span", entry.badge || "", "spotlight-item-badge");
+      row.append(left, badge);
+      row.addEventListener("mouseenter", () => {
+        spotlightState.selectedIdx = idx;
+        syncSpotlightSelection();
+      });
+      row.addEventListener("click", () => {
+        modal.hidden = true;
+        entry.run();
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  function initGlobalSpotlightAndFab() {
+    const headLinks = document.querySelector(".head-links");
+    if (headLinks && !$("headSpotlightBtn")) {
+      const btn = make("button", "🔍 ค้นหาด่วน (⌘K)", "ghost-link spotlight-head-btn");
+      btn.id = "headSpotlightBtn";
+      btn.type = "button";
+      btn.addEventListener("click", () => openGlobalSpotlight());
+      headLinks.insertBefore(btn, headLinks.firstChild);
+    }
+
+    if (!$("globalQuickNavFab")) {
+      const fab = make("div", null, "global-quicknav-fab");
+      fab.id = "globalQuickNavFab";
+
+      const searchFabBtn = make("button", "🔍 ค้นหา & ข้ามหน้า (⌘K)", "fab-pill-btn is-primary");
+      searchFabBtn.type = "button";
+      searchFabBtn.addEventListener("click", () => openGlobalSpotlight());
+
+      const myDayFabBtn = make("button", ROLE === "faculty" ? "👨‍⚕️ คาบสอน & ห้องคุม" : "🧭 ห้องเรียน & กลุ่มฉัน", "fab-pill-btn");
+      myDayFabBtn.type = "button";
+      myDayFabBtn.addEventListener("click", () => {
+        state.conciergeOpen = true;
+        localStorage.setItem("racm303_concierge_open", "1");
+        renderRoleConcierge();
+        const shell = $("roleConciergeShell");
+        if (shell && shell.scrollIntoView) shell.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      const topFabBtn = make("button", "↑", "fab-pill-btn is-icon");
+      topFabBtn.type = "button";
+      topFabBtn.title = "เลื่อนกลับขึ้นด้านบนสุด";
+      topFabBtn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+      fab.append(searchFabBtn, myDayFabBtn, topFabBtn);
+      document.body.appendChild(fab);
+    }
+
+    document.addEventListener("keydown", (ev) => {
+      if ((ev.metaKey || ev.ctrlKey) && String(ev.key).toLowerCase() === "k") {
+        ev.preventDefault();
+        const modal = $("globalSpotlightModal");
+        if (modal && !modal.hidden) modal.hidden = true;
+        else openGlobalSpotlight();
+        return;
+      }
+      if (ev.key === "/" && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+        const tag = (ev.target && ev.target.tagName) || "";
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (ev.target && ev.target.isContentEditable)) return;
+        ev.preventDefault();
+        openGlobalSpotlight();
+      }
+    });
+  }
+
+  /* ---------- Live Cross-Tab Sync Channel (Shared across Student & Faculty Portals on smartwoo.github.io) ---------- */
+  const LIVE_SYNC_CHANNEL = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("racm303_live_sync") : null;
+  function broadcastPortalSync(kind, payload) {
+    if (!LIVE_SYNC_CHANNEL) return;
+    try {
+      LIVE_SYNC_CHANNEL.postMessage({ kind, payload, ts: Date.now() });
+    } catch (_) {}
+  }
+
+  /* ---------- Teaching Materials & Instructor Slide Upload Studio + Calendar Hover Popover ---------- */
+  const SLIDES_STORAGE_KEY = "racm303_slides_registry_v1";
+  const SLIDES_IDB_NAME = "racm303_slides_idb";
+  const SLIDES_IDB_STORE = "slide_files";
+
+  function loadSlidesRegistry() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SLIDES_STORAGE_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  let slidesRegistryCache = null;
+  function getSlidesRegistry() {
+    if (!slidesRegistryCache) slidesRegistryCache = loadSlidesRegistry();
+    return slidesRegistryCache;
+  }
+
+  function persistSlidesRegistry(reg) {
+    slidesRegistryCache = reg;
+    try {
+      localStorage.setItem(SLIDES_STORAGE_KEY, JSON.stringify(reg));
+    } catch (_) {}
+    broadcastPortalSync("slides_updated", {});
+  }
+
+  function openSlidesIdb() {
+    return new Promise((resolve) => {
+      if (typeof indexedDB === "undefined") {
+        resolve(null);
+        return;
+      }
+      try {
+        const req = indexedDB.open(SLIDES_IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(SLIDES_IDB_STORE)) {
+            db.createObjectStore(SLIDES_IDB_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function saveSlideBinaryToIdb(sessionId, fileObj) {
+    const buf = await fileObj.arrayBuffer();
+    const db = await openSlidesIdb();
+    if (db) {
+      await new Promise((resolve) => {
+        const tx = db.transaction(SLIDES_IDB_STORE, "readwrite");
+        tx.objectStore(SLIDES_IDB_STORE).put(
+          { bytes: buf, mime: fileObj.type || "application/octet-stream", name: fileObj.name },
+          sessionId
+        );
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+      return { storedInIdb: true, dataUrl: "" };
+    }
+    if (buf.byteLength <= 2.5 * 1024 * 1024) {
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      return { storedInIdb: false, dataUrl: `data:${fileObj.type || "application/pdf"};base64,${b64}` };
+    }
+    return { storedInIdb: false, dataUrl: "" };
+  }
+
+  async function readSlideBinaryFromIdb(sessionId) {
+    const db = await openSlidesIdb();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(SLIDES_IDB_STORE, "readonly");
+        const req = tx.objectStore(SLIDES_IDB_STORE).get(sessionId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function deleteSlideBinaryFromIdb(sessionId) {
+    const db = await openSlidesIdb();
+    if (!db) return;
+    await new Promise((resolve) => {
+      try {
+        const tx = db.transaction(SLIDES_IDB_STORE, "readwrite");
+        tx.objectStore(SLIDES_IDB_STORE).delete(sessionId);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (_) {
+        resolve();
+      }
+    });
+  }
+
+  function getSessionSlideRecord(sessionId) {
+    if (!sessionId) return null;
+    const reg = getSlidesRegistry();
+    if (reg[sessionId]) return reg[sessionId];
+    const s = (SCHED.sessions || []).find((x) => x.id === sessionId);
+    if (s && s.slideUrl) {
+      return {
+        sessionId,
+        fileName: s.slideLabel || "Slide ประกอบการสอน",
+        externalUrl: s.slideUrl,
+        uploadedBy: s.lecturers || "คณาจารย์ผู้สอน",
+        uploadedAt: "ประจำรายวิชา"
+      };
+    }
+    return null;
+  }
+
+  function hasUploadedSessionSlide(sessionId) {
+    return Boolean(getSessionSlideRecord(sessionId));
+  }
+
+  async function openSessionSlide(sessionId) {
+    const rec = getSessionSlideRecord(sessionId);
+    if (!rec) return;
+    if (rec.externalUrl) {
+      window.open(rec.externalUrl, "_blank", "noopener");
+      return;
+    }
+    if (rec.dataUrl) {
+      const a = document.createElement("a");
+      a.href = rec.dataUrl;
+      a.download = rec.fileName || `${sessionId}_slide.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+    const idbItem = await readSlideBinaryFromIdb(sessionId);
+    if (idbItem && idbItem.bytes) {
+      const mime = idbItem.mime || rec.mime || "application/pdf";
+      const blob = new Blob([idbItem.bytes], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      if (mime === "application/pdf") {
+        window.open(blobUrl, "_blank", "noopener");
+      } else {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = idbItem.name || rec.fileName || `${sessionId}_slide`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+    }
+  }
+
+  function resolveSessionTeachingDoc(session) {
+    if (!session || session.category === "HOLIDAY") return null;
+    if (session.docLink || session.conciseLink) {
+      const primaryId = session.docLink || session.conciseLink;
+      const modName = session.hsModule || session.docLink || "HS";
+      return {
+        kind: "hs",
+        targetId: primaryId,
+        conciseId: session.conciseLink || "",
+        wbId: session.wbLink || "",
+        shortLabel: `📘 เอกสารคำสอน (${modName})`,
+        fullLabel: `📘 เอกสารคำสอน ${modName}`
+      };
+    }
+    const id = String(session.id || "");
+    const code = String(session.code || "");
+    if (id.includes("st")) {
+      return { kind: "hs", targetId: "HS2-CONCISE", conciseId: "HS2-CONCISE", wbId: "", shortLabel: "📘 เอกสารคำสอน (Systems)", fullLabel: "📘 เอกสารระบบสุขภาพ & Systems Thinking" };
+    }
+    if (session.category === "EP") {
+      return { kind: "manual", targetId: "man-ch-8", shortLabel: "📘 เอกสาร/ขอบเขตเนื้อหา (EP)", fullLabel: "📘 ขอบเขตเนื้อหา EP (Table Spec)" };
+    }
+    if (code === "SRN 1" || code.includes("SRN 2")) {
+      return { kind: "manual", targetId: "man-ch-11", shortLabel: "📘 เกณฑ์รายงาน & กำหนดส่ง", fullLabel: "📘 คู่มือบทที่ 11 (เกณฑ์การส่งงาน)" };
+    }
+    if (id.includes("pres-hs")) {
+      return { kind: "manual", targetId: "man-ch-16", shortLabel: "📘 เกณฑ์นำเสนอระบบสุขภาพ", fullLabel: "📘 คู่มือบทที่ 16 (นำเสนอระบบสุขภาพ)" };
+    }
+    if (id.includes("pres-ep")) {
+      return { kind: "manual", targetId: "man-ch-17", shortLabel: "📘 เกณฑ์นำเสนอระบาดวิทยา", fullLabel: "📘 คู่มือบทที่ 17 (นำเสนอระบาดวิทยา)" };
+    }
+    if (session.category === "EXAM") {
+      return { kind: "manual", targetId: "man-ch-9", shortLabel: "📘 ระเบียบ & สัดส่วนข้อสอบ", fullLabel: "📘 คู่มือบทที่ 8–9 (ระเบียบการสอบ)" };
+    }
+    if (code === "FIELD" || code === "TRAVEL" || code === "RETURN") {
+      return { kind: "manual", targetId: "man-ch-10", shortLabel: "📘 คู่มือปฏิบัติภาคสนาม", fullLabel: "📘 คู่มือบทที่ 10 (แนวปฏิบัติภาคสนาม)" };
+    }
+    if (session.category === "SG") {
+      return { kind: "manual", targetId: "man-ch-6", shortLabel: "📘 คู่มือกลุ่มย่อยภาคสนาม", fullLabel: "📘 คู่มือบทที่ 6 & 10 (กลุ่มย่อยภาคสนาม)" };
+    }
+    if (id.includes("orient")) {
+      return { kind: "manual", targetId: "man-ch-3", shortLabel: "📘 เอกสารแนะนำรายวิชา", fullLabel: "📘 คู่มือบทที่ 3–4 (เป้าหมายรายวิชา)" };
+    }
+    return { kind: "manual", targetId: "man-ch-7", shortLabel: "📘 คู่มือประจำคาบเรียน", fullLabel: "📘 คู่มือการเรียนการสอนประจำคาบ" };
+  }
+
+  function triggerSessionTeachingDoc(docInfo, closeModalFirst) {
+    if (!docInfo) return;
+    if (closeModalFirst) closeEventModal();
+    hideCalendarHoverPopover();
+    if (docInfo.kind === "hs") {
+      openTextbookDoc(docInfo.targetId);
+    } else {
+      openManualChapter(docInfo.targetId);
+    }
+  }
+
+  function appendSessionMaterialButtons(container, session, closeModalFirst) {
+    if (!container || !session || session.category === "HOLIDAY") return;
+    const docInfo = resolveSessionTeachingDoc(session);
+    if (session.conciseLink && session.docLink) {
+      const bConcise = make("button", `📘 ฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
+      bConcise.type = "button";
+      bConcise.addEventListener("click", () => {
+        if (closeModalFirst) closeEventModal();
+        openTextbookDoc(session.conciseLink);
+      });
+      container.appendChild(bConcise);
+
+      const bFull = make("button", `📘 เอกสารคำสอน ${session.docLink}`, "btn sm");
+      bFull.type = "button";
+      bFull.addEventListener("click", () => {
+        if (closeModalFirst) closeEventModal();
+        openTextbookDoc(session.docLink);
+      });
+      container.appendChild(bFull);
+
+      if (session.wbLink) {
+        const bWb = make("button", `Worksheet (${session.wbLink.replace("-WB", "")})`, "btn sm");
+        bWb.type = "button";
+        bWb.addEventListener("click", () => {
+          if (closeModalFirst) closeEventModal();
+          openTextbookDoc(session.wbLink);
+        });
+        container.appendChild(bWb);
+      }
+    } else if (docInfo) {
+      const bDoc = make("button", docInfo.fullLabel, "btn sm teal");
+      bDoc.type = "button";
+      bDoc.addEventListener("click", () => triggerSessionTeachingDoc(docInfo, closeModalFirst));
+      container.appendChild(bDoc);
+    }
+
+    const slideRec = getSessionSlideRecord(session.id);
+    if (slideRec) {
+      const bSlide = make("button", `📊 เปิด Slide · ${slideRec.fileName || "ดาวน์โหลด"}`, "btn sm slide-ready-btn");
+      bSlide.type = "button";
+      bSlide.addEventListener("click", () => openSessionSlide(session.id));
+      container.appendChild(bSlide);
+    } else {
+      const bNoSlide = make("button", "📊 Slide ประกอบการสอน (ยังไม่อัปโหลด)", "btn sm cal-mat-btn is-disabled-slide");
+      bNoSlide.type = "button";
+      bNoSlide.disabled = true;
+      bNoSlide.setAttribute("aria-disabled", "true");
+      bNoSlide.title = "อาจารย์ผู้สอนยังไม่ได้อัปโหลด Slide สำหรับคาบเรียนนี้";
+      container.appendChild(bNoSlide);
+    }
+
+    if (ROLE === "faculty") {
+      const bUp = make("button", slideRec ? "🔄 เปลี่ยนไฟล์ Slide" : "⬆ อัปโหลด Slide", "btn sm slide-upload-mini-btn");
+      bUp.type = "button";
+      bUp.addEventListener("click", () => {
+        if (closeModalFirst) closeEventModal();
+        openFacultySlideStudioForSession(session.id);
+      });
+      container.appendChild(bUp);
+    }
+  }
+
+  let calHoverHideTimer = null;
+  function hideCalendarHoverPopover() {
+    const pop = $("calendarSessionHoverPopover");
+    if (pop) pop.hidden = true;
+  }
+
+  function ensureCalendarHoverPopover() {
+    let pop = $("calendarSessionHoverPopover");
+    if (pop) return pop;
+    pop = make("div", null, "cal-session-hover-popover");
+    pop.id = "calendarSessionHoverPopover";
+    pop.hidden = true;
+    document.body.appendChild(pop);
+
+    pop.addEventListener("mouseenter", () => {
+      if (calHoverHideTimer) {
+        clearTimeout(calHoverHideTimer);
+        calHoverHideTimer = null;
+      }
+    });
+    pop.addEventListener("mouseleave", () => {
+      calHoverHideTimer = setTimeout(hideCalendarHoverPopover, 180);
+    });
+    return pop;
+  }
+
+  function showCalendarHoverPopover(anchorEl, sessionId) {
+    const session = (SCHED.sessions || []).find((s) => s.id === sessionId);
+    if (!session || !anchorEl) return;
+    if (calHoverHideTimer) {
+      clearTimeout(calHoverHideTimer);
+      calHoverHideTimer = null;
+    }
+
+    const pop = ensureCalendarHoverPopover();
+    const ctx = getActivePersonalContext();
+    const eff = resolveEffectiveSessionDetails(session, ctx);
+    const isHol = session.category === "HOLIDAY";
+    const docInfo = resolveSessionTeachingDoc(session);
+    const slideRec = getSessionSlideRecord(session.id);
+
+    pop.replaceChildren();
+
+    const head = make("div", null, "cshp-head");
+    const catPill = make("span", CAT_NAMES[session.category] || session.category, `badge cat-${session.category}`);
+    const timeSpan = make("span", isHol ? "🏖 วันหยุดราชการ" : session.timeLabel, "cshp-time");
+    head.append(catPill, timeSpan);
+    pop.appendChild(head);
+
+    pop.appendChild(make("div", eff.title, "cshp-title"));
+
+    if (!isHol) {
+      const meta = make("div", null, "cshp-meta");
+      meta.innerHTML = `<span>📍 ${escapeHtml(eff.room || "—")}</span> · <span>👨‍⚕️ ${escapeHtml(eff.lecturer || "—")}</span>`;
+      pop.appendChild(meta);
+    } else {
+      pop.appendChild(make("div", "งดการเรียนการสอนในชั้นเรียน", "cshp-meta"));
+    }
+
+    const matRow = make("div", null, "cshp-materials-grid");
+
+    if (docInfo && !isHol) {
+      const docBtn = make("button", docInfo.shortLabel, "cal-mat-btn is-doc-ready");
+      docBtn.type = "button";
+      docBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        triggerSessionTeachingDoc(docInfo, false);
+      });
+      matRow.appendChild(docBtn);
+    } else {
+      const docDisabled = make("button", "📘 เอกสารคำสอน (วันหยุด)", "cal-mat-btn is-disabled-slide");
+      docDisabled.type = "button";
+      docDisabled.disabled = true;
+      docDisabled.setAttribute("aria-disabled", "true");
+      matRow.appendChild(docDisabled);
+    }
+
+    if (slideRec && !isHol) {
+      const slideBtn = make("button", `📊 Slide: ${slideRec.fileName || "เปิดดู"}`, "cal-mat-btn is-slide-ready");
+      slideBtn.type = "button";
+      slideBtn.title = `อัปโหลดโดย ${slideRec.uploadedBy || "อาจารย์"} (${slideRec.uploadedAt || ""})`;
+      slideBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        hideCalendarHoverPopover();
+        openSessionSlide(session.id);
+      });
+      matRow.appendChild(slideBtn);
+    } else {
+      const slideEmpty = make(
+        "button",
+        isHol ? "📊 Slide (งดคลาส)" : "📊 Slide (ยังไม่อัปโหลด)",
+        "cal-mat-btn is-disabled-slide"
+      );
+      slideEmpty.type = "button";
+      slideEmpty.disabled = true;
+      slideEmpty.setAttribute("aria-disabled", "true");
+      matRow.appendChild(slideEmpty);
+    }
+
+    pop.appendChild(matRow);
+
+    const footRow = make("div", null, "cshp-foot");
+    const detailBtn = make("button", "ดูรายละเอียดคาบเรียน →", "cshp-link-btn");
+    detailBtn.type = "button";
+    detailBtn.addEventListener("click", () => {
+      hideCalendarHoverPopover();
+      openEventModal(session);
+    });
+    footRow.appendChild(detailBtn);
+
+    if (ROLE === "faculty" && !isHol) {
+      const upQuickBtn = make("button", slideRec ? "🔄 อัปเดต Slide คาบนี้" : "⬆ อัปโหลด Slide คาบนี้", "cshp-upload-btn");
+      upQuickBtn.type = "button";
+      upQuickBtn.addEventListener("click", () => {
+        hideCalendarHoverPopover();
+        openFacultySlideStudioForSession(session.id);
+      });
+      footRow.appendChild(upQuickBtn);
+    }
+
+    pop.appendChild(footRow);
+    pop.hidden = false;
+
+    const rect = anchorEl.getBoundingClientRect();
+    const popW = 340;
+    const vw = window.innerWidth || 1280;
+    const vh = window.innerHeight || 820;
+    let left = Math.max(12, Math.min(rect.left, vw - popW - 14));
+    let top = rect.bottom + 8;
+    if (top + 185 > vh && rect.top > 195) {
+      top = Math.max(10, rect.top - 184);
+    }
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+  }
+
+  function getTeachableSlideSessions() {
+    return (SCHED.sessions || []).filter(
+      (s) => s.category !== "HOLIDAY" && s.code !== "TRAVEL" && s.code !== "RETURN"
+    );
+  }
+
+  let pendingSlideFileObj = null;
+
+  function openFacultySlideStudioForSession(sessionId) {
+    if (ROLE !== "faculty") return;
+    if (state.activeTab !== "schedule") {
+      switchTab("schedule");
+    }
+    state.slideStudioOpen = true;
+    renderFacultySlideUploadStudio(sessionId);
+    const box = $("facultySlideStudioCard");
+    if (box) box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderFacultySlideUploadStudio(preselectSessionId) {
+    if (ROLE !== "faculty") return;
+    const mount = $("facultySlideStudioMount");
+    if (!mount) return;
+
+    const toggleBtn = $("toggleSlideStudioBtn");
+    if (toggleBtn) {
+      toggleBtn.setAttribute("aria-expanded", state.slideStudioOpen ? "true" : "false");
+    }
+
+    if (!state.slideStudioOpen) {
+      mount.replaceChildren();
+      return;
+    }
+
+    const sessions = getTeachableSlideSessions();
+    const reg = getSlidesRegistry();
+    const uploadedCount = sessions.filter((s) => Boolean(reg[s.id] || s.slideUrl)).length;
+    const selectedId =
+      preselectSessionId ||
+      (mount.querySelector("#slideTargetSessionSelect") && mount.querySelector("#slideTargetSessionSelect").value) ||
+      (sessions[0] && sessions[0].id) ||
+      "";
+
+    const card = make("section", null, "slide-studio-card");
+    card.id = "facultySlideStudioCard";
+
+    const activeTeacherObj = getAllCourseTeachers().find((t) => t.key === state.myTeacherKey);
+    const defaultUploader = activeTeacherObj ? activeTeacherObj.label : "";
+
+    card.innerHTML = `
+      <div class="slide-studio-head">
+        <div>
+          <h3>📊 สตูดิโออัปโหลด Slide ประกอบการสอนประจำคาบ (สำหรับคณาจารย์ผู้สอน)</h3>
+          <p>เลือกคาบเรียนแล้วแนบไฟล์ Slide (<code>.pdf</code>, <code>.pptx</code>, <code>.key</code>) หรือวางลิงก์สไลด์ — เมื่อบันทึกแล้ว ปุ่ม Slide บนปฏิทิน (Hover) ทั้งฝั่งอาจารย์และนักศึกษาในเบราว์เซอร์จะเปลี่ยนจากสีเทาเป็นเปิดใช้งานทันที</p>
+        </div>
+        <div class="header-actions">
+          <span class="badge cat-HS">อัปโหลดแล้ว ${uploadedCount} / ${sessions.length} คาบ</span>
+          <button type="button" class="btn sm" id="closeSlideStudioBtn">ซ่อนแผงอัปโหลด ✕</button>
+        </div>
+      </div>
+      <div class="slide-studio-grid">
+        <div class="slide-form-pane">
+          <div class="filter-field">
+            <label for="slideTargetSessionSelect">1. เลือกคาบเรียนที่ต้องการอัปโหลด Slide</label>
+            <select id="slideTargetSessionSelect"></select>
+          </div>
+          <div class="slide-dropzone" id="slideFileDropzone">
+            <input type="file" id="slideFileInput" accept=".pdf,.ppt,.pptx,.key" hidden>
+            <div><strong>📂 ลากไฟล์ Slide มาวางที่นี่</strong> หรือกดเลือกไฟล์จากเครื่อง (<code>.pdf</code>, <code>.pptx</code>, <code>.key</code>)</div>
+            <button type="button" class="btn sm teal" id="pickSlideFileBtn">เลือกไฟล์ Slide จากเครื่อง…</button>
+            <div id="slideSelectedFileBadge" class="slide-file-badge" hidden></div>
+          </div>
+          <div class="filter-field">
+            <label for="slideExternalUrlInput">หรือวางลิงก์ Slide ออนไลน์ (Google Slides / Drive / Canva — ถ้ามี)</label>
+            <input type="url" id="slideExternalUrlInput" placeholder="https://docs.google.com/presentation/d/... หรือลิงก์ไฟล์ PDF">
+          </div>
+          <div class="filter-field">
+            <label for="slideUploaderInput">ชื่ออาจารย์ผู้อัปโหลด</label>
+            <input type="text" id="slideUploaderInput" placeholder="เช่น อ.นพ.ฉัตรชัย อิ่มอารมย์" value="${escapeHtml(defaultUploader)}">
+          </div>
+          <div class="header-actions">
+            <button type="button" class="btn primary" id="saveSessionSlideBtn">💾 บันทึก &amp; เปิดใช้งาน Slide ประจำคาบนี้</button>
+          </div>
+          <div id="slideStudioFeedback" class="slide-studio-feedback" hidden></div>
+        </div>
+        <div class="slide-status-pane">
+          <div class="slide-status-toolbar">
+            <strong>สถานะ Slide ประจำคาบเรียน (${sessions.length} คาบ)</strong>
+            <input type="search" id="slideMatrixSearchInput" placeholder="กรองชื่อคาบ / รหัส HS, EP…">
+          </div>
+          <div class="slide-status-list" id="slideStatusMatrixList"></div>
+        </div>
+      </div>
+    `;
+
+    mount.replaceChildren(card);
+    pendingSlideFileObj = null;
+
+    const sel = $("slideTargetSessionSelect");
+    sessions.forEach((s) => {
+      const has = Boolean(getSessionSlideRecord(s.id));
+      const opt = new Option(`${has ? "✓ " : "○ "}[${s.dateTH}] ${s.code}: ${s.title.slice(0, 58)}`, s.id);
+      sel.add(opt);
+    });
+    if (selectedId) sel.value = selectedId;
+
+    const syncSelectedSlideFields = () => {
+      const rec = getSessionSlideRecord(sel.value);
+      if ($("slideExternalUrlInput")) $("slideExternalUrlInput").value = (rec && rec.externalUrl) || "";
+      if ($("slideUploaderInput") && rec && rec.uploadedBy) $("slideUploaderInput").value = rec.uploadedBy;
+      pendingSlideFileObj = null;
+      const fBadge = $("slideSelectedFileBadge");
+      if (fBadge) {
+        if (rec && rec.fileName && !rec.externalUrl) {
+          fBadge.hidden = false;
+          fBadge.textContent = `ไฟล์ปัจจุบัน: ${rec.fileName} (${rec.sizeLabel || "บันทึกแล้ว"})`;
+        } else {
+          fBadge.hidden = true;
+        }
+      }
+    };
+    sel.addEventListener("change", syncSelectedSlideFields);
+    syncSelectedSlideFields();
+
+    $("closeSlideStudioBtn").addEventListener("click", () => {
+      state.slideStudioOpen = false;
+      renderFacultySlideUploadStudio();
+    });
+
+    const fileInput = $("slideFileInput");
+    const dropzone = $("slideFileDropzone");
+    const handleChosenSlideFile = (f) => {
+      if (!f) return;
+      pendingSlideFileObj = f;
+      const fBadge = $("slideSelectedFileBadge");
+      if (fBadge) {
+        fBadge.hidden = false;
+        fBadge.textContent = `✓ เลือกไฟล์พร้อมอัปโหลด: ${f.name} (${formatFileSize(f.size)})`;
+      }
+    };
+    $("pickSlideFileBtn").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) handleChosenSlideFile(fileInput.files[0]);
+    });
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("is-dragover");
+    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("is-dragover");
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleChosenSlideFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    $("saveSessionSlideBtn").addEventListener("click", async () => {
+      const targetSid = sel.value;
+      const extUrl = (($("slideExternalUrlInput") && $("slideExternalUrlInput").value) || "").trim();
+      const uploader = (($("slideUploaderInput") && $("slideUploaderInput").value) || "").trim() || "อาจารย์ผู้สอน";
+      const fb = $("slideStudioFeedback");
+
+      if (!pendingSlideFileObj && !extUrl) {
+        if (fb) {
+          fb.hidden = false;
+          fb.className = "slide-studio-feedback is-error";
+          fb.textContent = "กรุณาเลือกไฟล์ Slide (.pdf / .pptx) หรือวางลิงก์ Slide ออนไลน์อย่างน้อย 1 อย่าง";
+        }
+        return;
+      }
+
+      let storedMeta = {
+        sessionId: targetSid,
+        fileName: pendingSlideFileObj ? pendingSlideFileObj.name : "Slide ออนไลน์",
+        mime: pendingSlideFileObj ? pendingSlideFileObj.type : "",
+        sizeLabel: pendingSlideFileObj ? formatFileSize(pendingSlideFileObj.size) : "ลิงก์ออนไลน์",
+        externalUrl: extUrl,
+        dataUrl: "",
+        uploadedBy: uploader,
+        uploadedAt: new Date().toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })
+      };
+
+      if (pendingSlideFileObj) {
+        const binRes = await saveSlideBinaryToIdb(targetSid, pendingSlideFileObj);
+        storedMeta.dataUrl = binRes.dataUrl || "";
+      }
+
+      const nextReg = Object.assign({}, getSlidesRegistry());
+      nextReg[targetSid] = storedMeta;
+      persistSlidesRegistry(nextReg);
+
+      renderScheduleCurrent();
+      renderFacultySlideUploadStudio(targetSid);
+      const fbAfter = $("slideStudioFeedback");
+      if (fbAfter) {
+        fbAfter.hidden = false;
+        fbAfter.className = "slide-studio-feedback is-ok";
+        fbAfter.textContent = `✓ อัปโหลดและเปิดใช้งาน Slide "${storedMeta.fileName}" เรียบร้อยแล้ว! (Hover บนปฏิทินเพื่อทดสอบเปิดได้ทันที)`;
+      }
+    });
+
+    const renderMatrixRows = () => {
+      const listEl = $("slideStatusMatrixList");
+      const q = (($("slideMatrixSearchInput") && $("slideMatrixSearchInput").value) || "").trim().toLocaleLowerCase("th");
+      if (!listEl) return;
+      listEl.replaceChildren();
+
+      sessions
+        .filter((s) => !q || `${s.code} ${s.title} ${s.dateTH} ${s.lecturers}`.toLocaleLowerCase("th").includes(q))
+        .forEach((s) => {
+          const rec = getSessionSlideRecord(s.id);
+          const row = make("div", null, `slide-matrix-row${rec ? " is-uploaded" : " is-pending"}`);
+          const info = make("div", null, "slide-matrix-info");
+          info.innerHTML = `
+            <strong>${escapeHtml(s.code)} · ${escapeHtml(s.title)}</strong>
+            <small>${escapeHtml(s.dateTH)} (${escapeHtml(s.timeLabel)})${rec ? ` · ✓ ${escapeHtml(rec.fileName)} โดย ${escapeHtml(rec.uploadedBy || "")}` : " · ยังไม่ได้อัปโหลด Slide"}</small>
+          `;
+          const acts = make("div", null, "slide-matrix-acts");
+          if (rec) {
+            const openBtn = make("button", "📊 เปิดดู", "btn sm teal");
+            openBtn.type = "button";
+            openBtn.addEventListener("click", () => openSessionSlide(s.id));
+            const delBtn = make("button", "ลบ", "btn sm");
+            delBtn.type = "button";
+            delBtn.addEventListener("click", async () => {
+              const nr = Object.assign({}, getSlidesRegistry());
+              delete nr[s.id];
+              persistSlidesRegistry(nr);
+              await deleteSlideBinaryFromIdb(s.id);
+              renderScheduleCurrent();
+              renderFacultySlideUploadStudio(s.id);
+            });
+            acts.append(openBtn, delBtn);
+          } else {
+            const pickThisBtn = make("button", "⬆ เลือกคาบนี้", "btn sm");
+            pickThisBtn.type = "button";
+            pickThisBtn.addEventListener("click", () => {
+              sel.value = s.id;
+              syncSelectedSlideFields();
+              $("pickSlideFileBtn").click();
+            });
+            acts.appendChild(pickThisBtn);
+          }
+          row.append(info, acts);
+          listEl.appendChild(row);
+        });
+    };
+
+    $("slideMatrixSearchInput").addEventListener("input", renderMatrixRows);
+    renderMatrixRows();
+  }
+
+  function initSlideStudioAndCalendarHover() {
+    ensureCalendarHoverPopover();
+    const schedPanel = $("panel-schedule");
+    if (schedPanel) {
+      schedPanel.addEventListener("mouseover", (ev) => {
+        const chip = ev.target && ev.target.closest ? ev.target.closest("[data-cal-session-id]") : null;
+        if (!chip) return;
+        showCalendarHoverPopover(chip, chip.dataset.calSessionId);
+      });
+      schedPanel.addEventListener("mouseout", (ev) => {
+        const chip = ev.target && ev.target.closest ? ev.target.closest("[data-cal-session-id]") : null;
+        if (!chip) return;
+        const related = ev.relatedTarget;
+        if (related && (chip.contains(related) || (related.closest && related.closest("#calendarSessionHoverPopover")))) {
+          return;
+        }
+        calHoverHideTimer = setTimeout(hideCalendarHoverPopover, 210);
+      });
+    }
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        hideCalendarHoverPopover();
+      },
+      { passive: true }
+    );
+
+    if (ROLE === "faculty") {
+      const toggleBtn = $("toggleSlideStudioBtn");
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+          state.slideStudioOpen = !state.slideStudioOpen;
+          renderFacultySlideUploadStudio();
+        });
+      }
+      const topQuickSlide = $("facQuickSlideTopBtn");
+      if (topQuickSlide) {
+        topQuickSlide.addEventListener("click", () => {
+          openFacultySlideStudioForSession();
+        });
+      }
+    }
+  }
+
+  /* ---------- Universal Top-Bar Omnibox Keyword Search (ค้นหาได้ทุกอย่างตาม Keyword) ---------- */
+  function stripHtmlToPlain(htmlStr) {
+    return String(htmlStr || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[#>*_`~-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function extractKeywordSnippet(plainText, qLower) {
+    const lower = plainText.toLocaleLowerCase("th");
+    const idx = lower.indexOf(qLower);
+    if (idx < 0) return plainText.slice(0, 95);
+    const start = Math.max(0, idx - 34);
+    const end = Math.min(plainText.length, idx + qLower.length + 58);
+    return (start > 0 ? "…" : "") + plainText.slice(start, end).trim() + (end < plainText.length ? "…" : "");
+  }
+
+  function highlightKeywordHtml(text, rawQuery) {
+    const safe = escapeHtml(text || "");
+    const q = String(rawQuery || "").trim();
+    if (!q) return safe;
+    try {
+      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return safe.replace(new RegExp(`(${escapedQ})`, "ig"), "<mark>$1</mark>");
+    } catch (_) {
+      return safe;
+    }
+  }
+
+  function collectUniversalKeywordMatches(rawQuery) {
+    const q = String(rawQuery || "").trim().toLocaleLowerCase("th");
+    if (!q) return [];
+    const results = [];
+
+    // 1. Quick Portal Actions (Leave Form, Slide Upload, SRN, Map)
+    const quickTools = [
+      {
+        cat: "เครื่องมือด่วน & แบบฟอร์ม",
+        icon: "📝",
+        title: "แบบฟอร์มใบลากิจ / ใบลาป่วย นศพ. (กรอก · เซ็นลายเซ็น · Export PDF)",
+        sub: "ยื่นใบลาพร้อมแจ้งเตือนอาจารย์ประจำกลุ่มและประธานรายวิชาอัตโนมัติ",
+        hay: "ใบลา ลากิจ ลาป่วย ขาดเรียน เซ็นลายเซ็น ใบรับรองแพทย์ leave form pdf",
+        run: () => switchTab("leave")
+      },
+      {
+        cat: "เครื่องมือด่วน & แบบฟอร์ม",
+        icon: "📤",
+        title: "ศูนย์การส่งงาน SRN 1 · SRN 2 · สไลด์ภาคสนาม & Health Survey",
+        sub: "ตรวจไฟล์ PDF ไม่เกิน 5 หน้า A4 และตั้งชื่อไฟล์มาตรฐานอัตโนมัติ",
+        hay: "ส่งงาน srn self reflection note health survey สไลด์ e-learning moodle",
+        run: () => switchTab("submissions")
+      },
+      {
+        cat: "เครื่องมือด่วน & แบบฟอร์ม",
+        icon: "🗺",
+        title: "แผนที่ประเทศไทย 9 พื้นที่ภาคสนาม (Hover ดูข้อมูล รพช. & สมาชิก)",
+        sub: "สำรวจตำแหน่งโรงพยาบาลชุมชนทั่วประเทศและอาจารย์ที่ปรึกษา",
+        hay: "แผนที่ ประเทศไทย ภาคสนาม โรงพยาบาลชุมชน รพช map",
+        run: () => {
+          state.fieldOverviewStyle = "map";
+          switchTab("fieldwork");
+        }
+      }
+    ];
+    if (ROLE === "faculty") {
+      quickTools.unshift({
+        cat: "เครื่องมือด่วน & แบบฟอร์ม",
+        icon: "📊",
+        title: "สตูดิโออัปโหลด Slide ประกอบการสอนประจำคาบ",
+        sub: "แนบไฟล์ .pdf / .pptx หรือลิงก์สไลด์เพื่อให้แสดงบน Hover ปฏิทินทันที",
+        hay: "slide สไลด์ อัปโหลด upload สื่อการสอน ppt pdf",
+        run: () => openFacultySlideStudioForSession()
+      });
+    }
+    quickTools.forEach((t) => {
+      if (`${t.title} ${t.sub} ${t.hay}`.toLocaleLowerCase("th").includes(q)) {
+        results.push(t);
+      }
+    });
+
+    // 2. Students (169)
+    let stuCount = 0;
+    for (const s of ROSTER.students || []) {
+      if (stuCount >= 6) break;
+      const hay = `${s.id} ${s.fullName} ${s.nickname || ""} ${s.area} discussion ${s.disc}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        stuCount++;
+        results.push({
+          cat: "นักศึกษาแพทย์ (169 คน)",
+          icon: "🎓",
+          title: `${s.id} · ${s.fullName}${s.nickname ? ` (${s.nickname})` : ""}`,
+          sub: `กลุ่มพื้นที่ ${s.area} · Discussion กลุ่ม ${s.disc} · อ.${s.advisor}`,
+          studentObj: s,
+          run: () => {
+            state.calScope = "student";
+            applyMyStudent(s, true);
+          },
+          secondaryLabel: "ดูโปรไฟล์",
+          secondaryRun: () => openStudentQuickModal(s)
+        });
+      }
+    }
+
+    // 3. Fieldwork Sites (9) & Discussion Groups (6)
+    (SCHED.fieldworkSites || []).forEach((site) => {
+      const hay = `${site.shortName} ${site.hospital} ${site.province} ${site.advisors} ${site.room}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        results.push({
+          cat: "กลุ่มพื้นที่ภาคสนาม & Discussion",
+          icon: "🏥",
+          title: `กลุ่มพื้นที่ ${site.shortName} (${site.hospital} ${site.province})`,
+          sub: `สมาชิก ${site.count} คน · ห้องกลุ่มย่อย ${site.room.split(" ")[0]} · อ.ที่ปรึกษา: ${site.advisors}`,
+          run: () => {
+            if ($("fieldAreaSelect")) $("fieldAreaSelect").value = site.shortName;
+            state.mapHoverSite = site.shortName;
+            switchTab("fieldwork");
+          }
+        });
+      }
+    });
+    (SCHED.hsGroups || []).forEach((g) => {
+      const hay = `discussion กลุ่ม ${g.id} ${g.defaultRoom}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        results.push({
+          cat: "กลุ่มพื้นที่ภาคสนาม & Discussion",
+          icon: "💬",
+          title: `กลุ่มอภิปราย Discussion ที่ ${g.id} (${g.count} คน)`,
+          sub: `ห้องเรียนหลัก ${g.defaultRoom}`,
+          run: () => {
+            if ($("discGroupSelect")) $("discGroupSelect").value = String(g.id);
+            switchTab("discussion");
+          }
+        });
+      }
+    });
+
+    // 4. Course Teachers (20)
+    let teachCount = 0;
+    for (const t of getAllCourseTeachers()) {
+      if (teachCount >= 4) break;
+      if (`${t.label} ${t.key}`.toLocaleLowerCase("th").includes(q)) {
+        teachCount++;
+        results.push({
+          cat: "คณาจารย์ผู้สอน",
+          icon: "👨‍⚕️",
+          title: t.label,
+          sub: "คลิกเพื่อกรองตารางคาบสอนและห้องคุมกลุ่มย่อยของอาจารย์ท่านนี้",
+          run: () => {
+            selectActiveTeacher(t.key, true);
+            switchTab("schedule");
+          }
+        });
+      }
+    }
+
+    // 5. Schedule Sessions (Calendar / Topics / Rooms / Zoom)
+    let sessCount = 0;
+    for (const s of SCHED.sessions || []) {
+      if (sessCount >= 6) break;
+      if (ROLE === "student" && s.studentVisible === false) continue;
+      const hay = `${s.code} ${s.title} ${s.objectives || ""} ${s.lecturers || ""} ${s.room || ""} ${s.dateTH} ${s.zoom ? "zoom " + s.zoom.id : ""}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        sessCount++;
+        results.push({
+          cat: "ปฏิทิน & คาบเรียน",
+          icon: "📅",
+          title: `[${s.code}] ${s.title}`,
+          sub: `${s.dateTH} (${s.timeLabel}) · ห้อง ${s.room || "—"}`,
+          run: () => {
+            switchTab("schedule");
+            openEventModal(s);
+          }
+        });
+      }
+    }
+
+    // 6. Health Systems Study Materials (HS1-HS6 Full-Text Search!)
+    let tbCount = 0;
+    for (const doc of HS.docs || []) {
+      if (tbCount >= 6) break;
+      const plain = doc._plainCache || (doc._plainCache = stripHtmlToPlain(doc.html || doc.markdown || ""));
+      const titleHay = `${doc.id} ${doc.code || ""} ${doc.title} ${doc.subtitle || ""}`.toLocaleLowerCase("th");
+      const bodyLower = plain.toLocaleLowerCase("th");
+      if (titleHay.includes(q) || bodyLower.includes(q)) {
+        tbCount++;
+        results.push({
+          cat: "เอกสารประกอบการสอบ Health Systems (HS1–HS6)",
+          icon: "📘",
+          title: `${doc.id}: ${doc.title}`,
+          sub: extractKeywordSnippet(plain, q),
+          run: () => openTextbookDoc(doc.id)
+        });
+      }
+    }
+
+    // 7. Course Manual 2569 (Full-Text Search across 17 Chapters & Appendix!)
+    let manCount = 0;
+    for (const ch of MANUAL.chapters || []) {
+      if (manCount >= 5) break;
+      const plain = ch._plainCache || (ch._plainCache = stripHtmlToPlain(ch.html || ""));
+      if (`${ch.title}`.toLocaleLowerCase("th").includes(q) || plain.toLocaleLowerCase("th").includes(q)) {
+        manCount++;
+        results.push({
+          cat: "คู่มือรายวิชา 2569",
+          icon: "📖",
+          title: ch.title,
+          sub: extractKeywordSnippet(plain, q),
+          run: () => {
+            state.manualChapterId = ch.id;
+            if ($("manualSearchInput")) $("manualSearchInput").value = rawQuery.trim();
+            switchTab("manual");
+          }
+        });
+      }
+    }
+
+    // 8. Glossary (111 Terms), Rapid Review & Practice Self-Check Q&A (82 Items)
+    let pracCount = 0;
+    for (const g of HS.glossary || []) {
+      if (pracCount >= 4) break;
+      const hay = `${g.termFull || ""} ${g.termEN || ""} ${g.termTH || ""} ${g.definition || ""} ${g.module || ""}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        pracCount++;
+        results.push({
+          cat: "คำศัพท์สำคัญ & โจทย์ทบทวน",
+          icon: "🧠",
+          title: `${g.termFull || g.termEN || g.termTH} (${g.module || "HS"})`,
+          sub: String(g.definition || "").slice(0, 98),
+          run: () => {
+            state.practiceSub = "flashcards";
+            if ($("practiceModuleFilter")) $("practiceModuleFilter").value = "";
+            if ($("practiceSearchInput")) $("practiceSearchInput").value = g.termEN || g.termTH || rawQuery.trim();
+            switchTab("practice");
+          }
+        });
+      }
+    }
+    for (const rr of HS.rapidReview || []) {
+      if (pracCount >= 6) break;
+      const plain = rr._plainCache || (rr._plainCache = stripHtmlToPlain(rr.html || ""));
+      if (`${rr.module} ${rr.moduleTitle || ""}`.toLocaleLowerCase("th").includes(q) || plain.toLocaleLowerCase("th").includes(q)) {
+        pracCount++;
+        results.push({
+          cat: "คำศัพท์สำคัญ & โจทย์ทบทวน",
+          icon: "⚡",
+          title: `[Rapid Review ${rr.module}] ${rr.moduleTitle || ""}`,
+          sub: extractKeywordSnippet(plain, q),
+          run: () => {
+            state.practiceSub = "rapid";
+            if ($("practiceModuleFilter")) $("practiceModuleFilter").value = rr.module || "";
+            if ($("practiceSearchInput")) $("practiceSearchInput").value = rawQuery.trim();
+            switchTab("practice");
+          }
+        });
+      }
+    }
+    for (const qa of HS.selfCheck || []) {
+      if (pracCount >= 9) break;
+      const ansPlain = qa._plainCache || (qa._plainCache = stripHtmlToPlain(qa.answerHtml || qa.answer || ""));
+      const hay = `${qa.question || ""} ${ansPlain} ${qa.module || ""}`.toLocaleLowerCase("th");
+      if (hay.includes(q)) {
+        pracCount++;
+        results.push({
+          cat: "คำศัพท์สำคัญ & โจทย์ทบทวน",
+          icon: "❓",
+          title: `[โจทย์ ${qa.module || "HS"}] ${String(qa.question || "").slice(0, 80)}`,
+          sub: extractKeywordSnippet(ansPlain, q),
+          run: () => {
+            state.practiceSub = "qa";
+            if ($("practiceModuleFilter")) $("practiceModuleFilter").value = "";
+            if ($("practiceSearchInput")) $("practiceSearchInput").value = rawQuery.trim();
+            switchTab("practice");
+          }
+        });
+      }
+    }
+
+    // 9. Discussion Health Systems 10 Case Scenarios (HS1-HS6)
+    let hsdCount = 0;
+    for (const cs of HSD_DATA.cases || []) {
+      if (hsdCount >= 4) break;
+      const plain =
+        cs._plainCache ||
+        (cs._plainCache = stripHtmlToPlain(
+          `${cs.title || ""} ${cs.subtitle || ""} ${(cs.frameworks || []).join(" ")} ${JSON.stringify(cs.scenarioBlocks || [])} ${JSON.stringify(cs.questions || [])}`
+        ));
+      if (plain.toLocaleLowerCase("th").includes(q)) {
+        hsdCount++;
+        results.push({
+          cat: "กรณีศึกษา Discussion ระบบสุขภาพ (HS1–HS6)",
+          icon: "🧩",
+          title: `[${cs.module} · กรณีที่ ${cs.caseNumber}] ${cs.title}`,
+          sub: extractKeywordSnippet(plain, q),
+          run: () => {
+            state.hsdModule = cs.module || "ALL";
+            if ($("hsdModuleSelect")) $("hsdModuleSelect").value = state.hsdModule;
+            if ($("hsdSearchInput")) $("hsdSearchInput").value = rawQuery.trim();
+            switchTab("hs-discussion");
+          }
+        });
+      }
+    }
+
+    return results;
+  }
+
+  function initUniversalOmniboxSearch() {
+    const input = $("personalStudentInput");
+    const dropdown = $("universalOmniboxDropdown");
+    const wrap = $("universalOmniboxWrap");
+    if (!input || !dropdown) return;
+
+    let activeIdx = -1;
+    let currentItems = [];
+
+    const closeDropdown = () => {
+      dropdown.hidden = true;
+      activeIdx = -1;
+    };
+
+    const renderOmnibox = () => {
+      const raw = input.value.trim();
+      // Ignore formatted student banner value unless actively typing something else
+      if (!raw || (state.myStudent && raw === `${state.myStudent.id} — ${state.myStudent.fullName}` && document.activeElement !== input)) {
+        closeDropdown();
+        return;
+      }
+
+      currentItems = collectUniversalKeywordMatches(raw);
+      dropdown.replaceChildren();
+
+      if (!currentItems.length) {
+        const empty = make("div", `ไม่พบผลลัพธ์สำหรับ "${raw}" — ลองค้นหาด้วยคำสำคัญอื่น เช่น HS2, กุฉินารายณ์, Capitation, ใบลา, SRN`, "omnibox-empty");
+        dropdown.appendChild(empty);
+        dropdown.hidden = false;
+        return;
+      }
+
+      let lastCat = "";
+      currentItems.forEach((item, idx) => {
+        if (item.cat !== lastCat) {
+          lastCat = item.cat;
+          dropdown.appendChild(make("div", item.cat, "omnibox-cat-header"));
+        }
+        const row = make("div", null, `omnibox-item${idx === activeIdx ? " is-active" : ""}`);
+        row.dataset.omniIdx = String(idx);
+
+        const mainBtn = make("button", null, "omnibox-main-btn");
+        mainBtn.type = "button";
+        mainBtn.innerHTML = `
+          <span class="omni-icon">${item.icon || "🔎"}</span>
+          <span class="omni-text">
+            <strong>${highlightKeywordHtml(item.title, raw)}</strong>
+            <small>${highlightKeywordHtml(item.sub, raw)}</small>
+          </span>
+        `;
+        mainBtn.addEventListener("click", () => {
+          closeDropdown();
+          item.run();
+        });
+        row.appendChild(mainBtn);
+
+        if (item.secondaryRun) {
+          const secBtn = make("button", item.secondaryLabel || "ดูข้อมูล", "btn sm omnibox-sec-btn");
+          secBtn.type = "button";
+          secBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            closeDropdown();
+            item.secondaryRun();
+          });
+          row.appendChild(secBtn);
+        }
+
+        dropdown.appendChild(row);
+      });
+
+      dropdown.hidden = false;
+    };
+
+    input.addEventListener("input", () => {
+      activeIdx = 0;
+      renderOmnibox();
+    });
+
+    input.addEventListener("focus", () => {
+      if (input.value.trim() && !(state.myStudent && input.value.trim() === `${state.myStudent.id} — ${state.myStudent.fullName}`)) {
+        renderOmnibox();
+      }
+    });
+
+    input.addEventListener("keydown", (ev) => {
+      if (dropdown.hidden || !currentItems.length) return;
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        activeIdx = (activeIdx + 1) % currentItems.length;
+        renderOmnibox();
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        activeIdx = (activeIdx - 1 + currentItems.length) % currentItems.length;
+        renderOmnibox();
+      } else if (ev.key === "Enter") {
+        if (activeIdx >= 0 && currentItems[activeIdx]) {
+          ev.preventDefault();
+          const chosen = currentItems[activeIdx];
+          closeDropdown();
+          chosen.run();
+        }
+      } else if (ev.key === "Escape") {
+        closeDropdown();
+      }
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (wrap && !wrap.contains(ev.target)) {
+        closeDropdown();
+      }
+    });
+  }
+
+  /* ---------- Digital Leave Form, Drawing Signature Pad, Advisor/Course Director Notification & PDF Export ---------- */
+  const LEAVE_STORAGE_KEY = "racm303_leave_requests_v1";
+  const COURSE_DIRECTOR_NAME = "อ.นพ.ณัฐวุฒิ เอี่ยงธนรัตน์";
+  const FACULTY_PORTAL_LEAVE_URL = "https://smartwoo.github.io/racm303-2569-faculty/#leave";
+
+  function loadLeaveRequests() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(LEAVE_STORAGE_KEY) || "[]");
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveLeaveRequests(list) {
+    try {
+      localStorage.setItem(LEAVE_STORAGE_KEY, JSON.stringify(list));
+    } catch (_) {}
+    syncLeaveNotificationBadges();
+    broadcastPortalSync("leave_updated", { count: list.length });
+  }
+
+  function ingestIncomingLeavePayloadFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("incoming_leave");
+      if (!raw) return null;
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(raw))));
+      if (decoded && decoded.refId) {
+        const list = loadLeaveRequests();
+        if (!list.some((x) => x.refId === decoded.refId)) {
+          list.unshift(decoded);
+          saveLeaveRequests(list);
+        }
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function encodeLeavePayloadForCrossPortalUrl(rec) {
+    try {
+      const slim = Object.assign({}, rec, {
+        // Keep signature data URL compact enough for cross-tab handoff if needed
+        attachmentDataUrl: ""
+      });
+      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(slim))));
+      return `https://smartwoo.github.io/racm303-2569-faculty/?incoming_leave=${encodeURIComponent(b64)}#leave`;
+    } catch (_) {
+      return FACULTY_PORTAL_LEAVE_URL;
+    }
+  }
+
+  function syncLeaveNotificationBadges() {
+    const list = loadLeaveRequests();
+    const pending = list.filter((r) => r.status === "pending");
+    const navBadge = $("leaveNavCountBadge");
+    const topFacBadge = $("facTopLeaveBadge");
+
+    if (ROLE === "faculty") {
+      const relevant = state.myTeacherKey
+        ? pending.filter(
+            (r) =>
+              String(r.groupAdvisors || "").includes(state.myTeacherKey) ||
+              COURSE_DIRECTOR_NAME.includes(state.myTeacherKey)
+          )
+        : pending;
+      if (navBadge) {
+        navBadge.textContent = relevant.length > 0 ? `🔔 ${relevant.length} รออนุมัติ` : `${list.length} รายการ`;
+      }
+      if (topFacBadge) {
+        topFacBadge.hidden = relevant.length === 0;
+        topFacBadge.textContent = String(relevant.length);
+      }
+    } else {
+      const mine = state.myStudent ? list.filter((r) => r.studentId === state.myStudent.id) : list;
+      if (navBadge) {
+        navBadge.textContent = mine.length > 0 ? `${mine.length} ใบลา` : "เซ็นออนไลน์";
+      }
+    }
+  }
+
+  function createSignaturePadController(canvas, opts = {}) {
+    if (!canvas || !canvas.getContext) {
+      return {
+        isEmpty: () => false,
+        clear: () => {},
+        undo: () => {},
+        setInk: () => {},
+        toDataURL: () => "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+      };
+    }
+    const ctx2d = canvas.getContext("2d");
+    const strokes = [];
+    let currentStroke = null;
+    let inkColor = opts.initialInk || "#1d4ed8";
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const logicalW = opts.width || 520;
+    const logicalH = opts.height || 165;
+
+    canvas.width = Math.round(logicalW * dpr);
+    canvas.height = Math.round(logicalH * dpr);
+    if (ctx2d && ctx2d.scale) ctx2d.scale(dpr, dpr);
+
+    const redrawAll = () => {
+      if (!ctx2d) return;
+      ctx2d.clearRect(0, 0, logicalW, logicalH);
+      // Subtle baseline guide
+      ctx2d.save();
+      ctx2d.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx2d.setLineDash([4, 4]);
+      ctx2d.lineWidth = 1;
+      ctx2d.beginPath();
+      ctx2d.moveTo(24, logicalH - 32);
+      ctx2d.lineTo(logicalW - 24, logicalH - 32);
+      ctx2d.stroke();
+      ctx2d.restore();
+
+      strokes.forEach((st) => {
+        if (!st.points.length) return;
+        ctx2d.save();
+        ctx2d.strokeStyle = st.color;
+        ctx2d.lineWidth = 2.4;
+        ctx2d.lineCap = "round";
+        ctx2d.lineJoin = "round";
+        ctx2d.beginPath();
+        ctx2d.moveTo(st.points[0].x, st.points[0].y);
+        for (let i = 1; i < st.points.length; i++) {
+          const prev = st.points[i - 1];
+          const cur = st.points[i];
+          const mx = (prev.x + cur.x) / 2;
+          const my = (prev.y + cur.y) / 2;
+          ctx2d.quadraticCurveTo(prev.x, prev.y, mx, my);
+        }
+        const last = st.points[st.points.length - 1];
+        ctx2d.lineTo(last.x, last.y);
+        ctx2d.stroke();
+        ctx2d.restore();
+      });
+      if (typeof opts.onChange === "function") opts.onChange();
+    };
+
+    const getPoint = (ev) => {
+      const r = canvas.getBoundingClientRect();
+      const scaleX = r.width ? logicalW / r.width : 1;
+      const scaleY = r.height ? logicalH / r.height : 1;
+      const clientX = ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX;
+      const clientY = ev.touches && ev.touches[0] ? ev.touches[0].clientY : ev.clientY;
+      return {
+        x: (clientX - r.left) * scaleX,
+        y: (clientY - r.top) * scaleY
+      };
+    };
+
+    const startDraw = (ev) => {
+      ev.preventDefault();
+      if (canvas.setPointerCapture && ev.pointerId !== undefined) {
+        try { canvas.setPointerCapture(ev.pointerId); } catch (_) {}
+      }
+      currentStroke = { color: inkColor, points: [getPoint(ev)] };
+      strokes.push(currentStroke);
+      redrawAll();
+    };
+    const moveDraw = (ev) => {
+      if (!currentStroke) return;
+      ev.preventDefault();
+      currentStroke.points.push(getPoint(ev));
+      redrawAll();
+    };
+    const endDraw = () => {
+      if (!currentStroke) return;
+      currentStroke = null;
+      redrawAll();
+    };
+
+    canvas.addEventListener("pointerdown", startDraw);
+    canvas.addEventListener("pointermove", moveDraw);
+    canvas.addEventListener("pointerup", endDraw);
+    canvas.addEventListener("pointercancel", endDraw);
+    redrawAll();
+
+    return {
+      isEmpty: () => strokes.length === 0,
+      clear: () => {
+        strokes.length = 0;
+        redrawAll();
+      },
+      undo: () => {
+        strokes.pop();
+        redrawAll();
+      },
+      setInk: (c) => {
+        inkColor = c;
+      },
+      markSyntheticSignature: (pts) => {
+        strokes.push({ color: inkColor, points: pts || [{ x: 60, y: 90 }, { x: 180, y: 75 }, { x: 260, y: 95 }] });
+        redrawAll();
+      },
+      toDataURL: () => {
+        if (!ctx2d || typeof canvas.toDataURL !== "function") return "";
+        // Export clean transparent PNG without the dashed baseline!
+        const exportCanvas = document.createElement("canvas");
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const ex = exportCanvas.getContext("2d");
+        if (ex) {
+          if (ex.scale) ex.scale(dpr, dpr);
+          strokes.forEach((st) => {
+            if (!st.points.length) return;
+            ex.strokeStyle = st.color;
+            ex.lineWidth = 2.5;
+            ex.lineCap = "round";
+            ex.lineJoin = "round";
+            ex.beginPath();
+            ex.moveTo(st.points[0].x, st.points[0].y);
+            for (let i = 1; i < st.points.length; i++) {
+              const p0 = st.points[i - 1];
+              const p1 = st.points[i];
+              ex.quadraticCurveTo(p0.x, p0.y, (p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
+            }
+            ex.stroke();
+          });
+          return exportCanvas.toDataURL("image/png");
+        }
+        return canvas.toDataURL("image/png");
+      }
+    };
+  }
+
+  function buildAffectedSessionsBetween(startISO, endISO, areaShortName) {
+    if (!startISO) return [];
+    const sDate = startISO;
+    const eDate = endISO && endISO >= startISO ? endISO : startISO;
+    const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === areaShortName) || null;
+    return (SCHED.sessions || []).filter((s) => {
+      if (s.category === "HOLIDAY" || (ROLE === "student" && s.studentVisible === false)) return false;
+      const d1 = s.dateISO;
+      const d2 = s.endDateISO || s.dateISO;
+      if (!d1) return false;
+      if (d2 < sDate || d1 > eDate) return false;
+      if (s.allowedSites && siteObj && !s.allowedSites.includes(siteObj.id)) return false;
+      return true;
+    });
+  }
+
+  function buildBinaryPdfFromJpegDataUrl(jpegDataUrl, fallbackTitle) {
+    // Standards-compliant single-page A4 %PDF-1.4 wrapping a high-DPI rendered JPEG image (or clean text fallback in headless VM)
+    const pageW = 595.28;
+    const pageH = 841.89;
+    const prefix = "data:image/jpeg;base64,";
+
+    if (jpegDataUrl && jpegDataUrl.startsWith(prefix)) {
+      const b64 = jpegDataUrl.slice(prefix.length);
+      const binStr = atob(b64);
+      const imgBytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) imgBytes[i] = binStr.charCodeAt(i);
+
+      // Parse JPEG SOF0/SOF2 dimensions or default to 1240x1754
+      let imgW = 1240;
+      let imgH = 1754;
+      for (let i = 0; i < imgBytes.length - 9; i++) {
+        if (imgBytes[i] === 0xff && (imgBytes[i + 1] === 0xc0 || imgBytes[i + 1] === 0xc2)) {
+          imgH = (imgBytes[i + 5] << 8) | imgBytes[i + 6];
+          imgW = (imgBytes[i + 7] << 8) | imgBytes[i + 8];
+          break;
+        }
+      }
+
+      const enc = new TextEncoder();
+      const chunks = [];
+      const offsets = [0];
+      let byteLen = 0;
+      const pushStr = (s) => {
+        const b = enc.encode(s);
+        chunks.push(b);
+        byteLen += b.length;
+      };
+      const pushBin = (b) => {
+        chunks.push(b);
+        byteLen += b.length;
+      };
+
+      pushStr("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
+      offsets.push(byteLen);
+      pushStr("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+      offsets.push(byteLen);
+      pushStr("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+      offsets.push(byteLen);
+      pushStr(
+        `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`
+      );
+      offsets.push(byteLen);
+      pushStr(
+        `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgW} /Height ${imgH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgBytes.length} >>\nstream\n`
+      );
+      pushBin(imgBytes);
+      pushStr("\nendstream\nendobj\n");
+
+      const contentStream = `q\n${pageW} 0 0 ${pageH} 0 0 cm\n/Im0 Do\nQ\n`;
+      offsets.push(byteLen);
+      pushStr(`5 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream\nendobj\n`);
+
+      const xrefStart = byteLen;
+      pushStr("xref\n0 6\n0000000000 65535 f \n");
+      for (let i = 1; i <= 5; i++) {
+        pushStr(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+      }
+      pushStr(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`);
+
+      const out = new Uint8Array(byteLen);
+      let pos = 0;
+      chunks.forEach((c) => {
+        out.set(c, pos);
+        pos += c.length;
+      });
+      return out;
+    }
+
+    // Minimal valid %PDF-1.4 fallback when running in headless test environments
+    const safeAscii = String(fallbackTitle || "RACM 303 Leave Form").replace(/[^\x20-\x7E]/g, " ");
+    const stream = `BT /F1 14 Tf 50 780 Td (${safeAscii}) Tj ET`;
+    const pdfTxt =
+      "%PDF-1.4\n" +
+      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n" +
+      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n" +
+      "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n" +
+      "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n" +
+      `5 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj\n` +
+      "trailer << /Root 1 0 R >>\n%%EOF\n";
+    return new TextEncoder().encode(pdfTxt);
+  }
+
+  async function renderLeaveRecordToA4Jpeg(rec) {
+    const c = document.createElement("canvas");
+    c.width = 1240;
+    c.height = 1754;
+    const g = c.getContext && c.getContext("2d");
+    if (!g || typeof c.toDataURL !== "function") return "";
+
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, c.width, c.height);
+
+    // Outer formal border
+    g.strokeStyle = "#1e3a5f";
+    g.lineWidth = 3;
+    g.strokeRect(56, 56, c.width - 112, c.height - 112);
+
+    // Header band
+    g.fillStyle = "#f0f5fb";
+    g.fillRect(59, 59, c.width - 118, 146);
+    g.fillStyle = "#0f2942";
+    g.font = "bold 30px Sarabun, sans-serif";
+    g.textAlign = "center";
+    g.fillText("แบบฟอร์มใบลากิจ – ใบลาป่วย นักศึกษาแพทย์ชั้นปีที่ 3 (ปีการศึกษา 2569)", c.width / 2, 112);
+    g.font = "600 22px Sarabun, sans-serif";
+    g.fillStyle = "#1e4976";
+    g.fillText("รายวิชา RACM 303 เวชศาสตร์ชุมชน 1 · ภาควิชาเวชศาสตร์ชุมชน คณะแพทยศาสตร์โรงพยาบาลรามาธิบดี", c.width / 2, 152);
+    g.font = "18px Sarabun, sans-serif";
+    g.fillStyle = "#475569";
+    g.fillText(`เลขที่อ้างอิง: ${rec.refId || "DRAFT"}   |   วันที่ยื่นใบลา: ${rec.submittedAtTH || "-"}`, c.width / 2, 186);
+
+    g.textAlign = "left";
+    let y = 256;
+    const leftX = 96;
+    const maxW = c.width - 192;
+
+    const drawFieldLine = (label, val) => {
+      g.font = "bold 21px Sarabun, sans-serif";
+      g.fillStyle = "#0f2942";
+      g.fillText(label, leftX, y);
+      const lw = g.measureText(label).width + 12;
+      g.font = "21px Sarabun, sans-serif";
+      g.fillStyle = "#1e293b";
+      g.fillText(String(val || "-"), leftX + lw, y);
+      y += 42;
+    };
+
+    const drawWrappedParagraph = (label, text) => {
+      g.font = "bold 21px Sarabun, sans-serif";
+      g.fillStyle = "#0f2942";
+      g.fillText(label, leftX, y);
+      y += 34;
+      g.font = "20px Sarabun, sans-serif";
+      g.fillStyle = "#1e293b";
+      const words = String(text || "-").split(/\s+/);
+      let line = "";
+      words.forEach((w) => {
+        const test = line ? `${line} ${w}` : w;
+        if (g.measureText(test).width > maxW && line) {
+          g.fillText(line, leftX + 16, y);
+          line = w;
+          y += 32;
+        } else {
+          line = test;
+        }
+      });
+      if (line) {
+        g.fillText(line, leftX + 16, y);
+        y += 38;
+      }
+    };
+
+    drawFieldLine("เรียน:", `ประธานรายวิชา RACM 303 (${COURSE_DIRECTOR_NAME}) และอาจารย์ที่ปรึกษาประจำกลุ่ม (${rec.groupAdvisors || "-"})`);
+    drawFieldLine("ข้าพเจ้า (นศพ.):", `${rec.studentName || "-"}   รหัสนักศึกษา: ${rec.studentId || "-"}`);
+    drawFieldLine("สังกัดกลุ่มเรียน:", `กลุ่มพื้นที่ภาคสนาม: ${rec.areaGroup || "-"}   |   กลุ่มอภิปราย Discussion ที่ ${rec.discGroup || "-"}`);
+    drawFieldLine(
+      "มีความประสงค์ขออนุญาตลา:",
+      `${rec.leaveTypeLabel || rec.leaveType}   (${rec.phaseLabel || ""})`
+    );
+    drawFieldLine(
+      "ช่วงวันที่ขอลา:",
+      `ตั้งแต่วันที่ ${rec.startDate || "-"} ถึงวันที่ ${rec.endDate || rec.startDate || "-"} (${rec.slotLabel || "เต็มวัน"} · รวม ${rec.totalDays || 1} วัน)`
+    );
+    drawWrappedParagraph("คาบเรียนที่ตรงกับวันลา:", rec.affectedSummary || "ตามตารางเรียน");
+    drawWrappedParagraph("เนื่องจากสาเหตุ / รายละเอียด:", rec.reason || "-");
+    drawFieldLine("เบอร์โทรศัพท์ติดต่อนักศึกษา:", `${rec.phone || "-"}${rec.emergencyPhone ? "   |   ติดต่อฉุกเฉิน: " + rec.emergencyPhone : ""}`);
+    drawFieldLine("เอกสารแนบประกอบ (ใบรับรองแพทย์/หลักฐาน):", rec.attachmentName || "ไม่มีไฟล์แนบ");
+
+    // Signatures Grid at bottom
+    const sigTop = Math.max(y + 30, 1190);
+    const boxW = 345;
+    const boxH = 260;
+    const gap = 36;
+    const boxes = [
+      {
+        title: "1. ลงชื่อนักศึกษาแพทย์ผู้ขอลา",
+        sigUrl: rec.studentSignatureDataUrl,
+        signer: `(${rec.studentName || "........................................"})`,
+        sub: `วันที่ ${rec.submittedAtTH || "....../....../......"}`
+      },
+      {
+        title: "2. ความเห็นอาจารย์ประจำกลุ่ม",
+        sigUrl: rec.advisorSignatureDataUrl || "",
+        signer: `(${rec.advisorSignerName || rec.groupAdvisors || "อาจารย์ประจำกลุ่ม"})`,
+        sub:
+          rec.advisorDecision === "approved"
+            ? "☑ เห็นสมควรอนุญาต"
+            : rec.advisorDecision === "rejected"
+              ? "☒ ไม่อนุมัติ"
+              : "☐ เห็นสมควรอนุญาต  ☐ อื่นๆ (รอพิจารณา)"
+      },
+      {
+        title: "3. คำสั่งประธานรายวิชา RACM 303",
+        sigUrl: rec.directorSignatureDataUrl || "",
+        signer: `(${COURSE_DIRECTOR_NAME})`,
+        sub:
+          rec.directorDecision === "approved"
+            ? "☑ อนุญาตให้ลาได้"
+            : rec.directorDecision === "rejected"
+              ? "☒ ไม่อนุมัติ"
+              : "☐ อนุญาต  ☐ ไม่อนุมัติ (รอพิจารณา)"
+      }
+    ];
+
+    const loadImg = (url) =>
+      new Promise((resolve) => {
+        if (!url || typeof Image === "undefined") return resolve(null);
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = url;
+      });
+
+    for (let i = 0; i < boxes.length; i++) {
+      const bx = leftX + i * (boxW + gap);
+      const b = boxes[i];
+      g.strokeStyle = "#94a3b8";
+      g.lineWidth = 1.8;
+      g.strokeRect(bx, sigTop, boxW, boxH);
+
+      g.fillStyle = "#f8fafc";
+      g.fillRect(bx + 1, sigTop + 1, boxW - 2, 42);
+      g.fillStyle = "#0f2942";
+      g.font = "bold 18px Sarabun, sans-serif";
+      g.textAlign = "center";
+      g.fillText(b.title, bx + boxW / 2, sigTop + 28);
+
+      if (b.sigUrl) {
+        const im = await loadImg(b.sigUrl);
+        if (im) {
+          g.drawImage(im, bx + 28, sigTop + 52, boxW - 56, 115);
+        }
+      }
+
+      g.fillStyle = "#1e293b";
+      g.font = "17px Sarabun, sans-serif";
+      g.fillText(b.signer.slice(0, 38), bx + boxW / 2, sigTop + 202);
+      g.fillStyle = "#475569";
+      g.font = "16px Sarabun, sans-serif";
+      g.fillText(b.sub, bx + boxW / 2, sigTop + 234);
+    }
+
+    g.textAlign = "center";
+    g.fillStyle = "#64748b";
+    g.font = "16px Sarabun, sans-serif";
+    g.fillText(
+      "หมายเหตุ: เกณฑ์เวลาเรียนต้องไม่น้อยกว่าร้อยละ 80 (ช่วงเรียนในคณะฯ ลาได้ไม่เกิน 3 วัน · ช่วงฝึกภาคสนาม ลาได้ไม่เกิน 1.5 วัน)",
+      c.width / 2,
+      1660
+    );
+
+    return c.toDataURL("image/jpeg", 0.92);
+  }
+
+  async function downloadLeaveRecordAsPdfFile(rec) {
+    const jpegUrl = await renderLeaveRecordToA4Jpeg(rec);
+    const pdfBytes = buildBinaryPdfFromJpegDataUrl(jpegUrl, `RACM303 Leave ${rec.refId || ""} ${rec.studentId || ""}`);
+    const fname = `ใบลา_RACM303_2569_${sanitizeFilenamePart(rec.studentId || "6702xxx")}_${sanitizeFilenamePart(rec.studentName || "นักศึกษา")}.pdf`;
+    triggerBlobDownload(pdfBytes, "application/pdf", fname);
+  }
+
+  function buildOfficialPaperHtml(rec) {
+    const statusPill =
+      rec.status === "approved"
+        ? '<span class="badge cat-HS">✓ อนุมัติแล้ว</span>'
+        : rec.status === "rejected"
+          ? '<span class="badge cat-EXAM">✗ ไม่อนุมัติ</span>'
+          : '<span class="badge cat-HOLIDAY">🔔 ส่งแจ้งเตือนแล้ว · รออาจารย์พิจารณา</span>';
+
+    return `
+      <div class="leave-a4-sheet">
+        <div class="leave-a4-header">
+          <div>
+            <div class="leave-a4-dept">ภาควิชาเวชศาสตร์ชุมชน คณะแพทยศาสตร์โรงพยาบาลรามาธิบดี มหาวิทยาลัยมหิดล</div>
+            <h4>แบบฟอร์มใบลากิจ – ใบลาป่วย นักศึกษาแพทย์ชั้นปีที่ 3 (ปีการศึกษา 2569)</h4>
+            <div class="leave-a4-sub">รายวิชา RACM 303 เวชศาสตร์ชุมชน 1 · เลขที่อ้างอิง: <code>${escapeHtml(rec.refId || "ร่างใบลา")}</code> · วันที่ยื่น: ${escapeHtml(rec.submittedAtTH || "วันนี้")}</div>
+          </div>
+          <div>${statusPill}</div>
+        </div>
+        <div class="leave-a4-body">
+          <p><strong>เรียน</strong> ประธานรายวิชา RACM 303 (<strong>${escapeHtml(COURSE_DIRECTOR_NAME)}</strong>) และอาจารย์ที่ปรึกษาประจำกลุ่มพื้นที่ <strong>${escapeHtml(rec.areaGroup || "—")}</strong> (<strong>${escapeHtml(rec.groupAdvisors || "—")}</strong>)</p>
+          <p>ข้าพเจ้า <strong>${escapeHtml(rec.studentName || "................................................")}</strong> รหัสนักศึกษา <code>${escapeHtml(rec.studentId || "6702xxx")}</code> นักศึกษาแพทย์ชั้นปีที่ 3 สังกัดกลุ่มอภิปราย <strong>Discussion ที่ ${escapeHtml(rec.discGroup || "—")}</strong> และกลุ่มฝึกปฏิบัติงานภาคสนาม <strong>${escapeHtml(rec.areaGroup || "—")}</strong></p>
+          <p>มีความประสงค์ขออนุญาต <strong>${escapeHtml(rec.leaveTypeLabel || "ลาป่วย / ลากิจ")}</strong> (${escapeHtml(rec.phaseLabel || "ช่วงเรียนในรายวิชา")}) ตั้งแต่วันที่ <strong>${escapeHtml(rec.startDate || "—")}</strong> ถึงวันที่ <strong>${escapeHtml(rec.endDate || rec.startDate || "—")}</strong> (${escapeHtml(rec.slotLabel || "เต็มวัน")} · รวม <strong>${escapeHtml(String(rec.totalDays || 1))} วัน</strong>)</p>
+          <p><strong>คาบเรียนที่ตรงกับวันลา:</strong> ${escapeHtml(rec.affectedSummary || "—")}</p>
+          <p><strong>เนื่องจากสาเหตุ / รายละเอียด:</strong> ${escapeHtml(rec.reason || "—")}</p>
+          <p><strong>เบอร์โทรศัพท์ติดต่อนักศึกษา:</strong> ${escapeHtml(rec.phone || "—")}${rec.emergencyPhone ? ` · <strong>ติดต่อฉุกเฉิน:</strong> ${escapeHtml(rec.emergencyPhone)}` : ""} · <strong>เอกสารแนบ:</strong> ${escapeHtml(rec.attachmentName || "ไม่มีเอกสารแนบ")}</p>
+        </div>
+        <div class="leave-a4-sig-grid">
+          <div class="leave-a4-sig-box">
+            <div class="sig-box-head">1. ลงชื่อนักศึกษาแพทย์ผู้ขอลา</div>
+            <div class="sig-img-frame">
+              ${rec.studentSignatureDataUrl ? `<img src="${rec.studentSignatureDataUrl}" alt="ลายเซ็นนักศึกษา">` : '<span class="sig-placeholder">วาดลายเซ็นในช่องด้านซ้าย</span>'}
+            </div>
+            <div class="sig-signer">(${escapeHtml(rec.studentName || "........................................")})</div>
+            <small>ผู้ขอลา · ${escapeHtml(rec.submittedAtTH || "")}</small>
+          </div>
+          <div class="leave-a4-sig-box">
+            <div class="sig-box-head">2. ความเห็นอาจารย์ประจำกลุ่ม</div>
+            <div class="sig-img-frame">
+              ${rec.advisorSignatureDataUrl ? `<img src="${rec.advisorSignatureDataUrl}" alt="ลายเซ็นอาจารย์ประจำกลุ่ม">` : `<span class="sig-placeholder">${rec.advisorDecision === "approved" ? "✓ เห็นชอบอนุญาต" : "รออาจารย์ประจำกลุ่มลงนาม"}</span>`}
+            </div>
+            <div class="sig-signer">(${escapeHtml(rec.advisorSignerName || rec.groupAdvisors || "อาจารย์ที่ปรึกษาประจำกลุ่ม")})</div>
+            <small>${rec.advisorComment ? escapeHtml(rec.advisorComment) : "อาจารย์ที่ปรึกษาประจำกลุ่มพื้นที่"}</small>
+          </div>
+          <div class="leave-a4-sig-box">
+            <div class="sig-box-head">3. คำสั่งประธานรายวิชา RACM 303</div>
+            <div class="sig-img-frame">
+              ${rec.directorSignatureDataUrl ? `<img src="${rec.directorSignatureDataUrl}" alt="ลายเซ็นประธานรายวิชา">` : `<span class="sig-placeholder">${rec.directorDecision === "approved" ? "✓ อนุมัติแล้ว" : "รอประธานรายวิชาพิจารณา"}</span>`}
+            </div>
+            <div class="sig-signer">(${escapeHtml(COURSE_DIRECTOR_NAME)})</div>
+            <small>${rec.directorComment ? escapeHtml(rec.directorComment) : "ประธานรายวิชา RACM 303"}</small>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function printLeaveRecordAsA4(rec) {
+    const printHost = $("leaveDedicatedPrintHost") || (() => {
+      const d = make("div", null, "leave-dedicated-print-host");
+      d.id = "leaveDedicatedPrintHost";
+      document.body.appendChild(d);
+      return d;
+    })();
+    printHost.innerHTML = buildOfficialPaperHtml(rec);
+    document.body.classList.add("print-leave-form-mode");
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove("print-leave-form-mode");
+    }, 800);
+  }
+
+  let activeLeaveFilterRoute = "all"; // all | advisor | director
+  let facultyShowCreateLeaveForm = false;
+
+  function navigateToAdvisorOrDirectorNotification(rec, targetRole, advisorName) {
+    if (ROLE === "faculty") {
+      activeLeaveFilterRoute = targetRole;
+      if (advisorName) {
+        const matchedT = getAllCourseTeachers().find((t) => advisorName.includes(t.key) || t.label.includes(advisorName));
+        if (matchedT) selectActiveTeacher(matchedT.key, true);
+      } else if (targetRole === "director") {
+        selectActiveTeacher("ณัฐวุฒิ", true);
+      }
+      switchTab("leave");
+      renderLeavePortalView(rec.refId);
+      const inbox = $("facultyLeaveInboxSection");
+      if (inbox) inbox.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    // On Student Portal: navigate to notification tracker & offer 1-click launch to Faculty Notification Inbox with encoded payload
+    const tracker = $("leaveNotificationTrackerCard");
+    if (tracker) {
+      tracker.dataset.highlightTarget = targetRole;
+      tracker.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const crossUrl = encodeLeavePayloadForCrossPortalUrl(rec);
+    window.open(crossUrl, "_blank", "noopener");
+  }
+
+  function renderLeavePortalView(highlightRefId) {
+    const mount = $("leavePortalMount");
+    if (!mount) return;
+    syncLeaveNotificationBadges();
+
+    const allRequests = loadLeaveRequests();
+    const showComposer = ROLE === "student" || facultyShowCreateLeaveForm;
+
+    mount.replaceChildren();
+
+    // Header
+    const header = make("div", null, "section-header");
+    const hLeft = make("div");
+    hLeft.innerHTML =
+      ROLE === "faculty"
+        ? `<h2>🔔 ระบบแจ้งเตือนและพิจารณาอนุมัติใบลานักศึกษาแพทย์ (ปีการศึกษา 2569)</h2>
+           <p>รับการแจ้งเตือนใบลากิจ / ใบลาป่วยที่นักศึกษากรอกและเซ็นลายเซ็นออนไลน์ ส่งตรงถึง <strong>อาจารย์ที่ปรึกษาประจำกลุ่มพื้นที่</strong> และ <strong>ประธานรายวิชา (${escapeHtml(COURSE_DIRECTOR_NAME)})</strong> พร้อมลงนามอนุมัติและ Export PDF</p>`
+        : `<h2>📝 แบบฟอร์มใบลากิจ – ใบลาป่วยออนไลน์ &amp; ลายเซ็นอิเล็กทรอนิกส์ (ปีการศึกษา 2569)</h2>
+           <p>กรอกข้อมูล วาดลายเซ็น แนบใบรับรองแพทย์ แล้วกดยื่นเพื่อส่งแจ้งเตือนไปยัง <strong>อาจารย์ประจำกลุ่ม</strong> และ <strong>ประธานรายวิชา (${escapeHtml(COURSE_DIRECTOR_NAME)})</strong> พร้อมดาวน์โหลดเป็นไฟล์ <strong>PDF (1 หน้า A4)</strong> ได้ทันที</p>`;
+
+    const hRight = make("div", null, "header-actions");
+    if (ROLE === "faculty") {
+      const toggleFormBtn = make(
+        "button",
+        facultyShowCreateLeaveForm ? "ซ่อนฟอร์มกรอกใบลา" : "➕ เปิดฟอร์มกรอกใบลาแทนนักศึกษา",
+        "btn teal"
+      );
+      toggleFormBtn.type = "button";
+      toggleFormBtn.addEventListener("click", () => {
+        facultyShowCreateLeaveForm = !facultyShowCreateLeaveForm;
+        renderLeavePortalView(highlightRefId);
+      });
+      hRight.appendChild(toggleFormBtn);
+    }
+    const ruleBtn = make("button", "ดูเกณฑ์เวลาเรียน 80% (บทที่ 14)", "btn");
+    ruleBtn.type = "button";
+    ruleBtn.addEventListener("click", () => openManualChapter("man-ch-14"));
+    hRight.appendChild(ruleBtn);
+    header.append(hLeft, hRight);
+    mount.appendChild(header);
+
+    // Faculty Notification Inbox Section (First on Faculty Portal!)
+    if (ROLE === "faculty") {
+      const inboxSec = make("section", null, "leave-inbox-card");
+      inboxSec.id = "facultyLeaveInboxSection";
+
+      const filterBar = make("div", null, "leave-inbox-toolbar");
+      const routePills = [
+        { id: "all", label: `ทั้งหมด (${allRequests.length})` },
+        { id: "advisor", label: "👨‍⚕️ แจ้งเตือนถึงอาจารย์ประจำกลุ่ม" },
+        { id: "director", label: `🏛 แจ้งเตือนถึงประธานรายวิชา (${COURSE_DIRECTOR_NAME})` }
+      ];
+      const pillGroup = make("div", null, "header-actions");
+      routePills.forEach((rp) => {
+        const b = make("button", rp.label, `btn sm${activeLeaveFilterRoute === rp.id ? " primary" : ""}`);
+        b.type = "button";
+        b.addEventListener("click", () => {
+          activeLeaveFilterRoute = rp.id;
+          renderLeavePortalView(highlightRefId);
+        });
+        pillGroup.appendChild(b);
+      });
+      filterBar.appendChild(pillGroup);
+      inboxSec.appendChild(filterBar);
+
+      const filteredReqs = allRequests.filter((r) => {
+        if (activeLeaveFilterRoute === "advisor" && state.myTeacherKey) {
+          return String(r.groupAdvisors || "").includes(state.myTeacherKey);
+        }
+        return true;
+      });
+
+      if (!filteredReqs.length) {
+        inboxSec.appendChild(
+          make(
+            "div",
+            "ยังไม่มีคำขอใบลานักศึกษาที่ส่งเข้ามาในขณะนี้ — เมื่อนักศึกษากรอกและเซ็นใบลา ระบบจะแจ้งเตือนอาจารย์ประจำกลุ่มและประธานรายวิชาที่นี่ทันที",
+            "empty-state"
+          )
+        );
+      } else {
+        filteredReqs.forEach((rec) => {
+          const itemCard = make(
+            "article",
+            null,
+            `leave-notif-item${rec.refId === highlightRefId ? " is-highlighted" : ""}`
+          );
+          itemCard.innerHTML = `
+            <div class="leave-notif-top">
+              <div>
+                <span class="badge ${rec.leaveType === "sick" ? "cat-EXAM" : "cat-SG"}">${escapeHtml(rec.leaveTypeLabel || rec.leaveType)}</span>
+                <strong style="margin-left:8px;font-size:16px">${escapeHtml(rec.studentId)} · ${escapeHtml(rec.studentName)}</strong>
+                <span class="room-pill" style="margin-left:8px">กลุ่มพื้นที่ ${escapeHtml(rec.areaGroup)} · Discussion ${escapeHtml(rec.discGroup)}</span>
+              </div>
+              <small>อ้างอิง <code>${escapeHtml(rec.refId)}</code> · ยื่นเมื่อ ${escapeHtml(rec.submittedAtTH || "")}</small>
+            </div>
+            <div class="leave-notif-routing-pills">
+              <span class="notif-route-chip">🔔 อาจารย์ประจำกลุ่ม: <strong>${escapeHtml(rec.groupAdvisors || "—")}</strong> (${rec.advisorDecision === "approved" ? "✓ เห็นชอบแล้ว" : "รอลงนาม"})</span>
+              <span class="notif-route-chip">🔔 ประธานรายวิชา: <strong>${escapeHtml(COURSE_DIRECTOR_NAME)}</strong> (${rec.directorDecision === "approved" ? "✓ อนุมัติแล้ว" : "รอพิจารณา"})</span>
+            </div>
+          `;
+
+          const previewBox = make("div", null, "leave-inline-preview-wrap");
+          previewBox.innerHTML = buildOfficialPaperHtml(rec);
+          itemCard.appendChild(previewBox);
+
+          // Faculty Countersignature & Decision Bar
+          const signBox = make("div", null, "faculty-leave-sign-bar");
+          signBox.innerHTML = `
+            <div class="fac-sign-col">
+              <label>✍ ลงลายมือชื่ออนุมัติ (อาจารย์ประจำกลุ่ม / ประธานรายวิชา):</label>
+              <canvas class="leave-sig-canvas fac-mini-sig" width="380" height="110"></canvas>
+              <div class="header-actions" style="margin-top:6px">
+                <button type="button" class="btn sm fac-clear-sig-btn">ล้างลายเซ็น</button>
+              </div>
+            </div>
+            <div class="fac-decision-col">
+              <label>บันทึกความเห็นและสถานะการอนุมัติ:</label>
+              <select class="fac-role-Approve-select">
+                <option value="advisor">ลงนามในฐานะ: อาจารย์ที่ปรึกษาประจำกลุ่ม (${escapeHtml(rec.areaGroup)})</option>
+                <option value="director">ลงนามในฐานะ: ประธานรายวิชา (${escapeHtml(COURSE_DIRECTOR_NAME)})</option>
+              </select>
+              <input type="text" class="fac-comment-input" placeholder="ความเห็นเพิ่มเติม เช่น อนุญาตให้ลาได้และให้ติดตามเนื้อหาคาบเรียน…" value="${escapeHtml(rec.advisorComment || "")}">
+              <div class="header-actions" style="margin-top:8px">
+                <button type="button" class="btn sm primary fac-approve-btn">✓ อนุมัติใบลา &amp; บันทึกลายเซ็น</button>
+                <button type="button" class="btn sm fac-reject-btn">✗ ไม่อนุมัติ</button>
+                <button type="button" class="btn sm teal fac-dl-pdf-btn">⬇ ดาวน์โหลดไฟล์ .PDF</button>
+                <button type="button" class="btn sm fac-print-pdf-btn">🖨 พิมพ์ A4 / PDF</button>
+              </div>
+            </div>
+          `;
+          itemCard.appendChild(signBox);
+
+          const facCanvas = signBox.querySelector(".fac-mini-sig");
+          const facPad = createSignaturePadController(facCanvas, { width: 380, height: 110 });
+          signBox.querySelector(".fac-clear-sig-btn").addEventListener("click", () => facPad.clear());
+
+          const applyDecision = (decision) => {
+            const roleMode = signBox.querySelector(".fac-role-Approve-select").value;
+            const commentVal = signBox.querySelector(".fac-comment-input").value.trim();
+            const sigData = facPad.isEmpty() ? "" : facPad.toDataURL();
+            const list = loadLeaveRequests();
+            const target = list.find((x) => x.refId === rec.refId);
+            if (!target) return;
+
+            if (roleMode === "director") {
+              target.directorDecision = decision;
+              target.directorComment = commentVal;
+              if (sigData) target.directorSignatureDataUrl = sigData;
+              target.status = decision;
+            } else {
+              target.advisorDecision = decision;
+              target.advisorComment = commentVal;
+              const activeT = getAllCourseTeachers().find((t) => t.key === state.myTeacherKey);
+              if (activeT) target.advisorSignerName = activeT.label;
+              if (sigData) target.advisorSignatureDataUrl = sigData;
+              if (decision === "rejected") target.status = "rejected";
+              else if (target.directorDecision === "approved") target.status = "approved";
+            }
+            saveLeaveRequests(list);
+            renderLeavePortalView(rec.refId);
+          };
+
+          signBox.querySelector(".fac-approve-btn").addEventListener("click", () => applyDecision("approved"));
+          signBox.querySelector(".fac-reject-btn").addEventListener("click", () => applyDecision("rejected"));
+          signBox.querySelector(".fac-dl-pdf-btn").addEventListener("click", () => downloadLeaveRecordAsPdfFile(rec));
+          signBox.querySelector(".fac-print-pdf-btn").addEventListener("click", () => printLeaveRecordAsA4(rec));
+
+          inboxSec.appendChild(itemCard);
+        });
+      }
+      mount.appendChild(inboxSec);
+    }
+
+    // Composer Studio (Default on Student Portal, optional on Faculty Portal)
+    if (showComposer) {
+      const defStu = state.myStudent || null;
+      const defSite = defStu
+        ? (SCHED.fieldworkSites || []).find((x) => x.shortName === defStu.area)
+        : (SCHED.fieldworkSites || [])[0];
+
+      const workspace = make("div", null, "leave-composer-split");
+      workspace.innerHTML = `
+        <div class="leave-form-card">
+          <h3>1. กรอกข้อมูลใบลากิจ / ใบลาป่วย และวาดลายเซ็น</h3>
+          <div class="srn-form-grid">
+            <div class="filter-field span-2">
+              <label for="leaveStuLookupInput">ค้นหารหัสนักศึกษา 7 หลัก หรือชื่อ-นามสกุล (ดึงกลุ่มและอาจารย์ประจำกลุ่มอัตโนมัติ)</label>
+              <input id="leaveStuLookupInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัส 7 หลัก เช่น 6702006…" value="${defStu ? escapeHtml(`${defStu.id} — ${defStu.fullName}`) : ""}">
+            </div>
+            <div class="filter-field">
+              <label for="leaveStudentIdInput">รหัสนักศึกษา</label>
+              <input id="leaveStudentIdInput" type="text" placeholder="6702xxx" value="${defStu ? escapeHtml(defStu.id) : ""}">
+            </div>
+            <div class="filter-field">
+              <label for="leaveStudentNameInput">ชื่อ-นามสกุล นักศึกษาแพทย์</label>
+              <input id="leaveStudentNameInput" type="text" placeholder="นศพ.ชื่อ นามสกุล" value="${defStu ? escapeHtml(defStu.fullName) : ""}">
+            </div>
+            <div class="filter-field">
+              <label for="leaveAreaGroupSelect">กลุ่มพื้นที่ภาคสนาม</label>
+              <select id="leaveAreaGroupSelect"></select>
+            </div>
+            <div class="filter-field">
+              <label for="leaveDiscGroupSelect">กลุ่มอภิปราย Discussion</label>
+              <select id="leaveDiscGroupSelect">
+                <option value="1">Discussion 1</option>
+                <option value="2">Discussion 2</option>
+                <option value="3">Discussion 3</option>
+                <option value="4">Discussion 4</option>
+                <option value="5">Discussion 5</option>
+                <option value="6">Discussion 6</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="leaveTypeSelect">ประเภทการลา</label>
+              <select id="leaveTypeSelect">
+                <option value="sick">🤒 ลาป่วย (แนบใบรับรองแพทย์ประกอบ)</option>
+                <option value="personal">📋 ลากิจ (ยื่นขออนุญาตล่วงหน้า)</option>
+                <option value="emergency">🚨 กรณีฉุกเฉิน / เหตุสุดวิสัย</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="leavePhaseSelect">ช่วงของการเรียนการสอน</label>
+              <select id="leavePhaseSelect">
+                <option value="classroom">ช่วงเรียนในคณะฯ ก่อน/หลังภาคสนาม (ไม่เกิน 3 วัน)</option>
+                <option value="fieldwork">ช่วงฝึกปฏิบัติงานภาคสนาม (ไม่เกิน 1.5 วัน)</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="leaveStartDateInput">ตั้งแต่วันที่</label>
+              <input id="leaveStartDateInput" type="date" value="2026-11-30" min="2026-11-25" max="2026-12-30">
+            </div>
+            <div class="filter-field">
+              <label for="leaveEndDateInput">ถึงวันที่</label>
+              <input id="leaveEndDateInput" type="date" value="2026-11-30" min="2026-11-25" max="2026-12-30">
+            </div>
+            <div class="filter-field">
+              <label for="leaveSlotSelect">ช่วงเวลาที่ลา</label>
+              <select id="leaveSlotSelect">
+                <option value="full">เต็มวัน (08.30–16.30 น.)</option>
+                <option value="am">ครึ่งวันเช้า (08.30–12.00 น. · 0.5 วัน)</option>
+                <option value="pm">ครึ่งวันบ่าย (13.00–16.30 น. · 0.5 วัน)</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="leavePhoneInput">เบอร์โทรศัพท์ติดต่อนักศึกษา</label>
+              <input id="leavePhoneInput" type="tel" placeholder="08x-xxx-xxxx">
+            </div>
+            <div class="filter-field span-2">
+              <label for="leaveReasonInput">เหตุผลการขอลาโดยละเอียด</label>
+              <textarea id="leaveReasonInput" rows="3" placeholder="ระบุอาการป่วย หรือเหตุผลความจำเป็นในการขอลากิจอย่างชัดเจน…"></textarea>
+            </div>
+            <div class="filter-field span-2">
+              <label for="leaveAttachmentInput">แนบใบรับรองแพทย์ / เอกสารประกอบ (.pdf, .jpg, .png)</label>
+              <input id="leaveAttachmentInput" type="file" accept=".pdf,image/*">
+              <div id="leaveQuotaStatusHint" class="leave-quota-hint"></div>
+            </div>
+          </div>
+
+          <div class="leave-recipient-preview" id="leaveRecipientPreviewBox"></div>
+
+          <div class="leave-signature-section">
+            <div class="leave-sig-header">
+              <label>✍ เซ็นลายมือชื่อนักศึกษาผู้ขอลา (วาดด้วยเมาส์ / ปากกา Stylus / นิ้วมือ):</label>
+              <div class="header-actions">
+                <button type="button" class="btn sm is-active" id="sigInkBlueBtn">หมึกน้ำเงิน</button>
+                <button type="button" class="btn sm" id="sigInkBlackBtn">หมึกดำ</button>
+                <button type="button" class="btn sm" id="sigUndoBtn">↶ ย้อนเส้น</button>
+                <button type="button" class="btn sm" id="sigClearBtn">🗑 ล้างลายเซ็น</button>
+              </div>
+            </div>
+            <div class="leave-sig-canvas-wrap">
+              <canvas id="studentLeaveSigCanvas" class="leave-sig-canvas" width="520" height="165"></canvas>
+            </div>
+          </div>
+
+          <div class="leave-submit-actions">
+            <button type="button" class="btn primary" id="submitAndNotifyLeaveBtn">📤 ยื่นใบลา &amp; ส่งแจ้งเตือนอาจารย์ประจำกลุ่มและประธานรายวิชา</button>
+            <button type="button" class="btn teal" id="exportDraftLeavePdfBtn">⬇ Export เป็นไฟล์ .PDF ทันที</button>
+            <button type="button" class="btn" id="printDraftLeaveA4Btn">🖨 พิมพ์ / บันทึก PDF (1 หน้า A4)</button>
+          </div>
+          <div id="leaveFormFeedbackBox" class="slide-studio-feedback" hidden></div>
+        </div>
+
+        <div class="leave-preview-column">
+          <div id="leaveNotificationTrackerSlot"></div>
+          <div class="leave-live-paper-head">
+            <strong>📄 ตัวอย่างเอกสารใบลาราชการ (อัปเดตสดตามข้อมูลและลายเซ็นที่วาด · พร้อม Export PDF)</strong>
+          </div>
+          <div id="leaveOfficialPaperPreview"></div>
+        </div>
+      `;
+
+      mount.appendChild(workspace);
+
+      const areaSel = $("leaveAreaGroupSelect");
+      (SCHED.fieldworkSites || []).forEach((s) => {
+        areaSel.add(new Option(s.shortName, s.shortName));
+      });
+      if (defSite) areaSel.value = defSite.shortName;
+      if (defStu) $("leaveDiscGroupSelect").value = String(defStu.disc);
+
+      let attachedFileName = "";
+      let sigPad = null;
+      const sigCanvas = $("studentLeaveSigCanvas");
+      sigPad = createSignaturePadController(sigCanvas, {
+        width: 520,
+        height: 165,
+        onChange: () => refreshDraftPreview()
+      });
+      // Expose for automated verification if needed
+      sigCanvas._sigPad = sigPad;
+
+      $("sigInkBlueBtn").addEventListener("click", () => sigPad.setInk("#1d4ed8"));
+      $("sigInkBlackBtn").addEventListener("click", () => sigPad.setInk("#0f172a"));
+      $("sigUndoBtn").addEventListener("click", () => sigPad.undo());
+      $("sigClearBtn").addEventListener("click", () => sigPad.clear());
+
+      $("leaveAttachmentInput").addEventListener("change", (ev) => {
+        const f = ev.target.files && ev.target.files[0];
+        attachedFileName = f ? `${f.name} (${formatFileSize(f.size)})` : "";
+        refreshDraftPreview();
+      });
+
+      function collectDraftRecord(existingRefId) {
+        const sid = $("leaveStudentIdInput").value.trim();
+        const sname = $("leaveStudentNameInput").value.trim();
+        const areaVal = areaSel.value;
+        const discVal = $("leaveDiscGroupSelect").value;
+        const siteObj = (SCHED.fieldworkSites || []).find((x) => x.shortName === areaVal);
+        const groupAdvisors = siteObj ? siteObj.advisors : "อาจารย์ประจำกลุ่ม";
+
+        const leaveType = $("leaveTypeSelect").value;
+        const leaveTypeMap = {
+          sick: "ลาป่วย (Sick Leave)",
+          personal: "ลากิจ (Personal Leave)",
+          emergency: "ลาฉุกเฉิน / เหตุสุดวิสัย"
+        };
+        const phase = $("leavePhaseSelect").value;
+        const phaseLabel =
+          phase === "fieldwork"
+            ? "ช่วงฝึกปฏิบัติงานภาคสนาม (เกณฑ์ไม่เกิน 1.5 วัน)"
+            : "ช่วงเรียนในคณะฯ ก่อน/หลังภาคสนาม (เกณฑ์ไม่เกิน 3 วัน)";
+
+        const startDate = $("leaveStartDateInput").value;
+        const endDate = $("leaveEndDateInput").value || startDate;
+        const slot = $("leaveSlotSelect").value;
+        const slotMap = {
+          full: "เต็มวัน (08.30–16.30 น.)",
+          am: "ครึ่งวันเช้า (08.30–12.00 น.)",
+          pm: "ครึ่งวันบ่าย (13.00–16.30 น.)"
+        };
+
+        let daySpan = 1;
+        if (startDate && endDate && endDate >= startDate) {
+          daySpan = Math.round((parseISODate(endDate) - parseISODate(startDate)) / 86400000) + 1;
+        }
+        const totalDays = slot === "full" ? daySpan : Math.max(0.5, daySpan - 0.5);
+
+        const affected = buildAffectedSessionsBetween(startDate, endDate, areaVal);
+        const affectedSummary = affected.length
+          ? affected.map((s) => `${s.code} (${s.dateTH})`).join(", ")
+          : "ตามตารางกิจกรรมการเรียนการสอน";
+
+        return {
+          refId: existingRefId || "",
+          status: "pending",
+          studentId: sid,
+          studentName: sname,
+          areaGroup: areaVal,
+          discGroup: discVal,
+          groupAdvisors,
+          courseDirector: COURSE_DIRECTOR_NAME,
+          leaveType,
+          leaveTypeLabel: leaveTypeMap[leaveType] || leaveType,
+          phase,
+          phaseLabel,
+          startDate,
+          endDate,
+          slot,
+          slotLabel: slotMap[slot] || slot,
+          totalDays,
+          affectedSummary,
+          reason: $("leaveReasonInput").value.trim(),
+          phone: $("leavePhoneInput").value.trim(),
+          attachmentName: attachedFileName,
+          studentSignatureDataUrl: sigPad && !sigPad.isEmpty() ? sigPad.toDataURL() : "",
+          submittedAtTH: new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
+        };
+      }
+
+      function refreshDraftPreview() {
+        const draft = collectDraftRecord();
+        const recipBox = $("leaveRecipientPreviewBox");
+        if (recipBox) {
+          recipBox.innerHTML = `
+            <div><strong>🔔 ผู้รับแจ้งเตือนอัตโนมัติเมื่อกดยื่นใบลา:</strong></div>
+            <div class="leave-recip-chips">
+              <span class="notif-route-chip">1) อาจารย์ประจำกลุ่มพื้นที่ (${escapeHtml(draft.areaGroup)}): <strong>${escapeHtml(draft.groupAdvisors)}</strong></span>
+              <span class="notif-route-chip">2) ประธานรายวิชา RACM 303: <strong>${escapeHtml(COURSE_DIRECTOR_NAME)}</strong></span>
+            </div>
+          `;
+        }
+
+        const quotaHint = $("leaveQuotaStatusHint");
+        if (quotaHint) {
+          const limit = draft.phase === "fieldwork" ? 1.5 : 3;
+          const over = draft.totalDays > limit;
+          quotaHint.className = `leave-quota-hint${over ? " is-warn" : " is-ok"}`;
+          quotaHint.textContent = over
+            ? `⚠ จำนวนวันลาที่เลือก (${draft.totalDays} วัน) เกินเกณฑ์ปกติของ${draft.phase === "fieldwork" ? "ช่วงภาคสนาม (≤ 1.5 วัน)" : "ช่วงเรียนในคณะฯ (≤ 3 วัน)"} — ต้องได้รับการพิจารณาเป็นกรณีพิเศษจากประธานรายวิชา`
+            : `✓ รวมจำนวนวันลา ${draft.totalDays} วัน (อยู่ในเกณฑ์เวลาเรียน ≥ 80% · คาบที่เกี่ยวข้อง ${buildAffectedSessionsBetween(draft.startDate, draft.endDate, draft.areaGroup).length} คาบ)`;
+        }
+
+        const paper = $("leaveOfficialPaperPreview");
+        if (paper) {
+          paper.innerHTML = buildOfficialPaperHtml(draft);
+        }
+      }
+
+      const stuLookup = $("leaveStuLookupInput");
+      stuLookup.addEventListener("input", () => {
+        const found = findStudentByQuery(stuLookup.value);
+        if (found) {
+          $("leaveStudentIdInput").value = found.id;
+          $("leaveStudentNameInput").value = found.fullName;
+          areaSel.value = found.area;
+          $("leaveDiscGroupSelect").value = String(found.disc);
+          refreshDraftPreview();
+        }
+      });
+
+      [
+        "leaveStudentIdInput",
+        "leaveStudentNameInput",
+        "leaveAreaGroupSelect",
+        "leaveDiscGroupSelect",
+        "leaveTypeSelect",
+        "leavePhaseSelect",
+        "leaveStartDateInput",
+        "leaveEndDateInput",
+        "leaveSlotSelect",
+        "leavePhoneInput",
+        "leaveReasonInput"
+      ].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener("input", refreshDraftPreview);
+        el.addEventListener("change", refreshDraftPreview);
+      });
+
+      $("exportDraftLeavePdfBtn").addEventListener("click", () => {
+        const draft = collectDraftRecord("DRAFT-2569");
+        downloadLeaveRecordAsPdfFile(draft);
+      });
+      $("printDraftLeaveA4Btn").addEventListener("click", () => {
+        const draft = collectDraftRecord("DRAFT-2569");
+        printLeaveRecordAsA4(draft);
+      });
+
+      const renderNotificationDispatchCard = (savedRec) => {
+        const slot = $("leaveNotificationTrackerSlot");
+        if (!slot) return;
+        const card = make("div", null, "leave-dispatch-banner");
+        card.id = "leaveNotificationTrackerCard";
+        card.innerHTML = `
+          <div class="dispatch-head">
+            <span class="badge cat-HS">✓ บันทึกและส่งแจ้งเตือนใบลาแล้ว</span>
+            <code>${escapeHtml(savedRec.refId)}</code>
+          </div>
+          <h4>🔔 แจ้งเตือนถูกส่งไปยังอาจารย์ประจำกลุ่มและประธานรายวิชาเรียบร้อยแล้ว</h4>
+          <p>กดปุ่มด้านล่างเพื่อ <strong>Navigate ไปยังหน้าแจ้งเตือนของอาจารย์ประจำกลุ่ม</strong> หรือ <strong>ประธานรายวิชา</strong> หรือดาวน์โหลดไฟล์ PDF เก็บไว้เป็นหลักฐาน:</p>
+          <div class="dispatch-nav-buttons">
+            <button type="button" class="btn sm primary" id="navToGroupAdvisorNotifBtn">👨‍⚕️ ไปยังหน้าแจ้งเตือนอาจารย์ประจำกลุ่ม (${escapeHtml(savedRec.groupAdvisors)}) →</button>
+            <button type="button" class="btn sm teal" id="navToCourseDirectorNotifBtn">🏛 ไปยังหน้าแจ้งเตือนประธานรายวิชา (${escapeHtml(COURSE_DIRECTOR_NAME)}) →</button>
+            <button type="button" class="btn sm" id="dlSubmittedLeavePdfBtn">⬇ Export ใบลาเป็น .PDF</button>
+            <button type="button" class="btn sm" id="copyLeaveNotifSummaryBtn">📋 คัดลอกข้อความแจ้งลา</button>
+          </div>
+        `;
+        slot.replaceChildren(card);
+
+        $("navToGroupAdvisorNotifBtn").addEventListener("click", () => {
+          navigateToAdvisorOrDirectorNotification(savedRec, "advisor", savedRec.groupAdvisors);
+        });
+        $("navToCourseDirectorNotifBtn").addEventListener("click", () => {
+          navigateToAdvisorOrDirectorNotification(savedRec, "director", COURSE_DIRECTOR_NAME);
+        });
+        $("dlSubmittedLeavePdfBtn").addEventListener("click", () => {
+          downloadLeaveRecordAsPdfFile(savedRec);
+        });
+        $("copyLeaveNotifSummaryBtn").addEventListener("click", () => {
+          const msg =
+            `[แจ้งขออนุญาต${savedRec.leaveTypeLabel} · RACM 303]\n` +
+            `อ้างอิง: ${savedRec.refId}\n` +
+            `นศพ.: ${savedRec.studentName} (${savedRec.studentId}) · กลุ่มพื้นที่ ${savedRec.areaGroup} · Discussion ${savedRec.discGroup}\n` +
+            `วันที่ลา: ${savedRec.startDate} ถึง ${savedRec.endDate} (${savedRec.totalDays} วัน)\n` +
+            `เหตุผล: ${savedRec.reason}\n` +
+            `เรียนแจ้ง: ${savedRec.groupAdvisors} และ ${COURSE_DIRECTOR_NAME}`;
+          copyTextWithFeedback(msg, $("copyLeaveNotifSummaryBtn"), "คัดลอกข้อความแจ้งเตือนแล้ว ✓");
+        });
+      };
+
+      $("submitAndNotifyLeaveBtn").addEventListener("click", () => {
+        const fb = $("leaveFormFeedbackBox");
+        const draft = collectDraftRecord();
+        if (!draft.studentId || !draft.studentName) {
+          fb.hidden = false;
+          fb.className = "slide-studio-feedback is-error";
+          fb.textContent = "กรุณาระบุรหัสนักศึกษา 7 หลัก และชื่อ-นามสกุลให้ครบถ้วน";
+          return;
+        }
+        if (!draft.reason) {
+          fb.hidden = false;
+          fb.className = "slide-studio-feedback is-error";
+          fb.textContent = "กรุณาระบุเหตุผลการขอลากิจหรืออาการป่วยโดยสังเขป";
+          return;
+        }
+        if (sigPad.isEmpty()) {
+          fb.hidden = false;
+          fb.className = "slide-studio-feedback is-error";
+          fb.textContent = "กรุณาวาดลายเซ็นนักศึกษาผู้ขอลาในกรอบลายเซ็นก่อนกดยื่นใบลา";
+          return;
+        }
+
+        const list = loadLeaveRequests();
+        const seq = String(list.length + 1).padStart(3, "0");
+        draft.refId = `LEAVE-2569-${draft.studentId}-${seq}`;
+        draft.submittedIso = new Date().toISOString();
+        list.unshift(draft);
+        saveLeaveRequests(list);
+
+        fb.hidden = false;
+        fb.className = "slide-studio-feedback is-ok";
+        fb.textContent = `✓ ยื่นใบลาเลขที่ ${draft.refId} สำเร็จ! ระบบส่งแจ้งเตือนไปยังอาจารย์ประจำกลุ่ม (${draft.groupAdvisors}) และประธานรายวิชา (${COURSE_DIRECTOR_NAME}) แล้ว`;
+
+        const paper = $("leaveOfficialPaperPreview");
+        if (paper) paper.innerHTML = buildOfficialPaperHtml(draft);
+        renderNotificationDispatchCard(draft);
+        const slot = $("leaveNotificationTrackerSlot");
+        if (slot) slot.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+
+      // Show student's own submitted leave history below composer on Student Portal
+      if (ROLE === "student" && allRequests.length > 0) {
+        const histSec = make("div", null, "leave-history-card");
+        histSec.innerHTML = `<h3>📋 ประวัติการยื่นใบลาและสถานะการแจ้งเตือน (${allRequests.length} รายการ)</h3>`;
+        allRequests.slice(0, 5).forEach((r) => {
+          const row = make("div", null, "slide-matrix-row is-uploaded");
+          row.innerHTML = `
+            <div class="slide-matrix-info">
+              <strong><code>${escapeHtml(r.refId)}</code> · ${escapeHtml(r.studentName)} (${escapeHtml(r.leaveTypeLabel)})</strong>
+              <small>วันที่ลา ${escapeHtml(r.startDate)} – ${escapeHtml(r.endDate)} (${r.totalDays} วัน) · แจ้งเตือนถึง: ${escapeHtml(r.groupAdvisors)} &amp; ${escapeHtml(COURSE_DIRECTOR_NAME)}</small>
+            </div>
+          `;
+          const acts = make("div", null, "slide-matrix-acts");
+          const navAdv = make("button", "🔔 แจ้งอาจารย์ประจำกลุ่ม ↗", "btn sm");
+          navAdv.type = "button";
+          navAdv.addEventListener("click", () => navigateToAdvisorOrDirectorNotification(r, "advisor", r.groupAdvisors));
+          const dlPdf = make("button", "⬇ Export PDF", "btn sm teal");
+          dlPdf.type = "button";
+          dlPdf.addEventListener("click", () => downloadLeaveRecordAsPdfFile(r));
+          acts.append(navAdv, dlPdf);
+          row.appendChild(acts);
+          histSec.appendChild(row);
+        });
+        mount.appendChild(histSec);
+      }
+
+      refreshDraftPreview();
+    }
+  }
+
+  function initLeavePortalStudio() {
+    const incoming = ingestIncomingLeavePayloadFromUrl();
+    syncLeaveNotificationBadges();
+
+    if ($("studentQuickLeaveTopBtn")) {
+      $("studentQuickLeaveTopBtn").addEventListener("click", () => switchTab("leave"));
+    }
+    if ($("facQuickLeaveTopBtn")) {
+      $("facQuickLeaveTopBtn").addEventListener("click", () => switchTab("leave"));
+    }
+
+    if (LIVE_SYNC_CHANNEL) {
+      LIVE_SYNC_CHANNEL.addEventListener("message", (ev) => {
+        const data = ev.data || {};
+        if (data.kind === "slides_updated") {
+          slidesRegistryCache = loadSlidesRegistry();
+          if (state.activeTab === "schedule") renderScheduleCurrent();
+        } else if (data.kind === "leave_updated") {
+          syncLeaveNotificationBadges();
+          if (state.activeTab === "leave") renderLeavePortalView();
+        }
+      });
+    }
+
+    if (incoming && ROLE === "faculty") {
+      setTimeout(() => {
+        switchTab("leave");
+        renderLeavePortalView(incoming.refId);
+      }, 50);
     }
   }
 
@@ -5509,17 +11499,22 @@
 
     wireFontButtons();
     initPersonalizer();
+    initUniversalOmniboxSearch();
     initScheduleControls();
+    initSlideStudioAndCalendarHover();
     initDiscussionControls();
     initHsDiscussionControls();
     initFieldworkControls();
     initSubmissionsControls();
+    initLeavePortalStudio();
     initManualControls();
     initTextbooksControls();
     initPracticeControls();
     if (ROLE === "faculty" && typeof initFacultyDocsControls === "function") {
       initFacultyDocsControls();
     }
+    initRoleConcierge();
+    initGlobalSpotlightAndFab();
 
     const params = new URLSearchParams(window.location.search);
     const moodleParam = params.get("moodle_url");
@@ -5529,15 +11524,19 @@
       syncPinnedRamedCourseUI();
     }
 
-    // Restore saved student after all <select> dropdowns are populated
+    // Restore saved student or teacher after all <select> dropdowns are populated
     const savedId = localStorage.getItem("racm303_my_sid");
+    const savedTeacher = ROLE === "faculty" ? localStorage.getItem("racm303_my_teacher") : "";
     if (savedId) {
       const found = ROSTER.students.find((s) => s.id === savedId);
       if (found) {
         state.calScope = "student";
         applyMyStudent(found, true);
       }
+    } else if (ROLE === "faculty" && savedTeacher) {
+      selectActiveTeacher(savedTeacher, true);
     }
+    syncLeaveNotificationBadges();
 
     if (params.get("page") === "hs-discussion") {
       const m = (params.get("module") || "").toUpperCase();
@@ -5561,6 +11560,11 @@
 
     if (params.get("page") === "submissions" || params.get("page") === "elearning") {
       switchTab("submissions", false);
+      return;
+    }
+
+    if (params.get("page") === "leave" || params.get("incoming_leave")) {
+      switchTab("leave", false);
       return;
     }
 
