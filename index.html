@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RACM 303 (ปีการศึกษา 2569) · พอร์ทัลอาจารย์และผู้ประสานงานรายวิชา — ปฏิทินภาระงานสอน ใบรายชื่อรูปถ่าย และคู่มือผู้สอน</title>
-  <meta name="description" content="พอร์ทัลสำหรับคณาจารย์และผู้ประสานงานรายวิชา RACM 303 ปีการศึกษา 2569 รวมปฏิทินสอนรายอาจารย์ ดาวน์โหลด iCal (.ics) และ Google Calendar (.csv) พร้อมลิงก์ Zoom ใบรายชื่อรูปถ่ายนักศึกษาพิมพ์ 1 หน้า A4 แผงตรวจสอบตารางสอน คู่มือผู้สอน HS1–HS6 และลิงก์ต้นฉบับ">
+  <title>RACM 303 (ปีการศึกษา 2569) · พอร์ทัลอาจารย์และผู้ประสานงานรายวิชา — ปฏิทินสอน เฉลย Discussion ระบบสุขภาพ (HS1–HS6) และคู่มือผู้สอน</title>
+  <meta name="description" content="พอร์ทัลสำหรับคณาจารย์และผู้ประสานงานรายวิชา RACM 303 ปีการศึกษา 2569 รวมปฏิทินสอนรายอาจารย์ (.ics / .csv) ชุดโจทย์และ Teacher Answer Key สำหรับคาบ Discussion ระบบสุขภาพ HS1–HS6 (10 กรณีศึกษา) ใบรายชื่อรูปถ่ายนักศึกษาพิมพ์ 1 หน้า A4 แผงตรวจสอบตารางสอน และคู่มือผู้สอน">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=20261120h">
+  <link rel="stylesheet" href="assets/styles.css?v=20261120k">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -17,7 +17,7 @@
         <div>
           <p class="dept-line">FACULTY &amp; COURSE COORDINATOR PORTAL · RACM 303 · ปีการศึกษา 2569</p>
           <h1>พอร์ทัลอาจารย์และผู้จัดรายวิชา RACM 303 (ปีการศึกษา 2569)</h1>
-          <p class="head-subtitle">ปฏิทินภาระงานสอนรายอาจารย์ (.ics / Google Calendar .csv) · พิมพ์ใบรูปถ่ายนักศึกษา 1 หน้า A4 · ตรวจสอบตารางสอน &amp; ซิงค์ Apps Script · คู่มือผู้สอน HS1–HS6</p>
+          <p class="head-subtitle">ปฏิทินภาระงานสอนรายอาจารย์ (.ics / Google Calendar .csv) · Teacher Answer Key คาบ Discussion HS1–HS6 · พิมพ์ใบรูปถ่ายนักศึกษา 1 หน้า A4 · คู่มือผู้สอน</p>
         </div>
         <div class="head-links">
           <a class="ghost-link" id="facOpenStudentSiteLink" href="https://smartwoo.github.io/racm303-2569/" target="_blank" rel="noopener">เปิดเว็บฝั่งนักศึกษา ↗</a>
@@ -39,6 +39,7 @@
 
       <nav class="nav-tabs" role="tablist" aria-label="หมวดเนื้อหาสำหรับคณาจารย์">
         <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ปฏิทินสอน &amp; ภาระงาน</button>
+        <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" aria-selected="false" type="button">Discussion ระบบสุขภาพ &amp; เฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
         <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" aria-selected="false" type="button">รายชื่อกลุ่ม Discussion <span class="tab-count">6 กลุ่ม</span></button>
         <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" aria-selected="false" type="button">9 พื้นที่ภาคสนาม <span class="tab-count">9 พื้นที่</span></button>
         <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" aria-selected="false" type="button">ระบบรับงาน &amp; E-learning</button>
@@ -302,6 +303,58 @@
       </div>
     </section>
 
+    <!-- SECTION (FACULTY): DISCUSSION HEALTH SYSTEMS (HS1–HS6 · 10 CASES + TEACHER ANSWER KEY & RUBRICS) -->
+    <section class="tab-panel" id="panel-hs-discussion" aria-labelledby="fTabHsDiscussion" hidden>
+      <div class="section-header">
+        <div>
+          <h2>ชุดกรณีศึกษาและเฉลยสำหรับอาจารย์ (Discussion Health Systems · HS1–HS6 Teacher Answer Key)</h2>
+          <p>ครบทั้ง 10 กรณีศึกษาตามคาบอภิปราย HS1–HS6 พร้อมแนวทางการตอบมาตรฐาน เกณฑ์การให้คะแนน (Scoring Rubric) การเชื่อมโยงทฤษฎีบทเรียนฉบับปี 2569 และแผนนำอภิปราย 140 นาทีสำหรับคณาจารย์ประจำกลุ่มย่อย 1–6</p>
+        </div>
+        <div class="header-actions hsd-no-print">
+          <a class="btn teal" id="hsdDownloadKeyMdBtn" href="downloads/คู่มือเฉลย_Discussion_ระบบสุขภาพ_HS1-HS6_Teacher_Key_2569.md" download>ดาวน์โหลด Teacher Key (.md)</a>
+          <a class="btn" id="hsdDownloadBlankMdBtn" href="downloads/ใบงาน_Discussion_ระบบสุขภาพ_HS1-HS6_2569.md" download>ใบงานเปล่า นศพ. (.md)</a>
+          <a class="btn" id="hsdSourceDocBtn" href="https://docs.google.com/document/d/1ZQER6Q9efFfxYtXx_X1WUeze1wmVxJRE/edit?usp=sharing" target="_blank" rel="noopener">ต้นฉบับ 231268 (Google Docs) ↗</a>
+          <button class="btn primary" id="hsdPrintAllBtn" type="button">พิมพ์ชุดโจทย์ &amp; เฉลย / PDF</button>
+        </div>
+      </div>
+
+      <div class="hsd-context-bar" id="hsdContextBar"></div>
+
+      <div class="hsd-faculty-mode-bar" id="hsdFacultyModeBar">
+        <div class="hsd-faculty-mode-info">
+          <strong>โหมดการแสดงผลสำหรับอาจารย์ผู้สอน:</strong> สลับเป็น <em>“โหมดฉายหน้าจอในห้องเรียน”</em> เมื่อต้องการขึ้นจอโปรเจกเตอร์ให้ นศพ. อภิปรายก่อนแล้วคลิกเปิดเฉลยทีละข้อย่อย
+        </div>
+        <div class="hsd-mode-segmented" role="group" aria-label="เลือกโหมดการแสดงเฉลยสำหรับอาจารย์">
+          <button class="hsd-mode-btn" id="hsdModeTeacherBtn" data-hsd-fmode="teacher" aria-pressed="true" type="button">คู่มืออาจารย์ (เปิดเฉลยครบ)</button>
+          <button class="hsd-mode-btn" id="hsdModeProjectorBtn" data-hsd-fmode="projector" aria-pressed="false" type="button">ฉายหน้าจอในห้องเรียน (คลิกเปิดทีละข้อ)</button>
+          <button class="hsd-mode-btn" id="hsdModeStudentBtn" data-hsd-fmode="student" aria-pressed="false" type="button">มุมมองฝั่งนักศึกษา (ซ่อนเฉลย)</button>
+        </div>
+      </div>
+
+      <div class="hsd-module-grid" id="hsdModuleGrid" role="group" aria-label="เลือกบท Discussion ระบบสุขภาพ HS1–HS6"></div>
+
+      <div class="filter-panel hsd-no-print">
+        <div class="filter-field">
+          <label for="hsdModuleSelect">เลือกคาบอภิปรายระบบสุขภาพ (HS1–HS6)</label>
+          <select id="hsdModuleSelect">
+            <option value="ALL">ครบทุกคาบ HS1–HS6 (แสดงทั้งหมด 10 กรณีศึกษา + เฉลย)</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="hsdSearchInput">ค้นหาในโจทย์ / เฉลยอาจารย์ / เกณฑ์คะแนน / กรอบทฤษฎี</label>
+          <input id="hsdSearchInput" type="search" placeholder="เช่น Quaternary, 6 Building Blocks, Allocative efficiency, COM-B, Astana, Adverse selection, P4P…">
+        </div>
+      </div>
+
+      <div class="toolbar-row">
+        <span class="status-text" id="hsdStatusText" role="status">กำลังโหลดชุดโจทย์และเฉลย Discussion ระบบสุขภาพ…</span>
+        <span class="status-text" id="hsdSaveIndicator" style="color:var(--teal-deep)">เฉพาะคณาจารย์ผู้สอน (ไม่มีเฉลยในเว็บนักศึกษา)</span>
+        <button class="btn sm hsd-no-print" id="hsdResetFilterBtn" type="button">แสดงครบทุกบท</button>
+      </div>
+
+      <div id="hsdCasesContainer"></div>
+    </section>
+
     <!-- TAB 2: SEPARATED DISCUSSION GROUP PHOTO ROSTER (HS1–HS6 · 6 GROUPS) -->
     <section class="tab-panel" id="panel-discussion" aria-labelledby="fTabDiscussion" hidden>
       <div class="section-header">
@@ -310,6 +363,7 @@
           <p>ซิงค์รูปถ่ายนักศึกษาครบ 169 คนจากระบบ Apps Script พร้อมป้ายสีย่อยแยกตามกลุ่มพื้นที่ภาคสนามทั้ง 9 แห่ง และพิมพ์ลงกระดาษ A4 หน้าเดียวอัตโนมัติ</p>
         </div>
         <div class="header-actions">
+          <button class="btn" id="jumpToHsDiscCasesBtn" type="button">เปิดโจทย์ &amp; Teacher Key HS1–HS6 →</button>
           <a class="btn teal" id="openAppsScriptDiscBtn" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec?page=students&amp;type=discussion" target="_blank" rel="noopener">เปิดใน Apps Script ต้นฉบับ ↗</a>
           <button class="btn primary" id="discPrintTopBtn" type="button">พิมพ์ใบรายชื่อ Discussion 1 หน้า A4</button>
         </div>
@@ -564,7 +618,7 @@
       </div>
 
       <div class="subnav" role="group" aria-label="หมวดเอกสารสำหรับคณาจารย์">
-        <button class="subnav-btn" id="facSubGuidesBtn" data-fac-sub="guides" aria-pressed="true" type="button">คู่มือผู้สอน HS1–HS2 &amp; บันทึกตรวจทาน HS3–HS6 (7 ฉบับ)</button>
+        <button class="subnav-btn" id="facSubGuidesBtn" data-fac-sub="guides" aria-pressed="true" type="button">เฉลย Discussion HS1–HS6 &amp; คู่มือผู้สอน (8 ฉบับ)</button>
         <button class="subnav-btn" id="facSubLinksBtn" data-fac-sub="links" aria-pressed="false" type="button">สารบัญลิงก์ Google Drive / Docs / ข้อสอบปี 2569</button>
       </div>
 
@@ -735,7 +789,9 @@
   <script src="assets/data_roster.js?v=20261120e"></script>
   <script src="assets/data_manual.js?v=20261120e"></script>
   <script src="assets/data_hs_docs.js?v=20261120j"></script>
-  <script src="assets/data_faculty.js?v=20261120i"></script>
-  <script src="assets/portal.js?v=20261120i"></script>
+  <script src="assets/data_hs_discussion.js?v=20261120k"></script>
+  <script src="assets/data_hs_discussion_key.js?v=20261120k"></script>
+  <script src="assets/data_faculty.js?v=20261120k"></script>
+  <script src="assets/portal.js?v=20261120k"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   RACM 303 (ปีการศึกษา 2569) — Student Portal Controller
+   RACM 303 (ปีการศึกษา 2569) — Faculty & Coordinator Portal Controller
    Google Calendar & Apple iCal Views · Per-Group & Per-Student Fieldwork Sync
    One-Time (.ics / .csv) Downloads & Live Hosted Subscribe (.ics / webcal://)
    ========================================================================== */
@@ -17,6 +17,8 @@
   const ROSTER = window.RACM_ROSTER_DATA || { students: [], courseTeachers: [] };
   const MANUAL = window.RACM_MANUAL_DATA || { chapters: [] };
   const HS = window.RACM_HS_DATA || { docs: [], rapidReview: [], glossary: [], selfCheck: [] };
+  const HSD_DATA = window.RACM_HS_DISCUSSION_DATA || { modules: [], cases: [] };
+  const HSD_KEY = window.RACM_HS_DISCUSSION_KEY || { facilitationPlans: {}, keys: {} };
   const FACULTY = window.RACM_FACULTY_DATA || { docs: [], links: [] };
 
   const $ = (id) => document.getElementById(id);
@@ -52,6 +54,10 @@
     calWeek: 1,
     practiceSub: "rapid",
     facultySub: "guides",
+    hsdModule: "ALL",
+    hsdFacultyMode: "teacher", // teacher | projector | student
+    hsdDrafts: JSON.parse(localStorage.getItem("racm303_hs_disc_drafts_v1") || "{}"),
+    hsdRevealedKeys: new Set(),
     myStudent: null,
     discContext: null,
     fieldContext: null,
@@ -69,7 +75,7 @@
     inspectedPdfOrigName: "",
     manualChapterId: "ALL",
     activeDocId: "HS1",
-    activeFacultyDocId: "hs1-tg",
+    activeFacultyDocId: "hs-disc-teacher-key",
     readerFontPx: Number(localStorage.getItem("racm303_font_px")) || 16.5,
     readerViewMode: "scroll", // scroll | deck | sorter
     sorterZoomPct: Number(localStorage.getItem("racm303_sorter_zoom")) || 100,
@@ -237,6 +243,7 @@
     refreshCalendarStudioUI();
     if (state.activeTab === "schedule") renderScheduleCurrent();
     if (state.activeTab === "discussion") renderDiscussionView();
+    if (state.activeTab === "hs-discussion") renderHsDiscussionView();
     if (state.activeTab === "fieldwork") renderFieldworkView();
     if (state.activeTab === "submissions") renderSubmissionsView();
   }
@@ -311,6 +318,7 @@
     refreshCalendarStudioUI();
     if (state.activeTab === "schedule") renderScheduleCurrent();
     if (state.activeTab === "discussion") renderDiscussionView();
+    if (state.activeTab === "hs-discussion") renderHsDiscussionView();
     if (state.activeTab === "fieldwork") renderFieldworkView();
     if (state.activeTab === "submissions") renderSubmissionsView();
   }
@@ -375,16 +383,31 @@
 
   /* ---------- Primary Tab Routing ---------- */
   function normalizeTabId(rawTab) {
+    if (!rawTab) return "schedule";
     if (rawTab === "students") return "fieldwork";
     if (rawTab === "srn" || rawTab === "elearning") return "submissions";
+    if (rawTab === "discussion-hs" || rawTab === "hs-cases") return "hs-discussion";
+    const m = String(rawTab).match(/^hs-discussion-(HS[1-6])$/i);
+    if (m) {
+      state.hsdModule = m[1].toUpperCase();
+      if ($("hsdModuleSelect")) $("hsdModuleSelect").value = state.hsdModule;
+      return "hs-discussion";
+    }
     return rawTab;
+  }
+
+  function openHsDiscussion(mod) {
+    state.hsdModule = mod && /^HS[1-6]$/.test(mod) ? mod : "ALL";
+    if ($("hsdModuleSelect")) $("hsdModuleSelect").value = state.hsdModule;
+    switchTab("hs-discussion");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function switchTab(tabId, pushHash = true) {
     tabId = normalizeTabId(tabId);
     const validTabs = ROLE === "faculty"
-      ? ["schedule", "discussion", "fieldwork", "submissions", "audit", "faculty-docs", "manual", "textbooks", "practice"]
-      : ["schedule", "discussion", "fieldwork", "submissions", "manual", "textbooks", "practice"];
+      ? ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "audit", "faculty-docs", "manual", "textbooks", "practice"]
+      : ["schedule", "discussion", "hs-discussion", "fieldwork", "submissions", "manual", "textbooks", "practice"];
     if (!validTabs.includes(tabId)) tabId = "schedule";
 
     state.activeTab = tabId;
@@ -398,13 +421,16 @@
 
     document.body.classList.toggle("print-students-mode", tabId === "discussion" || tabId === "fieldwork");
     document.body.classList.toggle("print-disc-mode", tabId === "discussion");
+    document.body.classList.remove("print-single-hsd-case");
 
     if (pushHash) {
-      history.replaceState(null, "", `#${tabId}`);
+      const suffix = tabId === "hs-discussion" && state.hsdModule !== "ALL" ? `-${state.hsdModule}` : "";
+      history.replaceState(null, "", `#${tabId}${suffix}`);
     }
 
     if (tabId === "schedule") renderScheduleCurrent();
     if (tabId === "discussion") renderDiscussionView();
+    if (tabId === "hs-discussion") renderHsDiscussionView();
     if (tabId === "fieldwork") renderFieldworkView();
     if (tabId === "submissions") renderSubmissionsView();
     if (tabId === "manual") renderManualReader();
@@ -1449,6 +1475,16 @@
       }
 
       const actions = make("div", null, "session-actions");
+      const targetHsMod = s.hsModule || (/^HS[1-6]$/.test(s.docLink || "") ? s.docLink : "");
+      if (targetHsMod) {
+        const discLabel = ROLE === "faculty"
+          ? `โจทย์ & เฉลย Discussion (${targetHsMod}) →`
+          : `โจทย์ & ใบงาน Discussion (${targetHsMod}) →`;
+        const bHsd = make("button", discLabel, s.hsModule ? "btn sm primary" : "btn sm");
+        bHsd.type = "button";
+        bHsd.addEventListener("click", () => openHsDiscussion(targetHsMod));
+        actions.appendChild(bHsd);
+      }
       if (s.conciseLink) {
         const bConcise = make("button", `อ่านฉบับย่อ (${s.hsModule || s.docLink})`, "btn sm teal");
         bConcise.type = "button";
@@ -1692,6 +1728,20 @@
     }
 
     const studyRow = make("div", null, "session-actions");
+    const modalHsMod = session.hsModule || (/^HS[1-6]$/.test(session.docLink || "") ? session.docLink : "");
+    if (modalHsMod) {
+      const bHsd = make(
+        "button",
+        ROLE === "faculty" ? `เปิดโจทย์ & เฉลย Discussion (${modalHsMod}) →` : `เปิดโจทย์ & ใบงาน Discussion (${modalHsMod}) →`,
+        session.hsModule ? "btn sm primary" : "btn sm"
+      );
+      bHsd.type = "button";
+      bHsd.addEventListener("click", () => {
+        closeEventModal();
+        openHsDiscussion(modalHsMod);
+      });
+      studyRow.appendChild(bHsd);
+    }
     if (session.conciseLink) {
       const bc = make("button", `อ่านบทเรียนฉบับย่อ (${session.hsModule || session.docLink})`, "btn sm teal");
       bc.type = "button";
@@ -2196,6 +2246,10 @@
       if ($(id)) $(id).addEventListener("click", () => printRosterOnePage("discussion"));
     });
 
+    if ($("jumpToHsDiscCasesBtn")) {
+      $("jumpToHsDiscCasesBtn").addEventListener("click", () => openHsDiscussion("ALL"));
+    }
+
     syncPhotoToggleButtons();
   }
 
@@ -2358,11 +2412,16 @@
       slot.appendChild(
         make("span", `ห้อง ${cell.room || rot.room}`, `slot-room${cell.highlightRoom ? " room-changed" : ""}`)
       );
-      const readBtn = make("button", `เปิดบทเรียน ${slotMeta.mod} →`, "btn sm");
+      const btnRow = make("div", null, "header-actions");
+      btnRow.style.marginTop = "6px";
+      const discBtn = make("button", `โจทย์ ${slotMeta.mod}`, "btn sm primary");
+      discBtn.type = "button";
+      discBtn.addEventListener("click", () => openHsDiscussion(slotMeta.mod));
+      const readBtn = make("button", `บทเรียน ${slotMeta.mod}`, "btn sm");
       readBtn.type = "button";
-      readBtn.style.marginTop = "6px";
       readBtn.addEventListener("click", () => openTextbookDoc(slotMeta.docId));
-      slot.appendChild(readBtn);
+      btnRow.append(discBtn, readBtn);
+      slot.appendChild(btnRow);
       slotsGrid.appendChild(slot);
     });
     box.appendChild(slotsGrid);
@@ -4541,6 +4600,601 @@
     });
   }
 
+  /* ---------- Tab: Discussion Health Systems (HS1–HS6 · 10 Cases) ---------- */
+  function getCaseInputIds(caseObj) {
+    const ids = [];
+    (caseObj.questions || []).forEach((q) => {
+      const ws = q.worksheet;
+      if (!ws || !ws.rows) return;
+      ws.rows.forEach((r) => {
+        (r.cells || []).forEach((c) => {
+          if (c.inputId) ids.push(c.inputId);
+        });
+      });
+    });
+    return ids;
+  }
+
+  function countModuleDraftProgress(modId) {
+    const cases = (HSD_DATA.cases || []).filter((c) => modId === "ALL" || c.module === modId);
+    let total = 0;
+    let filled = 0;
+    cases.forEach((c) => {
+      getCaseInputIds(c).forEach((id) => {
+        total += 1;
+        if (String(state.hsdDrafts[id] || "").trim().length > 0) filled += 1;
+      });
+    });
+    return { filled, total, caseCount: cases.length };
+  }
+
+  function persistHsdDraft(inputId, val) {
+    if (String(val || "").trim()) {
+      state.hsdDrafts[inputId] = val;
+    } else {
+      delete state.hsdDrafts[inputId];
+    }
+    try {
+      localStorage.setItem("racm303_hs_disc_drafts_v1", JSON.stringify(state.hsdDrafts));
+    } catch (_) {}
+    const ind = $("hsdSaveIndicator");
+    if (ind) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      ind.textContent = `บันทึกคำตอบอัตโนมัติแล้ว (${hh}:${mm} น.)`;
+    }
+    refreshHsdModuleProgressBadges();
+  }
+
+  function refreshHsdModuleProgressBadges() {
+    const grid = $("hsdModuleGrid");
+    if (!grid) return;
+    grid.querySelectorAll("[data-hsd-prog]").forEach((el) => {
+      const modId = el.dataset.hsdProg;
+      const p = countModuleDraftProgress(modId);
+      el.textContent = p.filled > 0 ? `บันทึกแล้ว ${p.filled}/${p.total} ช่อง` : `${p.total} ช่องวิเคราะห์`;
+    });
+  }
+
+  function printSingleHsDiscussionCase(cardEl) {
+    document.querySelectorAll(".hsd-case-card.is-print-target").forEach((el) => el.classList.remove("is-print-target"));
+    cardEl.classList.add("is-print-target");
+    document.body.classList.remove("print-students-mode", "print-disc-mode");
+    document.body.classList.add("print-single-hsd-case");
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove("print-single-hsd-case");
+      cardEl.classList.remove("is-print-target");
+    }, 600);
+  }
+
+  function exportHsDiscussionStudentMarkdown() {
+    const lines = [
+      "# บันทึกการวิเคราะห์กรณีศึกษา Discussion ระบบสุขภาพ (HS1–HS6)",
+      ""
+    ];
+    if (state.myStudent) {
+      lines.push(`- **นักศึกษา:** ${state.myStudent.id} ${state.myStudent.fullName} (กลุ่ม Discussion ที่ ${state.myStudent.disc} · กลุ่มพื้นที่ ${state.myStudent.area})`);
+    }
+    lines.push(`- **รายวิชา:** RACM 303 เวชศาสตร์ชุมชนและวิทยาศาสตร์ระบบสุขภาพ ปีการศึกษา 2569`);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+
+    const targetMod = state.hsdModule || "ALL";
+    const mods = (HSD_DATA.modules || []).filter((m) => targetMod === "ALL" || m.id === targetMod);
+    mods.forEach((mod) => {
+      lines.push(`## ${mod.code}: ${mod.title}`);
+      lines.push(`*${mod.scheduleDate} · เวลา ${mod.discTime}*`);
+      lines.push("");
+      const modCases = (HSD_DATA.cases || []).filter((c) => c.module === mod.id);
+      modCases.forEach((c) => {
+        lines.push(`### ${c.title}`);
+        lines.push("");
+        (c.questions || []).forEach((q) => {
+          lines.push(`#### ${q.label}: ${q.title}`);
+          lines.push(q.prompt);
+          lines.push("");
+          const ws = q.worksheet;
+          if (ws && ws.headers && ws.rows) {
+            lines.push("| " + ws.headers.join(" | ") + " |");
+            lines.push("| " + ws.headers.map(() => "---").join(" | ") + " |");
+            ws.rows.forEach((r) => {
+              const vals = (r.cells || []).map((cell) => {
+                if (cell.static) return `**${cell.static}**`;
+                const ans = String(state.hsdDrafts[cell.inputId] || "").trim();
+                return ans ? ans.replace(/\n+/g, "<br>") : "-";
+              });
+              lines.push("| " + vals.join(" | ") + " |");
+            });
+            lines.push("");
+          }
+        });
+      });
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const suffix = targetMod === "ALL" ? "HS1-HS6" : targetMod;
+    const sid = state.myStudent ? `_${state.myStudent.id}` : "";
+    a.href = url;
+    a.download = `Discussion_${suffix}${sid}_RACM303_2569.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function initHsDiscussionControls() {
+    const sel = $("hsdModuleSelect");
+    if (sel) {
+      (HSD_DATA.modules || []).forEach((m) => {
+        const cnt = (HSD_DATA.cases || []).filter((c) => c.module === m.id).length;
+        sel.add(new Option(`${m.code}: ${m.title} (${cnt} กรณีศึกษา)`, m.id));
+      });
+      sel.value = state.hsdModule || "ALL";
+      sel.addEventListener("change", () => {
+        state.hsdModule = sel.value || "ALL";
+        const suffix = state.hsdModule !== "ALL" ? `-${state.hsdModule}` : "";
+        history.replaceState(null, "", `#hs-discussion${suffix}`);
+        renderHsDiscussionView();
+      });
+    }
+
+    if ($("hsdSearchInput")) {
+      $("hsdSearchInput").addEventListener("input", renderHsDiscussionView);
+    }
+
+    if ($("hsdResetFilterBtn")) {
+      $("hsdResetFilterBtn").addEventListener("click", () => {
+        state.hsdModule = "ALL";
+        if (sel) sel.value = "ALL";
+        if ($("hsdSearchInput")) $("hsdSearchInput").value = "";
+        history.replaceState(null, "", "#hs-discussion");
+        renderHsDiscussionView();
+      });
+    }
+
+    if ($("hsdClearAllDraftsBtn")) {
+      $("hsdClearAllDraftsBtn").addEventListener("click", () => {
+        if (!window.confirm("ต้องการล้างร่างคำตอบที่คุณพิมพ์ไว้ในใบงาน Discussion ทั้งหมดหรือไม่?")) return;
+        state.hsdDrafts = {};
+        try {
+          localStorage.removeItem("racm303_hs_disc_drafts_v1");
+        } catch (_) {}
+        if ($("hsdSaveIndicator")) $("hsdSaveIndicator").textContent = "ล้างร่างคำตอบเรียบร้อยแล้ว";
+        renderHsDiscussionView();
+      });
+    }
+
+    if ($("hsdPrintAllBtn")) {
+      $("hsdPrintAllBtn").addEventListener("click", () => {
+        document.body.classList.remove("print-students-mode", "print-disc-mode", "print-single-hsd-case");
+        window.print();
+      });
+    }
+
+    if ($("hsdExportMyAnswersBtn")) {
+      $("hsdExportMyAnswersBtn").addEventListener("click", exportHsDiscussionStudentMarkdown);
+    }
+
+    document.querySelectorAll("[data-hsd-fmode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hsdFacultyMode = btn.dataset.hsdFmode || "teacher";
+        document.querySelectorAll("[data-hsd-fmode]").forEach((b) =>
+          b.setAttribute("aria-pressed", b.dataset.hsdFmode === state.hsdFacultyMode ? "true" : "false")
+        );
+        renderHsDiscussionView();
+      });
+    });
+  }
+
+  function renderHsDiscussionContextBar() {
+    const bar = $("hsdContextBar");
+    if (!bar) return;
+    bar.replaceChildren();
+
+    const left = make("div", null, "hsd-context-text");
+    const right = make("div", null, "header-actions hsd-no-print");
+
+    if (state.myStudent) {
+      const s = state.myStudent;
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc);
+      const activeMod = state.hsdModule !== "ALL" ? state.hsdModule : "";
+      const modInfo = activeMod && rot && rot[activeMod] ? rot[activeMod] : null;
+      const modMeta = activeMod ? (HSD_DATA.modules || []).find((m) => m.id === activeMod) : null;
+
+      if (modInfo && modMeta) {
+        left.innerHTML = `<strong>กลุ่ม Discussion ที่ ${s.disc} ของฉัน (${escapeHtml(s.fullName)})</strong> · คาบ <strong>${escapeHtml(activeMod)}</strong> (${escapeHtml(modMeta.scheduleDate)} เวลา ${escapeHtml(modMeta.discTime)}) · ห้องเรียน <strong>${escapeHtml(modInfo.room || (rot && rot.room) || "")}</strong> · อาจารย์ผู้นำอภิปราย: <strong>${escapeHtml(modInfo.instructor || "-")}</strong>`;
+      } else {
+        left.innerHTML = `<strong>กลุ่ม Discussion ที่ ${s.disc} ของฉัน (${escapeHtml(s.fullName)})</strong> · ห้องเรียนหลัก <strong>${escapeHtml(rot ? rot.room : "-")}</strong> ชั้น 1 อาคารพรีคลินิก (เลือกบท HS1–HS6 ด้านล่างเพื่อดูชื่ออาจารย์ประจำกลุ่มและห้องเรียนของแต่ละคาบ)`;
+      }
+
+      const rosterBtn = make("button", `ดูเพื่อนร่วมกลุ่ม Discussion ${s.disc} →`, "btn sm");
+      rosterBtn.type = "button";
+      rosterBtn.addEventListener("click", () => {
+        if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
+        switchTab("discussion");
+      });
+      right.appendChild(rosterBtn);
+    } else if (ROLE === "faculty") {
+      left.innerHTML = `<strong>สำหรับคณาจารย์ประจำกลุ่มอภิปรายย่อยที่ 1–6 (ห้อง 1C1-02 ถึง 1C1-07)</strong> · ครบทั้ง 10 กรณีศึกษาตามกรอบ <strong>HS1–HS6</strong> พร้อม <strong>Teacher Answer Key · เกณฑ์การให้คะแนน (Scoring Rubric) · แนวทางเชื่อมโยงบทเรียนปี 2569</strong>`;
+      const rosterBtn = make("button", "ใบรูปถ่ายกลุ่ม Discussion 1–6 →", "btn sm");
+      rosterBtn.type = "button";
+      rosterBtn.addEventListener("click", () => switchTab("discussion"));
+      const fullGuideBtn = make("button", "เปิดหน้าคู่มือผู้สอนรวม →", "btn sm teal");
+      fullGuideBtn.type = "button";
+      fullGuideBtn.addEventListener("click", () => {
+        state.activeFacultyDocId = "hs-disc-teacher-key";
+        state.facultySub = "guides";
+        switchTab("faculty-docs");
+      });
+      right.append(rosterBtn, fullGuideBtn);
+    } else {
+      left.innerHTML = `<strong>การเตรียมตัวชั่วโมงอภิปรายกลุ่มย่อย (HS1–HS6 · 6 กลุ่มย่อย ห้อง 1C1-02 ถึง 1C1-07):</strong> อ่านสถานการณ์และลองพิมพ์วิเคราะห์ลงในตารางใบงานด้านล่าง (ระบบบันทึกอัตโนมัติในเครื่องของนักศึกษา และสั่งพิมพ์ PDF หรือส่งออก .md ได้ทันที) · <em>พิมพ์รหัสนักศึกษา 7 หลักที่แถบด้านบนเพื่อดูห้องเรียนและอาจารย์ประจำกลุ่มของตนเอง</em>`;
+      const rosterBtn = make("button", "ดูรายชื่อกลุ่ม Discussion 1–6 →", "btn sm");
+      rosterBtn.type = "button";
+      rosterBtn.addEventListener("click", () => switchTab("discussion"));
+      right.appendChild(rosterBtn);
+    }
+
+    bar.append(left, right);
+  }
+
+  function renderHsDiscussionModuleGrid() {
+    const grid = $("hsdModuleGrid");
+    if (!grid) return;
+    grid.replaceChildren();
+
+    const allProg = countModuleDraftProgress("ALL");
+    const cardsMeta = [
+      {
+        id: "ALL",
+        code: "HS1–HS6 รวมทุกบท",
+        countText: `${allProg.caseCount} กรณีศึกษา`,
+        title: "แสดงกรณีศึกษาครบทั้ง 6 คาบอภิปรายระบบสุขภาพ",
+        dateShort: "26 พ.ย. – 4 ธ.ค. 69"
+      },
+      ...(HSD_DATA.modules || []).map((m) => {
+        const p = countModuleDraftProgress(m.id);
+        return {
+          id: m.id,
+          code: `${m.code} · น้ำหนัก ${m.examWeight}`,
+          countText: `${p.caseCount} กรณี`,
+          title: m.title,
+          dateShort: `${m.scheduleDate.replace(/^วัน/, "")} (${m.discTime.replace(" น.", "")})`
+        };
+      })
+    ];
+
+    cardsMeta.forEach((item) => {
+      const btn = make("button", null, "hsd-mod-card");
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", state.hsdModule === item.id ? "true" : "false");
+
+      const prog = countModuleDraftProgress(item.id);
+      const progLabel = prog.filled > 0 ? `บันทึกแล้ว ${prog.filled}/${prog.total} ช่อง` : `${prog.total} ช่องวิเคราะห์`;
+
+      btn.innerHTML = `
+        <div class="hsd-mod-top">
+          <span class="hsd-mod-code">${escapeHtml(item.code)}</span>
+          <span class="hsd-mod-count">${escapeHtml(item.countText)}</span>
+        </div>
+        <div class="hsd-mod-title">${escapeHtml(item.title)}</div>
+        <div class="hsd-mod-meta">
+          <span>${escapeHtml(item.dateShort)}</span>
+          <span data-hsd-prog="${escapeHtml(item.id)}">${escapeHtml(progLabel)}</span>
+        </div>
+      `;
+
+      btn.addEventListener("click", () => {
+        state.hsdModule = item.id;
+        if ($("hsdModuleSelect")) $("hsdModuleSelect").value = item.id;
+        const suffix = item.id !== "ALL" ? `-${item.id}` : "";
+        history.replaceState(null, "", `#hs-discussion${suffix}`);
+        renderHsDiscussionView();
+      });
+
+      grid.appendChild(btn);
+    });
+  }
+
+  function renderScenarioBlock(blk) {
+    if (blk.type === "p") {
+      return make("p", blk.text);
+    }
+    if (blk.type === "subheading") {
+      return make("h5", blk.text, "hsd-scenario-subhead");
+    }
+    if (blk.type === "dialogue") {
+      const box = make("div", null, "hsd-dialogue-item");
+      box.appendChild(make("span", blk.speaker, "hsd-dialogue-speaker"));
+      box.appendChild(make("p", blk.text));
+      return box;
+    }
+    if (blk.type === "callout") {
+      const box = make("div", null, "hsd-callout-case");
+      box.appendChild(make("h5", blk.title));
+      box.appendChild(make("p", blk.text));
+      return box;
+    }
+    if (blk.type === "bullets") {
+      const ul = document.createElement("ul");
+      ul.style.margin = "0 0 12px";
+      ul.style.paddingLeft = "22px";
+      (blk.items || []).forEach((it) => {
+        const li = make("li", it);
+        li.style.marginBottom = "6px";
+        ul.appendChild(li);
+      });
+      return ul;
+    }
+    if (blk.type === "table") {
+      const wrap = make("div", null, "clean-table-wrap");
+      wrap.style.marginBottom = "12px";
+      const tbl = make("table", null, "clean-table");
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      (blk.headers || []).forEach((h) => hr.appendChild(make("th", h)));
+      thead.appendChild(hr);
+      const tbody = document.createElement("tbody");
+      (blk.rows || []).forEach((r) => {
+        const tr = document.createElement("tr");
+        r.forEach((cellText) => {
+          const td = document.createElement("td");
+          td.innerHTML = escapeHtml(cellText).replace(/\n/g, "<br>");
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      tbl.append(thead, tbody);
+      wrap.appendChild(tbl);
+      return wrap;
+    }
+    if (blk.type === "image") {
+      const fig = make("figure", null, "hsd-scenario-fig");
+      const img = document.createElement("img");
+      img.src = blk.src;
+      img.alt = blk.alt || "";
+      img.loading = "lazy";
+      img.addEventListener("click", () => openLightbox(blk.src, blk.caption || blk.alt || ""));
+      const cap = make("figcaption", `${blk.caption || ""} (คลิกที่ภาพเพื่อซูมขยาย)`);
+      fig.append(img, cap);
+      return fig;
+    }
+    return make("p", blk.text || "");
+  }
+
+  function buildCaseSearchCorpus(c) {
+    const parts = [c.module, c.title, c.subtitle, ...(c.frameworks || [])];
+    (c.scenarioBlocks || []).forEach((b) => {
+      if (b.text) parts.push(b.text);
+      if (b.speaker) parts.push(b.speaker);
+      if (b.title) parts.push(b.title);
+      if (b.caption) parts.push(b.caption);
+      if (b.items) parts.push(...b.items);
+      if (b.rows) b.rows.forEach((r) => parts.push(...r));
+    });
+    (c.questions || []).forEach((q) => {
+      parts.push(q.label, q.title, q.prompt);
+      if (ROLE === "faculty" && typeof getFacultyKeySearchText === "function") {
+        parts.push(getFacultyKeySearchText(q.id));
+      }
+    });
+    return parts.join(" ").toLocaleLowerCase("th");
+  }
+
+  function renderHsDiscussionView() {
+    const container = $("hsdCasesContainer");
+    if (!container) return;
+
+    if ($("hsdModuleSelect") && $("hsdModuleSelect").value !== state.hsdModule) {
+      $("hsdModuleSelect").value = state.hsdModule;
+    }
+
+    renderHsDiscussionContextBar();
+    renderHsDiscussionModuleGrid();
+
+    const q = (($("hsdSearchInput") && $("hsdSearchInput").value) || "").trim().toLocaleLowerCase("th");
+    const activeMod = state.hsdModule || "ALL";
+
+    const matchedCases = (HSD_DATA.cases || []).filter((c) => {
+      if (activeMod !== "ALL" && c.module !== activeMod) return false;
+      if (q && !buildCaseSearchCorpus(c).includes(q)) return false;
+      return true;
+    });
+
+    const totalSubQ = matchedCases.reduce((acc, c) => acc + (c.questions ? c.questions.length : 0), 0);
+    if ($("hsdStatusText")) {
+      const roleNote =
+        ROLE === "faculty"
+          ? state.hsdFacultyMode === "teacher"
+            ? " · โหมดคู่มืออาจารย์ (แสดง Teacher Answer Key & Rubric ครบทุกข้อ)"
+            : state.hsdFacultyMode === "projector"
+            ? " · โหมดฉายหน้าจอในห้องเรียน (คลิกเปิดเฉลยทีละข้อย่อย)"
+            : " · โหมดมุมมองนักศึกษา (ซ่อนเฉลยทั้งหมด)"
+          : "";
+      $("hsdStatusText").textContent = `แสดง ${matchedCases.length} กรณีศึกษา (${totalSubQ} ประเด็นอภิปรายย่อย)${roleNote}`;
+    }
+
+    container.replaceChildren();
+    if (!matchedCases.length) {
+      container.appendChild(make("div", "ไม่พบกรณีศึกษาที่ตรงกับตัวกรองหรือคำค้นหา", "empty-state"));
+      return;
+    }
+
+    const activeModules = (HSD_DATA.modules || []).filter((m) =>
+      matchedCases.some((c) => c.module === m.id)
+    );
+
+    activeModules.forEach((mod) => {
+      const modSec = make("section", null, "hsd-module-section");
+      modSec.id = `hsd-sec-${mod.id}`;
+
+      const banner = make("div", null, "hsd-module-banner");
+      const bLeft = make("div");
+      bLeft.append(
+        make("h3", `${mod.code}: ${mod.title}`),
+        make("p", `${mod.scheduleDate} · ชั่วโมงอภิปรายกลุ่มย่อย ${mod.discTime} (น้ำหนักเนื้อหา ${mod.examWeight}) — ${mod.summaryFocus}`)
+      );
+
+      const bRight = make("div", null, "header-actions hsd-no-print");
+      if (mod.conciseDocId) {
+        const bc = make("button", `อ่านฉบับย่อ (${mod.code})`, "btn sm teal");
+        bc.type = "button";
+        bc.addEventListener("click", () => openTextbookDoc(mod.conciseDocId));
+        bRight.appendChild(bc);
+      }
+      if (mod.docId) {
+        const bd = make("button", `อ่านฉบับเต็ม (${mod.code})`, "btn sm");
+        bd.type = "button";
+        bd.addEventListener("click", () => openTextbookDoc(mod.docId));
+        bRight.appendChild(bd);
+      }
+      if (mod.wbDocId) {
+        const bw = make("button", `Worksheet เพิ่มเติม (${mod.code})`, "btn sm");
+        bw.type = "button";
+        bw.addEventListener("click", () => openTextbookDoc(mod.wbDocId));
+        bRight.appendChild(bw);
+      }
+      banner.append(bLeft, bRight);
+      modSec.appendChild(banner);
+
+      if (ROLE === "faculty" && state.hsdFacultyMode === "teacher" && typeof appendFacultyFacilitationPlan === "function") {
+        appendFacultyFacilitationPlan(modSec, mod.id);
+      }
+
+      const modCases = matchedCases.filter((c) => c.module === mod.id);
+      modCases.forEach((c) => {
+        const card = make("article", null, "hsd-case-card");
+        card.id = `hsd-${c.id}`;
+
+        const head = make("div", null, "hsd-case-head");
+        const hLeft = make("div");
+        const badgeRow = make("div", null, "session-badges");
+        badgeRow.append(
+          make("span", `${c.module} · Discussion Case ${c.caseNumber}`, "badge cat-HS"),
+          make("span", `${(c.questions || []).length} ประเด็นวิเคราะห์`, "badge")
+        );
+        hLeft.appendChild(badgeRow);
+        hLeft.appendChild(make("h4", c.title, "hsd-case-title"));
+        hLeft.appendChild(make("p", c.subtitle, "hsd-case-sub"));
+
+        const fwWrap = make("div", null, "hsd-framework-tags");
+        (c.frameworks || []).forEach((fw) => fwWrap.appendChild(make("span", fw, "hsd-fw-tag")));
+        hLeft.appendChild(fwWrap);
+
+        const hRight = make("div", null, "header-actions hsd-no-print");
+        const printCaseBtn = make("button", "พิมพ์เฉพาะกรณีนี้ / PDF", "btn sm");
+        printCaseBtn.type = "button";
+        printCaseBtn.addEventListener("click", () => printSingleHsDiscussionCase(card));
+
+        const clearCaseBtn = make("button", "ล้างคำตอบข้อนี้", "btn sm");
+        clearCaseBtn.type = "button";
+        clearCaseBtn.addEventListener("click", () => {
+          const ids = getCaseInputIds(c);
+          const hasAny = ids.some((id) => String(state.hsdDrafts[id] || "").trim().length > 0);
+          if (!hasAny) return;
+          if (!window.confirm(`ต้องการล้างร่างคำตอบที่พิมพ์ไว้ใน "${c.title}" หรือไม่?`)) return;
+          ids.forEach((id) => delete state.hsdDrafts[id]);
+          try {
+            localStorage.setItem("racm303_hs_disc_drafts_v1", JSON.stringify(state.hsdDrafts));
+          } catch (_) {}
+          renderHsDiscussionView();
+        });
+
+        hRight.append(printCaseBtn, clearCaseBtn);
+        head.append(hLeft, hRight);
+        card.appendChild(head);
+
+        const body = make("div", null, "hsd-case-body");
+        const scenBox = make("div", null, "hsd-scenario-box");
+        scenBox.appendChild(make("div", "เนื้อหาสถานการณ์กรณีศึกษา (Case Scenario)", "hsd-scenario-label"));
+        (c.scenarioBlocks || []).forEach((blk) => scenBox.appendChild(renderScenarioBlock(blk)));
+        body.appendChild(scenBox);
+
+        (c.questions || []).forEach((qObj) => {
+          const qBlock = make("div", null, "hsd-question-block");
+          const qHead = make("div", null, "hsd-q-head");
+          qHead.appendChild(make("span", qObj.label, "hsd-q-badge"));
+          qHead.appendChild(make("h5", qObj.title, "hsd-q-title"));
+          qHead.appendChild(make("p", qObj.prompt, "hsd-q-prompt"));
+          qBlock.appendChild(qHead);
+
+          const ws = qObj.worksheet;
+          if (ws && ws.type === "table") {
+            const wsWrap = make("div", null, "hsd-ws-wrap");
+            const tbl = make("table", null, "hsd-ws-table");
+            const thead = document.createElement("thead");
+            const hr = document.createElement("tr");
+            (ws.headers || []).forEach((thText) => hr.appendChild(make("th", thText)));
+            thead.appendChild(hr);
+
+            const tbody = document.createElement("tbody");
+            (ws.rows || []).forEach((r) => {
+              const tr = document.createElement("tr");
+              (r.cells || []).forEach((cell, colIdx) => {
+                const td = document.createElement("td");
+                const colHeader = (ws.headers && ws.headers[colIdx]) || "";
+                if (colHeader) td.setAttribute("data-col-label", colHeader);
+
+                if (cell.static) {
+                  td.className = "hsd-ws-static";
+                  td.innerHTML = escapeHtml(cell.static).replace(/\n/g, "<br>");
+                } else if (cell.inputId) {
+                  const savedVal = String(state.hsdDrafts[cell.inputId] || "");
+                  const ta = document.createElement("textarea");
+                  ta.className = "hsd-input";
+                  ta.id = `input_${cell.inputId}`;
+                  ta.placeholder = cell.placeholder || "พิมพ์วิเคราะห์ประเด็นนี้…";
+                  ta.value = savedVal;
+
+                  const mirror = make(
+                    "div",
+                    savedVal || "(พื้นที่สำหรับเขียนบันทึกการวิเคราะห์)",
+                    "hsd-print-mirror"
+                  );
+
+                  const autoFit = () => {
+                    ta.style.height = "auto";
+                    ta.style.height = `${Math.max(78, ta.scrollHeight)}px`;
+                  };
+                  ta.addEventListener("input", () => {
+                    mirror.textContent = ta.value.trim() || "(พื้นที่สำหรับเขียนบันทึกการวิเคราะห์)";
+                    persistHsdDraft(cell.inputId, ta.value);
+                    autoFit();
+                  });
+                  requestAnimationFrame(autoFit);
+
+                  td.append(ta, mirror);
+                }
+                tr.appendChild(td);
+              });
+              tbody.appendChild(tr);
+            });
+
+            tbl.append(thead, tbody);
+            wsWrap.appendChild(tbl);
+            qBlock.appendChild(wsWrap);
+          }
+
+          if (ROLE === "faculty" && state.hsdFacultyMode !== "student" && typeof appendFacultyTeacherKey === "function") {
+            appendFacultyTeacherKey(qBlock, qObj, c, mod);
+          }
+
+          body.appendChild(qBlock);
+        });
+
+        card.appendChild(body);
+        modSec.appendChild(card);
+      });
+
+      container.appendChild(modSec);
+    });
+  }
+
   /* ---------- Faculty Tab 6: Schedule Audit, Apps Script Sync & Sign-Off ---------- */
   function renderAuditView() {
     const wrap = $("auditContentContainer");
@@ -4708,6 +5362,127 @@
     }
   }
 
+  /* ---------- Faculty-Only: HS1–HS6 Discussion Teacher Answer Key, Rubric & Facilitation ---------- */
+  function getFacultyKeySearchText(qId) {
+    const tk = (HSD_KEY.keys || {})[qId];
+    if (!tk) return "";
+    const parts = [tk.scoreLabel || "", ...(tk.rubric || [])];
+    if (tk.keyTable && tk.keyTable.rows) {
+      tk.keyTable.rows.forEach((r) => parts.push(...r));
+    }
+    if (tk.hsBridge) {
+      parts.push(tk.hsBridge.ref || "", ...(tk.hsBridge.insights || []));
+    }
+    return parts.join(" ");
+  }
+
+  function appendFacultyFacilitationPlan(modSec, modId) {
+    const plan = (HSD_KEY.facilitationPlans || {})[modId];
+    if (!plan) return;
+    const box = make("div", null, "hsd-facilitation-box");
+    box.appendChild(
+      make("h4", `แผนการจัดสรรเวลาและแนวทางนำอภิปรายกลุ่มย่อยสำหรับอาจารย์ (${plan.duration})`)
+    );
+    const ul = document.createElement("ul");
+    (plan.steps || []).forEach((st) => ul.appendChild(make("li", st)));
+    box.appendChild(ul);
+    modSec.appendChild(box);
+  }
+
+  function appendFacultyTeacherKey(qBlock, qObj, caseObj, modObj) {
+    const tk = (HSD_KEY.keys || {})[qObj.id];
+    if (!tk) return;
+
+    const isProjector = state.hsdFacultyMode === "projector";
+    const isRevealed = !isProjector || state.hsdRevealedKeys.has(qObj.id);
+
+    const panel = make("div", null, "hsd-teacher-key-panel");
+    panel.hidden = !isRevealed;
+
+    if (isProjector) {
+      const toggleRow = make("div", null, "hsd-projector-toggle-row hsd-no-print");
+      const revBtn = make(
+        "button",
+        isRevealed
+          ? `ซ่อนเฉลยอาจารย์ (${qObj.label}) ▴`
+          : `เปิดเฉลยอาจารย์และเกณฑ์คะแนน (${qObj.label}) ▾`,
+        isRevealed ? "btn sm" : "btn sm primary"
+      );
+      revBtn.type = "button";
+      revBtn.addEventListener("click", () => {
+        if (state.hsdRevealedKeys.has(qObj.id)) state.hsdRevealedKeys.delete(qObj.id);
+        else state.hsdRevealedKeys.add(qObj.id);
+        const openNow = state.hsdRevealedKeys.has(qObj.id);
+        panel.hidden = !openNow;
+        revBtn.textContent = openNow
+          ? `ซ่อนเฉลยอาจารย์ (${qObj.label}) ▴`
+          : `เปิดเฉลยอาจารย์และเกณฑ์คะแนน (${qObj.label}) ▾`;
+        revBtn.className = openNow ? "btn sm" : "btn sm primary";
+      });
+      toggleRow.appendChild(revBtn);
+      qBlock.appendChild(toggleRow);
+    }
+
+    const tkHead = make("div", null, "hsd-tk-header");
+    tkHead.append(
+      make("h6", `★ แนวคำตอบมาตรฐานสำหรับอาจารย์ (Teacher Answer Key · ${qObj.label})`, "hsd-tk-title"),
+      make("span", tk.scoreLabel || "", "hsd-tk-score-pill")
+    );
+    panel.appendChild(tkHead);
+
+    if (tk.keyTable && tk.keyTable.headers && tk.keyTable.rows) {
+      const tblWrap = make("div", null, "clean-table-wrap");
+      const tbl = make("table", null, "clean-table");
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      tk.keyTable.headers.forEach((h) => hr.appendChild(make("th", h)));
+      thead.appendChild(hr);
+      const tbody = document.createElement("tbody");
+      tk.keyTable.rows.forEach((r) => {
+        const tr = document.createElement("tr");
+        r.forEach((cellText, idx) => {
+          const td = document.createElement("td");
+          if (idx === 0) td.style.fontWeight = "600";
+          td.innerHTML = escapeHtml(cellText).replace(/\n/g, "<br>");
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      tbl.append(thead, tbody);
+      tblWrap.appendChild(tbl);
+      panel.appendChild(tblWrap);
+    }
+
+    const grid = make("div", null, "hsd-tk-grid");
+    if (tk.rubric && tk.rubric.length) {
+      const rCard = make("div", null, "hsd-rubric-card");
+      rCard.appendChild(make("h5", "เกณฑ์การให้คะแนนและการพิจารณาความสอดคล้อง (Scoring Rubric)"));
+      const ul = document.createElement("ul");
+      tk.rubric.forEach((it) => ul.appendChild(make("li", it)));
+      rCard.appendChild(ul);
+      grid.appendChild(rCard);
+    }
+
+    if (tk.hsBridge) {
+      const bCard = make("div", null, "hsd-bridge-card");
+      bCard.appendChild(make("h5", `เชื่อมโยงทฤษฎี ${tk.hsBridge.ref || modObj.code} & แนวทางนำอภิปรายต่อยอด`));
+      const ul = document.createElement("ul");
+      (tk.hsBridge.insights || []).forEach((it) => ul.appendChild(make("li", it)));
+      bCard.appendChild(ul);
+      if (modObj && modObj.docId) {
+        const jumpBtn = make("button", `เปิดอ่านบทเรียน ${modObj.code} ฉบับเต็ม →`, "btn sm teal hsd-no-print");
+        jumpBtn.type = "button";
+        jumpBtn.style.marginTop = "8px";
+        jumpBtn.addEventListener("click", () => openTextbookDoc(modObj.docId));
+        bCard.appendChild(jumpBtn);
+      }
+      grid.appendChild(bCard);
+    }
+
+    panel.appendChild(grid);
+    qBlock.appendChild(panel);
+  }
+
   /* ---------- Bootstrap ---------- */
   function init() {
     document.querySelectorAll(".nav-tab").forEach((btn) => {
@@ -4728,6 +5503,7 @@
     initPersonalizer();
     initScheduleControls();
     initDiscussionControls();
+    initHsDiscussionControls();
     initFieldworkControls();
     initSubmissionsControls();
     initManualControls();
@@ -4753,6 +5529,13 @@
         state.calScope = "student";
         applyMyStudent(found, true);
       }
+    }
+
+    if (params.get("page") === "hs-discussion") {
+      const m = (params.get("module") || "").toUpperCase();
+      if (/^HS[1-6]$/.test(m)) state.hsdModule = m;
+      switchTab("hs-discussion", false);
+      return;
     }
 
     if (params.get("page") === "students") {
