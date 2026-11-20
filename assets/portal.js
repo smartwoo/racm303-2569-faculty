@@ -8,6 +8,8 @@
 
   const ROLE = "faculty";
   const PORTAL_BASE_URL = "https://smartwoo.github.io/racm303-2569-faculty";
+  const RAMED_COURSE_URL = "https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398";
+  const RAMED_ASSIGN_INDEX_URL = "https://elearning.ra.mahidol.ac.th/ramed/mod/assign/index.php?id=398";
   const RAMED_LOGIN_URL = "https://elearning.ra.mahidol.ac.th/ramed/login/index.php";
   const RAMED_BASE_PREFIX = "https://elearning.ra.mahidol.ac.th/ramed/";
   const GOOGLE_FORM_URL = "https://forms.gle/1Gsg2SmSfuuEwmcE9";
@@ -1331,8 +1333,8 @@
         actions.appendChild(bExt);
       }
       if (s.code === "SRN 2 & SLIDES") {
-        const bRamed = make("a", "ส่ง SRN 2 ใน RAMED E-learning ↗", "btn sm primary");
-        bRamed.href = state.pinnedRamedUrl || RAMED_LOGIN_URL;
+        const bRamed = make("a", "ส่ง SRN 2 ในห้องวิชา id=398 ↗", "btn sm primary");
+        bRamed.href = getActiveRamedTargetUrl();
         bRamed.target = "_blank";
         bRamed.rel = "noopener";
         actions.appendChild(bRamed);
@@ -1445,18 +1447,18 @@
     wrap.innerHTML = `
       <div class="data-card">
         <h3>ตารางหมุนเวียนอาจารย์ประจำกลุ่มอภิปราย HS1–HS6 (6 กลุ่มย่อย · 169 คน)</h3>
-        <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">หมายเหตุสำคัญ: เช้าวันอังคารที่ 1 ธ.ค. 2569 (HS4) กลุ่มที่ 6 ย้ายไปใช้ห้อง <strong>2C2-03</strong> ชั่วคราว และช่วงบ่าย (HS5) กลับเข้าห้อง <strong>1C1-07</strong> ตามปกติ</p>
+        <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">เวลาเรียนระบบสุขภาพ: ช่วงเช้า <strong>08.30–12.00 น.</strong> (บรรยาย 08.30–09.30 · กลุ่มย่อย 09.40–12.00) และช่วงบ่าย <strong>13.30–17.00 น.</strong> (บรรยาย 13.30–14.30 · กลุ่มย่อย 14.40–17.00) · หมายเหตุ: เช้าวันอังคารที่ 1 ธ.ค. 2569 (HS4) กลุ่มที่ 6 ย้ายไปใช้ห้อง <strong>2C2-03</strong> ชั่วคราว และช่วงบ่าย (HS5) กลับเข้าห้อง <strong>1C1-07</strong> ตามปกติ</p>
         <div class="clean-table-wrap">
           <table class="clean-table">
             <thead>
               <tr>
                 <th>กลุ่มอภิปราย</th>
-                <th>HS1 (26 พ.ย. เช้า)</th>
-                <th>HS2 (30 พ.ย. เช้า)</th>
-                <th>HS3 (30 พ.ย. บ่าย)</th>
-                <th>HS4 (1 ธ.ค. เช้า)</th>
-                <th>HS5 (1 ธ.ค. บ่าย)</th>
-                <th>HS6 (4 ธ.ค. เช้า)</th>
+                <th>HS1 (26 พ.ย. 08.30–12.00)</th>
+                <th>HS2 (30 พ.ย. 08.30–12.00)</th>
+                <th>HS3 (30 พ.ย. 13.30–17.00)</th>
+                <th>HS4 (1 ธ.ค. 08.30–12.00)</th>
+                <th>HS5 (1 ธ.ค. 13.30–17.00)</th>
+                <th>HS6 (4 ธ.ค. 08.30–12.00)</th>
               </tr>
             </thead>
             <tbody>${rotRows}</tbody>
@@ -1583,8 +1585,8 @@
       studyRow.appendChild(ba);
     }
     if (session.code === "SRN 2 & SLIDES") {
-      const br = make("a", "ส่ง SRN 2 ใน RAMED E-learning ↗", "btn sm primary");
-      br.href = state.pinnedRamedUrl || RAMED_LOGIN_URL;
+      const br = make("a", "ส่ง SRN 2 ในห้องวิชา id=398 ↗", "btn sm primary");
+      br.href = getActiveRamedTargetUrl();
       br.target = "_blank";
       br.rel = "noopener";
       studyRow.appendChild(br);
@@ -1976,12 +1978,12 @@
 
   /* ---------- Tab 2: Separated Discussion Group Roster (HS1–HS6 · 6 Groups) ---------- */
   const HS_SLOTS_META = [
-    { mod: "HS1", label: "HS1 · พฤ. 26 พ.ย. (เช้า)", docId: "HS1" },
-    { mod: "HS2", label: "HS2 · จ. 30 พ.ย. (เช้า)", docId: "HS2" },
-    { mod: "HS3", label: "HS3 · จ. 30 พ.ย. (บ่าย)", docId: "HS3" },
-    { mod: "HS4", label: "HS4 · อ. 1 ธ.ค. (เช้า)", docId: "HS4" },
-    { mod: "HS5", label: "HS5 · อ. 1 ธ.ค. (บ่าย)", docId: "HS5" },
-    { mod: "HS6", label: "HS6 · ศ. 4 ธ.ค. (เช้า)", docId: "HS6" }
+    { mod: "HS1", label: "HS1 · พฤ. 26 พ.ย. (08.30–12.00)", docId: "HS1" },
+    { mod: "HS2", label: "HS2 · จ. 30 พ.ย. (08.30–12.00)", docId: "HS2" },
+    { mod: "HS3", label: "HS3 · จ. 30 พ.ย. (13.30–17.00)", docId: "HS3" },
+    { mod: "HS4", label: "HS4 · อ. 1 ธ.ค. (08.30–12.00)", docId: "HS4" },
+    { mod: "HS5", label: "HS5 · อ. 1 ธ.ค. (13.30–17.00)", docId: "HS5" },
+    { mod: "HS6", label: "HS6 · ศ. 4 ธ.ค. (08.30–12.00)", docId: "HS6" }
   ];
 
   function initDiscussionControls() {
@@ -2525,7 +2527,7 @@
       dueISO: "2026-12-09T17:00:00+07:00",
       sessionId: "w3-d3-srn1",
       backendType: "ramed",
-      backendLabel: "ส่งในระบบ RAMED E-learning ↗",
+      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 1 ในห้องวิชา id=398 ↗" : "ส่งในห้องวิชา RACM 303 (id=398) ↗",
       prereq: "เงื่อนไขก่อนส่ง: ต้องทำแบบประเมินการเรียนการสอนภาคทฤษฎี (Online) ให้เรียบร้อยก่อนอัปโหลดไฟล์ PDF · อาจารย์ที่ปรึกษาตรวจประเมินตามฟอร์ม 1A และให้ Feedback ระหว่างฝึกภาคสนาม",
       manualChapterId: "man-ch-11",
       manualBtnLabel: "เกณฑ์การเขียน SRN (บทที่ 11)",
@@ -2540,7 +2542,7 @@
       dueISO: "2026-12-30T17:00:00+07:00",
       sessionId: "w6-d3-srn2",
       backendType: "ramed",
-      backendLabel: "ส่งในระบบ RAMED E-learning ↗",
+      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 2 ในห้องวิชา id=398 ↗" : "ส่งในห้องวิชา RACM 303 (id=398) ↗",
       prereq: "เงื่อนไขก่อนส่ง: ทำแบบประเมินพฤติกรรมเพื่อนร่วมกลุ่ม (Peer Evaluation) และแบบประเมินรายวิชาออนไลน์ให้ครบถ้วนก่อนส่งงานในระบบ E-learning",
       manualChapterId: "man-ch-11",
       manualBtnLabel: "เกณฑ์ SRN & กำหนดส่ง (บทที่ 11)",
@@ -2579,7 +2581,7 @@
   ];
 
   function getActiveRamedTargetUrl() {
-    return state.pinnedRamedUrl || RAMED_LOGIN_URL;
+    return state.pinnedRamedUrl || RAMED_COURSE_URL;
   }
 
   function isValidRamedUrl(rawUrl) {
@@ -2605,13 +2607,13 @@
     }
     if (pinnedBtn) {
       pinnedBtn.hidden = !validPinned;
-      pinnedBtn.href = validPinned || RAMED_LOGIN_URL;
+      pinnedBtn.href = validPinned || RAMED_COURSE_URL;
     }
     if (clearBtn) {
       clearBtn.hidden = !validPinned;
     }
     if (feedback && validPinned) {
-      feedback.textContent = `✓ ปักหมุดลิงก์ตรงเรียบร้อยแล้ว: ${validPinned}`;
+      feedback.textContent = `✓ ปักหมุดลิงก์ย่อยเรียบร้อยแล้ว: ${validPinned}`;
     }
   }
 
@@ -2622,17 +2624,17 @@
 
     if (typeof fetch !== "function") {
       badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● พร้อมเชื่อมต่อไปยัง elearning.ra.mahidol.ac.th/ramed/login/index.php";
+      badge.textContent = "● เชื่อมต่อห้องวิชา 3/2569 RACM 303 (course/view.php?id=398) พร้อมใช้งาน";
       return;
     }
 
     badge.className = "elearning-status-pill is-checking";
-    badge.textContent = "● กำลังตรวจสอบการเชื่อมต่อ elearning.ra.mahidol.ac.th…";
+    badge.textContent = "● กำลังตรวจสอบการเชื่อมต่อห้องวิชา id=398…";
 
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 6500) : null;
     try {
-      await fetch(RAMED_LOGIN_URL, {
+      await fetch(RAMED_COURSE_URL, {
         method: "GET",
         mode: "no-cors",
         cache: "no-store",
@@ -2640,11 +2642,11 @@
       });
       if (timer) clearTimeout(timer);
       badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● ระบบหลังบ้านออนไลน์ พร้อมเข้าสู่ระบบ (elearning.ra.mahidol.ac.th/ramed)";
+      badge.textContent = "● เชื่อมต่อห้องวิชาออนไลน์แล้ว (3/2569 RACM 303 · id=398)";
     } catch (_) {
       if (timer) clearTimeout(timer);
       badge.className = "elearning-status-pill is-checking";
-      badge.textContent = "● ลิงก์ตรงพร้อมใช้งาน (คลิกปุ่มด้านล่างเพื่อเข้าสู่ระบบ elearning.ra.mahidol.ac.th)";
+      badge.textContent = "● ลิงก์ห้องวิชา id=398 พร้อมใช้งาน (คลิกเข้าสู่ระบบตามสิทธิ์ Login)";
     }
   }
 
@@ -2829,7 +2831,7 @@
 
       const channelSpan = make(
         "span",
-        d.backendType === "ramed" ? "ระบบหลังบ้าน: elearning.ra.mahidol.ac.th/ramed" : "ระบบรับงานกลุ่ม: forms.gle/1Gsg2SmSfuuEwmcE9"
+        d.backendType === "ramed" ? "ห้องวิชา: .../ramed/course/view.php?id=398" : "ระบบรับงานกลุ่ม: forms.gle/1Gsg2SmSfuuEwmcE9"
       );
       channelSpan.style.fontSize = "12px";
       channelSpan.style.color = "var(--muted)";
@@ -2906,7 +2908,7 @@
         state.pinnedRamedUrl = "";
         localStorage.removeItem("racm303_moodle_course_url");
         if ($("ramedCustomCourseUrlInput")) $("ramedCustomCourseUrlInput").value = "";
-        if ($("ramedPinFeedback")) $("ramedPinFeedback").textContent = "ล้างลิงก์ปักหมุดแล้ว (กลับไปใช้หน้าเข้าสู่ระบบหลัก login/index.php)";
+        if ($("ramedPinFeedback")) $("ramedPinFeedback").textContent = "กลับไปใช้หน้าหลักห้องวิชา 3/2569 RACM 303 (course/view.php?id=398) แล้ว";
         syncPinnedRamedCourseUI();
         renderDeliverablesCards();
       });

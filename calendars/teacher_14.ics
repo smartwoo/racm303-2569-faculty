@@ -18,7 +18,7 @@ END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:w1-d1-global@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261125T130000
 DTEND;TZID=Asia/Bangkok:20261125T160000
 SUMMARY:[RACM 303] Bedside to Systems-Based Practice: Global/Planetary Health & Health Policy and Systems Research (HPSR)

@@ -18,7 +18,7 @@ END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:w3-d3-dhs-panel@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261209T090000
 DTEND;TZID=Asia/Bangkok:20261209T120000
 SUMMARY:[RACM 303] Panel Discussion: District Health Systems – Six Building Blocks Plus One & Learning How to Learn in Community

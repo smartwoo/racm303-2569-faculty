@@ -18,7 +18,7 @@ END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:w1-d2-sg1@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261126T130000
 DTEND;TZID=Asia/Bangkok:20261126T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 1: การทำความรู้จักกันและชี้แจงภารกิจการทำงานกลุ่มก่อนและระหว่างออกภาคสนาม
@@ -32,9 +32,9 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d2-hs4-lec@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
-DTSTART;TZID=Asia/Bangkok:20261201T090000
-DTEND;TZID=Asia/Bangkok:20261201T100000
+DTSTAMP:20261119T160000Z
+DTSTART;TZID=Asia/Bangkok:20261201T083000
+DTEND;TZID=Asia/Bangkok:20261201T093000
 SUMMARY:[RACM 303] *HS4: พฤติกรรมสุขภาพ การปรับเปลี่ยนพฤติกรรม และการสร้างเสริมสุขภาพ (Guided Learning Synthesis)
 LOCATION:2C2-03 ชั้น 2 อาคารพรีคลินิก
 DESCRIPTION:วัตถุประสงค์: 1) อธิบายกลยุทธ์ 5 ด้านของกฎบัตรออตตาวา (Ottawa Charter) บทบาทแพทย์ (Advocate\, Mediate\, Enable) และการเปลี่ยนผ่านสู่โรค NCDs | 2) เปรียบเทียบทฤษฎี KAP\, HBM\, Stages of Change กับเศรษฐศาสตร์พฤติกรรมและ Nudge | 3) ประยุกต์ใช้ Behaviour Change Wheel และตัวแบบ COM-B | 4) วิเคราะห์ความรอบรู้ด้านสุขภาพระดับบุคคลและองค์กร\nอาจารย์ผู้สอน: ผศ. นพ.วิชช์ เกษมทรัพย์\nสถานที่/ห้องเรียน: 2C2-03 ชั้น 2 อาคารพรีคลินิก\nรูปแบบ: Onsite · ห้องใหญ่ 169 คน (เช็คชื่อ)
@@ -46,8 +46,8 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d2-hs4-disc@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
-DTSTART;TZID=Asia/Bangkok:20261201T101000
+DTSTAMP:20261119T160000Z
+DTSTART;TZID=Asia/Bangkok:20261201T094000
 DTEND;TZID=Asia/Bangkok:20261201T120000
 SUMMARY:[RACM 303] Discussion & Case Analysis (HS4): การสร้างเสริมสุขภาพ พฤติกรรมสุขภาพ และตัวแบบ COM-B
 LOCATION:2C2-03 (เฉพาะเช้า 1 ธ.ค.) (Discussion กลุ่มที่ 6 (28 คน))
@@ -60,9 +60,9 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d2-hs5-disc@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
-DTSTART;TZID=Asia/Bangkok:20261201T141000
-DTEND;TZID=Asia/Bangkok:20261201T163000
+DTSTAMP:20261119T160000Z
+DTSTART;TZID=Asia/Bangkok:20261201T144000
+DTEND;TZID=Asia/Bangkok:20261201T170000
 SUMMARY:[RACM 303] Discussion & Case Analysis (HS5): ระบบบริการสุขภาพปฐมภูมิและบริการปฐมภูมิ
 LOCATION:1C1-06 (Discussion กลุ่มที่ 5 (28 คน))
 DESCRIPTION:วัตถุประสงค์: วิเคราะห์กรณีศึกษาการจัดบริการปฐมภูมิ การทำงานข้ามภาคส่วน การเสริมพลังชุมชน และความท้าทายของระบบสุขภาพปฐมภูมิไทยในปัจจุบัน\nอาจารย์ผู้สอน: ผศ. นพ.วิชช์\nสถานที่/ห้องเรียน: 1C1-06 (Discussion กลุ่มที่ 5 (28 คน))\nรูปแบบ: Onsite · แยก 6 กลุ่มย่อย (เช็คชื่อ)
@@ -74,7 +74,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d5-sg2@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261204T130000
 DTEND;TZID=Asia/Bangkok:20261204T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 2: การศึกษาบริบทพื้นที่ ข้อมูลทุติยภูมิ และวางกรอบประเด็นศึกษาภาคสนาม
@@ -88,7 +88,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d2-sg3@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261208T143000
 DTEND;TZID=Asia/Bangkok:20261208T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 3: การเตรียมเครื่องมือศึกษาชุมชน ระบบบริการสุขภาพ และวางแผนสำรวจสุขภาพ (ครั้งที่ 1)
@@ -102,7 +102,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d3-sg4@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261209T130000
 DTEND;TZID=Asia/Bangkok:20261209T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 4: การเตรียมเครื่องมือศึกษาชุมชน ระบบบริการสุขภาพ และสรุปแผนก่อนลงพื้นที่ (ครั้งที่ 2)
@@ -116,7 +116,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d5-sg5@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261211T090000
 DTEND;TZID=Asia/Bangkok:20261211T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 5: การเตรียมการออกพื้นที่เพิ่มเติม (เฉพาะ 4 กลุ่ม: ด่านซ้าย 19\, ท่าวังผา 18\, อุบลรัตน์ 18\, ท่าสองยาง 20 — รวม 75 คน)
@@ -130,7 +130,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d5-sg6@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261211T130000
 DTEND;TZID=Asia/Bangkok:20261211T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 6: ภาคปฏิบัติ 7 เครื่องมือวิถีชุมชน + สรุปความพร้อมก่อนออกพื้นที่ (4 กลุ่ม · 75 คน)
@@ -144,21 +144,21 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-travel-thasongyang@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261211T173000
 DTEND;TZID=Asia/Bangkok:20261211T220000
 SUMMARY:[RACM 303] ออกเดินทางสู่พื้นที่ภาคสนามช่วงเย็น · กลุ่ม รพ.ท่าสองยาง จ.ตาก (หลังจบกลุ่มย่อยครั้งที่ 6)
 LOCATION:จุดนัดหมายการเดินทาง กลุ่มท่าสองยาง (เย็น ศ. 11 ธ.ค. (หลังเลิกกลุ่มย่อย 6)) (กลุ่มพื้นที่ ท่าสองยาง (20 คน))
 DESCRIPTION:วัตถุประสงค์: ออกเดินทางสู่พื้นที่ฝึกปฏิบัติงานภาคสนาม รพ.ท่าสองยาง จ.ตาก ช่วงเย็นวันศุกร์ที่ 11 ธ.ค. 2569 (ระยะฝึกภาคสนาม ศ. 11 – ส. 19 ธ.ค. 2569 · 8 คืน 9 วัน)\nอาจารย์ผู้สอน: ผศ. นพ.วิชช์ เกษมทรัพย์ / นพ.ภรัณยู โอสถธนากร\nสถานที่/ห้องเรียน: จุดนัดหมายการเดินทาง กลุ่มท่าสองยาง (เย็น ศ. 11 ธ.ค. (หลังเลิกกลุ่มย่อย 6)) (กลุ่มพื้นที่ ท่าสองยาง (20 คน))\nรูปแบบ: เดินทางสู่ภาคสนาม (20 คน) (ตามเวลานัดหมาย)
 BEGIN:VALARM
-TRIGGER:-PT60M
+TRIGGER:-PT15M
 ACTION:DISPLAY
 DESCRIPTION:แจ้งเตือนกำหนดการ [RACM 303] ออกเดินทางสู่พื้นที่ภาคสนามช่วงเย็น · กลุ่ม รพ.ท่าสองยาง จ.ตาก (หลังจบกลุ่มย่อยครั้งที่ 6)
 END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w4-fieldwork@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;VALUE=DATE:20261214
 DTEND;VALUE=DATE:20261221
 SUMMARY:[RACM 303] การฝึกปฏิบัติงานภาคสนาม ณ โรงพยาบาลชุมชนและชุมชนเป้าหมายทั้ง 9 พื้นที่ (Experiential Learning)
@@ -167,7 +167,7 @@ DESCRIPTION:วัตถุประสงค์: บูรณาการ 5 ว
 END:VEVENT
 BEGIN:VEVENT
 UID:w4-return-sat19@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261219T130000
 DTEND;TZID=Asia/Bangkok:20261219T200000
 SUMMARY:[RACM 303] เดินทางกลับจากพื้นที่ภาคสนาม · 7 กลุ่มพื้นที่ (กุฉินารายณ์\, ด่านซ้าย\, ตะกั่วป่า\, ท่าวังผา\, เพชรบูรณ์ 1–2\, ท่าสองยาง)
@@ -181,7 +181,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d3-sg7@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261223T130000
 DTEND;TZID=Asia/Bangkok:20261223T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 7: ถอดบทเรียนและสังเคราะห์ข้อมูลภาคสนาม (ครั้งที่ 1)
@@ -195,7 +195,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d4-sg8@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261224T090000
 DTEND;TZID=Asia/Bangkok:20261224T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 8: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 2)
@@ -209,7 +209,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d5-sg9@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261225T090000
 DTEND;TZID=Asia/Bangkok:20261225T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 9: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 3)
@@ -223,7 +223,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d5-sg10@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261225T130000
 DTEND;TZID=Asia/Bangkok:20261225T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 10: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 4)
@@ -237,7 +237,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d1-sg11@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261228T090000
 DTEND;TZID=Asia/Bangkok:20261228T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 11: จัดทำข้อสรุปและซ้อมการนำเสนอระบบสุขภาพ (ครั้งที่ 5)
@@ -251,7 +251,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d1-sg12@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261228T130000
 DTEND;TZID=Asia/Bangkok:20261228T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 12: ซ้อมใหญ่และปรับปรุงสื่อนำเสนอระบบสุขภาพและระบาดวิทยา (ครั้งที่ 6)
@@ -265,7 +265,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d2-sg13@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261229T153000
 DTEND;TZID=Asia/Bangkok:20261229T173000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 13: สะท้อนคิดหลังนำเสนอระบบสุขภาพและเตรียมการนำเสนอระบาดวิทยา

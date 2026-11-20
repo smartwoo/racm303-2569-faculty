@@ -7,7 +7,7 @@
   <meta name="description" content="พอร์ทัลสำหรับคณาจารย์และผู้ประสานงานรายวิชา RACM 303 ปีการศึกษา 2569 รวมปฏิทินสอนรายอาจารย์ ดาวน์โหลด iCal (.ics) และ Google Calendar (.csv) พร้อมลิงก์ Zoom ใบรายชื่อรูปถ่ายนักศึกษาพิมพ์ 1 หน้า A4 แผงตรวจสอบตารางสอน คู่มือผู้สอน HS1–HS6 และลิงก์ต้นฉบับ">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -21,7 +21,7 @@
         </div>
         <div class="head-links">
           <a class="ghost-link" id="facOpenStudentSiteLink" href="https://smartwoo.github.io/racm303-2569/" target="_blank" rel="noopener">เปิดเว็บฝั่งนักศึกษา ↗</a>
-          <a class="ghost-link" id="facRamedTopLink" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">หลังบ้าน E-learning ↗</a>
+          <a class="ghost-link" id="facRamedTopLink" href="https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398" target="_blank" rel="noopener">ห้องวิชา E-learning (id=398) ↗</a>
           <a class="ghost-link" id="facAppsScriptLink" href="https://script.google.com/macros/s/AKfycbzaDuMJDfeCxDxSbxSP7wt7qO-hh073x6UtLuv7sZCLTpCieQmHlLnv4V7n6RC4EFgOpA/exec" target="_blank" rel="noopener">Apps Script ต้นฉบับ</a>
           <a class="ghost-link" id="facDriveFolderLink" href="https://drive.google.com/drive/folders/1cO9EivLFWYYbhAWzXRtqzlViYqEnvtKr" target="_blank" rel="noopener">โฟลเดอร์ Drive 2569</a>
         </div>
@@ -342,59 +342,79 @@
     <section class="tab-panel" id="panel-submissions" aria-labelledby="fTabSubmissions" hidden>
       <div class="section-header">
         <div>
-          <h2>ระบบรับงานนักศึกษา · ตรวจประเมิน SRN &amp; เชื่อมต่อหลังบ้าน RAMED E-learning</h2>
-          <p>เข้าสู่ระบบหลังบ้าน E-learning เพื่อตรวจให้ Feedback งาน SRN 1 (ระหว่างภาคสนาม) และ SRN 2 พร้อมลิงก์ Google Form งานกลุ่มและเกณฑ์ประเมินฟอร์ม 1A–4A</p>
+          <h2>ระบบรับงานนักศึกษา · ตรวจประเมิน SRN &amp; เชื่อมห้องวิชา 3/2569 RACM 303 (id=398)</h2>
+          <p>เข้าสู่โหมดอาจารย์ของห้องวิชา <strong>3/2569 RACM 303 Community Medicine I (Course ID: 398)</strong> เพื่อตรวจและให้ Feedback งาน SRN 1 / SRN 2 พร้อมลิงก์ Google Form งานกลุ่มและเกณฑ์ฟอร์ม 1A–4A</p>
         </div>
         <div class="header-actions">
-          <a class="btn primary" id="subHeaderRamedLoginBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">เข้าหลังบ้าน RAMED E-learning ↗</a>
+          <a class="btn primary" id="subHeaderRamedLoginBtn" href="https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398" target="_blank" rel="noopener">เข้าห้องวิชา RACM 303 (id=398) ↗</a>
           <a class="btn teal" id="subHeaderGoogleFormBtn" href="https://forms.gle/1Gsg2SmSfuuEwmcE9" target="_blank" rel="noopener">Google Form สไลด์ &amp; Health Survey ↗</a>
         </div>
       </div>
 
-      <!-- RAMED E-learning Backend Connection Bridge (Faculty) -->
+      <!-- RAMED E-learning Course 398 Connection Bridge (Faculty) -->
       <div class="elearning-bridge-card" id="ramedBackendBridge">
         <div class="elearning-bridge-top">
           <div>
-            <h3 class="elearning-bridge-title">เชื่อมต่อระบบหลังบ้านคณาจารย์ RAMED E-learning (ตรวจงาน SRN 1 &amp; SRN 2)</h3>
-            <p class="elearning-bridge-url">ปลายทางระบบจัดการรายวิชา: https://elearning.ra.mahidol.ac.th/ramed/login/index.php</p>
+            <h3 class="elearning-bridge-title">Course: 3/2569 RACM 303 Community Medicine I | หลักสูตรแพทยศาสตรบัณฑิต</h3>
+            <p class="elearning-bridge-url">ปลายทางห้องจัดการรายวิชา: https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398</p>
           </div>
-          <span class="elearning-status-pill is-checking" id="ramedBackendStatusBadge">● กำลังตรวจสอบการเชื่อมต่อ elearning.ra.mahidol.ac.th…</span>
+          <span class="elearning-status-pill is-checking" id="ramedBackendStatusBadge">● กำลังตรวจสอบการเชื่อมต่อห้องวิชา id=398…</span>
+        </div>
+
+        <div class="elearning-role-grid" aria-label="การเข้าใช้งานตามสิทธิ์รหัสผู้ใช้งาน">
+          <div class="elearning-role-box">
+            <strong>คณาจารย์และเจ้าหน้าที่ผู้ประสานงาน (Teacher / Manager Role):</strong><br>
+            คลิกปุ่มด้านล่างแล้วกดปุ่มสีเขียว <span class="ad-login-pill">LOGIN with AD</span> (เข้าสู่ระบบด้วยรหัส C-life หรือรหัสบุคลากรของคณะฯ) หรือกรอก Username/Password ระบบ Moodle จะส่งเข้าห้อง <code>id=398</code> ในสิทธิ์อาจารย์ทันที (เปิด Edit mode, ตรวจงาน SRN รายกลุ่ม, ดู Grader Report และรายชื่อ 169 คน)
+          </div>
+          <div class="elearning-role-box">
+            <strong>มุมมองฝั่งนักศึกษาแพทย์ชั้นปีที่ 3 (Student Role):</strong><br>
+            ใช้ลิงก์ <code>course/view.php?id=398</code> และ <code>mod/assign/index.php?id=398</code> ชุดเดียวกัน เมื่อนักศึกษาล็อกอินด้วยรหัสนักศึกษา ระบบจะจำกัดสิทธิ์ให้เห็นเฉพาะหน้าส่งงานของตนเองและผลประเมินรายบุคคลโดยอัตโนมัติ
+          </div>
         </div>
 
         <div class="elearning-cta-row">
-          <a class="btn primary" id="openRamedLoginPrimaryBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">เข้าสู่ระบบอาจารย์ใน RAMED E-learning (login/index.php) ↗</a>
-          <button class="btn teal" id="openRamedPopupWorkspaceBtn" type="button">เปิดหน้าต่างหลังบ้าน E-learning คู่ขนาน (ตรวจงานควบคู่ใบรายชื่อ)</button>
-          <a class="btn" id="openPinnedRamedCourseBtn" href="#" target="_blank" rel="noopener" hidden>เปิดห้องรายวิชา RACM 303 ที่ปักหมุดไว้ ↗</a>
+          <a class="btn primary" id="openRamedLoginPrimaryBtn" href="https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398" target="_blank" rel="noopener">เข้าจัดการห้องวิชา 3/2569 RACM 303 (id=398) ↗</a>
+          <a class="btn teal" id="openRamedAssignIndexBtn" href="https://elearning.ra.mahidol.ac.th/ramed/mod/assign/index.php?id=398" target="_blank" rel="noopener">ตรวจงาน &amp; ดูยอดส่ง SRN (assign?id=398) ↗</a>
+          <button class="btn" id="openRamedPopupWorkspaceBtn" type="button">เปิดหน้าต่างห้องวิชา id=398 คู่ขนาน (ตรวจงานควบคู่ใบรูปถ่าย)</button>
+          <a class="btn" id="openPinnedRamedCourseBtn" href="#" target="_blank" rel="noopener" hidden>เปิดหน้าตรวจงานย่อยที่ปักหมุดไว้ ↗</a>
           <a class="btn" id="openGoogleFormBridgeBtn" href="https://forms.gle/1Gsg2SmSfuuEwmcE9" target="_blank" rel="noopener">เปิด Google Form งานภาคสนาม 2569 ↗</a>
         </div>
 
-        <div class="elearning-deep-links" aria-label="ทางลัดระบบหลังบ้านอาจารย์ใน RAMED E-learning">
+        <div class="elearning-deep-links" aria-label="ทางลัดระบบหลังบ้านอาจารย์ของวิชา 3/2569 RACM 303 (id=398)">
+          <a class="elearning-endpoint-link" id="ramedLinkCourseHome" href="https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=398" target="_blank" rel="noopener">
+            <strong>1. หน้าจัดการรายวิชา (Course 398)</strong>
+            <small>/ramed/course/view.php?id=398 · จัดการหัวข้อและเปิด Edit mode</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkAssignments" href="https://elearning.ra.mahidol.ac.th/ramed/mod/assign/index.php?id=398" target="_blank" rel="noopener">
+            <strong>2. ตรวจงาน Assignment ทั้งหมด</strong>
+            <small>/ramed/mod/assign/index.php?id=398 · เช็กยอดส่งและให้ Feedback SRN</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkGrades" href="https://elearning.ra.mahidol.ac.th/ramed/grade/report/index.php?id=398" target="_blank" rel="noopener">
+            <strong>3. ตารางคะแนนรวม (Grader Report)</strong>
+            <small>/ramed/grade/report/index.php?id=398 · สมุดคะแนนทั้งชั้นปี</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkParticipants" href="https://elearning.ra.mahidol.ac.th/ramed/user/index.php?id=398" target="_blank" rel="noopener">
+            <strong>4. รายชื่อผู้เรียนและกลุ่มใน Moodle</strong>
+            <small>/ramed/user/index.php?id=398 · ตรวจสอบสมาชิกและสิทธิ์ในห้อง 398</small>
+          </a>
+          <a class="elearning-endpoint-link" id="ramedLinkResources" href="https://elearning.ra.mahidol.ac.th/ramed/course/resources.php?id=398" target="_blank" rel="noopener">
+            <strong>5. คลังไฟล์และเอกสารในวิชา</strong>
+            <small>/ramed/course/resources.php?id=398 · ไฟล์ประกอบการสอนทั้งหมด</small>
+          </a>
           <a class="elearning-endpoint-link" id="ramedLinkLogin" href="https://elearning.ra.mahidol.ac.th/ramed/login/index.php" target="_blank" rel="noopener">
-            <strong>1. หน้าเข้าสู่ระบบอาจารย์ (Login)</strong>
-            <small>/ramed/login/index.php · Mahidol Account / RAMED</small>
-          </a>
-          <a class="elearning-endpoint-link" id="ramedLinkSearchCourse" href="https://elearning.ra.mahidol.ac.th/ramed/course/search.php?search=RACM+303" target="_blank" rel="noopener">
-            <strong>2. ค้นหาห้องจัดการรายวิชา RACM 303</strong>
-            <small>เข้าสู่ระบบผ่าน login/index.php แล้วเปิดหน้าค้นหา RACM 303</small>
-          </a>
-          <a class="elearning-endpoint-link" id="ramedLinkDashboard" href="https://elearning.ra.mahidol.ac.th/ramed/my/" target="_blank" rel="noopener">
-            <strong>3. แดชบอร์ดรายวิชาที่สอน</strong>
-            <small>/ramed/my/ · ตรวจจำนวนผู้ส่งงาน SRN 1 / SRN 2 รายกลุ่ม</small>
-          </a>
-          <a class="elearning-endpoint-link" id="ramedLinkUpcoming" href="https://elearning.ra.mahidol.ac.th/ramed/calendar/view.php?view=upcoming" target="_blank" rel="noopener">
-            <strong>4. ปฏิทินกำหนดส่งงานใน Moodle</strong>
-            <small>/ramed/calendar/ · ตรวจสอบกำหนดปิดรับงานในระบบ</small>
+            <strong>6. หน้าเข้าสู่ระบบหลัก (LOGIN with AD)</strong>
+            <small>/ramed/login/index.php · รหัส C-life / รหัสบุคลากรของคณะฯ</small>
           </a>
         </div>
 
         <details class="elearning-pin-details" id="ramedPinDetails">
-          <summary>ปักหมุดลิงก์ตรงของห้องตรวจงาน RACM 303 ใน E-learning (คลิกเดียวเข้าหน้าตรวจงานหลังล็อกอิน)</summary>
+          <summary>ปักหมุดลิงก์ตรงหน้าตรวจงาน Assignment ย่อย (เช่น mod/assign/view.php?id=...&amp;action=grading)</summary>
           <div class="elearning-pin-body">
-            <p style="margin:0;font-size:13px;color:var(--muted)">วางลิงก์หน้ารายวิชาหรือหน้าตรวจงาน Assignment ใน Moodle (เช่น <code>https://elearning.ra.mahidol.ac.th/ramed/mod/assign/view.php?id=...&amp;action=grading</code>) เพื่อเปิดตรงในครั้งถัดไป</p>
+            <p style="margin:0;font-size:13px;color:var(--muted)">ค่าเริ่มต้นเชื่อมเข้าห้องวิชา <code>course/view.php?id=398</code> ให้แล้ว หากต้องการปักหมุดเข้าหน้าตรวจงานย่อยของ SRN 1 หรือ SRN 2 ทันที สามารถวางลิงก์ <code>https://elearning.ra.mahidol.ac.th/ramed/mod/assign/view.php?id=...&amp;action=grading</code> ด้านล่าง</p>
             <div class="elearning-pin-row">
-              <input id="ramedCustomCourseUrlInput" type="url" placeholder="วางลิงก์ https://elearning.ra.mahidol.ac.th/ramed/course/view.php?id=... หรือ mod/assign/view.php?id=...">
-              <button class="btn sm teal" id="saveRamedCustomUrlBtn" type="button">บันทึกลิงก์ห้องตรวจงาน</button>
-              <button class="btn sm" id="clearRamedCustomUrlBtn" type="button" hidden>ล้างลิงก์ที่ปักหมุด</button>
+              <input id="ramedCustomCourseUrlInput" type="url" placeholder="วางลิงก์ย่อย เช่น https://elearning.ra.mahidol.ac.th/ramed/mod/assign/view.php?id=...&action=grading">
+              <button class="btn sm teal" id="saveRamedCustomUrlBtn" type="button">ปักหมุดหน้าตรวจงานย่อย</button>
+              <button class="btn sm" id="clearRamedCustomUrlBtn" type="button" hidden>กลับไปใช้หน้าห้องวิชา id=398</button>
             </div>
             <div id="ramedPinFeedback" style="font-size:12.6px;color:var(--teal-deep)"></div>
           </div>

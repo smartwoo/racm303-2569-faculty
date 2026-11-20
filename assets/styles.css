@@ -36,7 +36,7 @@
   --radius-lg: 15px;
   --font-display: "Anuphan", "Sarabun", "Leelawadee UI", sans-serif;
   --font-body: "Sarabun", "Leelawadee UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "Anuphan", "Sarabun", "Helvetica Neue", Arial, sans-serif;
   --reader-size: 16.5px;
 }
 
@@ -57,6 +57,13 @@ body {
   font-size: 16px;
   line-height: 1.65;
   text-rendering: optimizeLegibility;
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "zero" 0;
+}
+
+code, pre, kbd, samp, .sid-mono, .room-pill, .srn-output, .cal-hour-tick, .chip-time, .ev-time {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "zero" 0, "tnum" 1;
 }
 
 button, input, select, textarea {
@@ -3052,10 +3059,46 @@ a:hover {
   color: var(--amber);
 }
 
-.pdf-check-result.is-err {
+.pdf-check-result.is-err,
+.pdf-check-result.is-error {
   background: var(--crimson-bg);
   border: 1px solid var(--crimson-line);
   color: var(--crimson);
+}
+
+/* RAMA E-learning Course 398 Role-Based Login Guide */
+.elearning-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.elearning-role-box {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 13.3px;
+  line-height: 1.54;
+  color: var(--ink-body);
+}
+
+.elearning-role-box strong {
+  font-family: var(--font-display);
+  color: var(--brand-deep);
+}
+
+.ad-login-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: linear-gradient(135deg, #2d7a47 0%, #1d5732 100%);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 /* Course Deliverables Cards */
@@ -3074,7 +3117,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .deliverable-card.is-submitted {
@@ -3090,12 +3133,27 @@ a:hover {
   flex-wrap: wrap;
 }
 
-.deliverable-card h4 {
-  margin: 6px 0 6px;
+.deliverable-card h4,
+.deliverable-title {
+  margin: 4px 0 2px;
   font-family: var(--font-display);
   font-size: 17px;
   line-height: 1.38;
   color: var(--brand-deep);
+}
+
+.deliverable-due {
+  margin: 0;
+  font-size: 13.8px;
+  font-weight: 600;
+  color: var(--teal-deep);
+}
+
+.deliverable-meta {
+  margin: 0;
+  font-size: 13.4px;
+  color: var(--ink-body);
+  line-height: 1.56;
 }
 
 .deliverable-meta-list {
@@ -3110,7 +3168,8 @@ a:hover {
   margin-bottom: 4px;
 }
 
-.deliverable-footer {
+.deliverable-footer,
+.deliverable-foot {
   padding-top: 11px;
   border-top: 1px solid var(--line-soft);
   display: flex;
@@ -3118,6 +3177,16 @@ a:hover {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.deliverable-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 13.3px;
+  font-weight: 600;
+  color: var(--brand-deep);
 }
 
 .countdown-pill {
@@ -3142,7 +3211,8 @@ a:hover {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .srn-two-col,
-  .deliverables-grid {
+  .deliverables-grid,
+  .elearning-role-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -3171,11 +3241,12 @@ a:hover {
   .srn-studio-card {
     display: none !important;
   }
-  body.print-disc-mode .student-card .disc-line {
+  body.print-disc-mode .student-card .s-area {
     display: block !important;
   }
-  body.print-disc-mode .student-card .s-area {
+  body.print-disc-mode .student-card .disc-line {
     display: none !important;
   }
 }
+
 

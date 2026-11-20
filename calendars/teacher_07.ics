@@ -18,7 +18,7 @@ END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:w1-d2-sg1@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261126T130000
 DTEND;TZID=Asia/Bangkok:20261126T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 1: การทำความรู้จักกันและชี้แจงภารกิจการทำงานกลุ่มก่อนและระหว่างออกภาคสนาม
@@ -32,7 +32,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w1-d3-ep123@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261127T090000
 DTEND;TZID=Asia/Bangkok:20261127T110000
 SUMMARY:[RACM 303] EP1: Introduction to Epidemiology · EP2: Diagnostic Test · EP3: Errors in Epidemiology
@@ -48,7 +48,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w1-d3-ex12@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261127T110000
 DTEND;TZID=Asia/Bangkok:20261127T120000
 SUMMARY:[RACM 303] EXERCISE 1: Diagnostic Test & Errors in Epidemiology · EXERCISE 2: Errors in Epidemiology (Case Appraisal)
@@ -64,7 +64,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d3-ex34@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261202T130000
 DTEND;TZID=Asia/Bangkok:20261202T163000
 SUMMARY:[RACM 303] EXERCISE 3: Study Designs & Impact · EXERCISE 4: Surveillance & Outbreak Investigation + Q&A Day 1–2 (16.00–16.30 น.)
@@ -80,7 +80,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w2-d5-sg2@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261204T130000
 DTEND;TZID=Asia/Bangkok:20261204T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 2: การศึกษาบริบทพื้นที่ ข้อมูลทุติยภูมิ และวางกรอบประเด็นศึกษาภาคสนาม
@@ -94,7 +94,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d2-sg3@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261208T143000
 DTEND;TZID=Asia/Bangkok:20261208T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 3: การเตรียมเครื่องมือศึกษาชุมชน ระบบบริการสุขภาพ และวางแผนสำรวจสุขภาพ (ครั้งที่ 1)
@@ -108,7 +108,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d3-sg4@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261209T130000
 DTEND;TZID=Asia/Bangkok:20261209T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 4: การเตรียมเครื่องมือศึกษาชุมชน ระบบบริการสุขภาพ และสรุปแผนก่อนลงพื้นที่ (ครั้งที่ 2)
@@ -122,7 +122,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d5-sg5@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261211T090000
 DTEND;TZID=Asia/Bangkok:20261211T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 5: การเตรียมการออกพื้นที่เพิ่มเติม (เฉพาะ 4 กลุ่ม: ด่านซ้าย 19\, ท่าวังผา 18\, อุบลรัตน์ 18\, ท่าสองยาง 20 — รวม 75 คน)
@@ -136,7 +136,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-d5-sg6@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261211T130000
 DTEND;TZID=Asia/Bangkok:20261211T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 6: ภาคปฏิบัติ 7 เครื่องมือวิถีชุมชน + สรุปความพร้อมก่อนออกพื้นที่ (4 กลุ่ม · 75 คน)
@@ -150,21 +150,21 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w3-travel-sat-dansai-thawangpha@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261212T070000
 DTEND;TZID=Asia/Bangkok:20261212T153000
 SUMMARY:[RACM 303] ออกเดินทางสู่พื้นที่ภาคสนาม · กลุ่ม รพร.ด่านซ้าย จ.เลย และ รพ.ท่าวังผา จ.น่าน
 LOCATION:จุดนัดหมายการเดินทาง กลุ่มท่าวังผา (เช้า ส. 12 ธ.ค. (มีเรียน 11 ธ.ค.)) (กลุ่มพื้นที่ ท่าวังผา (18 คน))
 DESCRIPTION:วัตถุประสงค์: ออกเดินทางวันเสาร์ที่ 12 ธ.ค. 2569 สู่พื้นที่ฝึกปฏิบัติงานภาคสนาม (ระยะฝึกภาคสนาม ส. 12 – ส. 19 ธ.ค. 2569 · 7 คืน 8 วัน)\nอาจารย์ผู้สอน: อ. นพ.จักรกฤษณ์ เอื้อสุนทรวัฒนา\nสถานที่/ห้องเรียน: จุดนัดหมายการเดินทาง กลุ่มท่าวังผา (เช้า ส. 12 ธ.ค. (มีเรียน 11 ธ.ค.)) (กลุ่มพื้นที่ ท่าวังผา (18 คน))\nรูปแบบ: เดินทางสู่ภาคสนาม (37 คน) (ตามเวลานัดหมาย)
 BEGIN:VALARM
-TRIGGER:-PT60M
+TRIGGER:-PT15M
 ACTION:DISPLAY
 DESCRIPTION:แจ้งเตือนกำหนดการ [RACM 303] ออกเดินทางสู่พื้นที่ภาคสนาม · กลุ่ม รพร.ด่านซ้าย จ.เลย และ รพ.ท่าวังผา จ.น่าน
 END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w4-fieldwork@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;VALUE=DATE:20261214
 DTEND;VALUE=DATE:20261221
 SUMMARY:[RACM 303] การฝึกปฏิบัติงานภาคสนาม ณ โรงพยาบาลชุมชนและชุมชนเป้าหมายทั้ง 9 พื้นที่ (Experiential Learning)
@@ -173,7 +173,7 @@ DESCRIPTION:วัตถุประสงค์: บูรณาการ 5 ว
 END:VEVENT
 BEGIN:VEVENT
 UID:w4-return-sat19@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261219T130000
 DTEND;TZID=Asia/Bangkok:20261219T200000
 SUMMARY:[RACM 303] เดินทางกลับจากพื้นที่ภาคสนาม · 7 กลุ่มพื้นที่ (กุฉินารายณ์\, ด่านซ้าย\, ตะกั่วป่า\, ท่าวังผา\, เพชรบูรณ์ 1–2\, ท่าสองยาง)
@@ -187,7 +187,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d3-sg7@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261223T130000
 DTEND;TZID=Asia/Bangkok:20261223T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 7: ถอดบทเรียนและสังเคราะห์ข้อมูลภาคสนาม (ครั้งที่ 1)
@@ -201,7 +201,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d4-sg8@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261224T090000
 DTEND;TZID=Asia/Bangkok:20261224T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 8: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 2)
@@ -215,7 +215,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d5-sg9@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261225T090000
 DTEND;TZID=Asia/Bangkok:20261225T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 9: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 3)
@@ -229,7 +229,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w5-d5-sg10@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261225T130000
 DTEND;TZID=Asia/Bangkok:20261225T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 10: สังเคราะห์ข้อมูลภาคสนามและวิเคราะห์ Health Survey (ครั้งที่ 4)
@@ -243,7 +243,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d1-sg11@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261228T090000
 DTEND;TZID=Asia/Bangkok:20261228T120000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 11: จัดทำข้อสรุปและซ้อมการนำเสนอระบบสุขภาพ (ครั้งที่ 5)
@@ -257,7 +257,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d1-sg12@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261228T130000
 DTEND;TZID=Asia/Bangkok:20261228T163000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 12: ซ้อมใหญ่และปรับปรุงสื่อนำเสนอระบบสุขภาพและระบาดวิทยา (ครั้งที่ 6)
@@ -271,7 +271,7 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:w6-d2-sg13@racm303-2569.mahidol.ac.th
-DTSTAMP:20261118T070000Z
+DTSTAMP:20261119T160000Z
 DTSTART;TZID=Asia/Bangkok:20261229T153000
 DTEND;TZID=Asia/Bangkok:20261229T173000
 SUMMARY:[RACM 303] กิจกรรมกลุ่มย่อย ครั้งที่ 13: สะท้อนคิดหลังนำเสนอระบบสุขภาพและเตรียมการนำเสนอระบาดวิทยา
