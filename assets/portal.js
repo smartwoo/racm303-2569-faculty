@@ -3547,6 +3547,10 @@
         });
       });
     });
+
+    if (window.RACMInteractiveQA) {
+      window.RACMInteractiveQA.enhanceContainer(rootEl);
+    }
   }
 
   function extractSlidesFromProse(proseContainer) {
@@ -4348,8 +4352,12 @@
         const prose = $("textbookProseContainer");
         const scope = (prose && prose.parentElement) || prose;
         if (!scope) return;
-        const detailsList = [...scope.querySelectorAll("details")];
-        const anyClosed = detailsList.some((d) => !d.open);
+        const drawers = [...scope.querySelectorAll(".iq-feedback-drawer")];
+        const detailsList = [...scope.querySelectorAll("details:not(.bulk-key-archive)")];
+        const anyClosed = drawers.length ? drawers.some((d) => d.hidden) : detailsList.some((d) => !d.open);
+        if (window.RACMInteractiveQA) {
+          window.RACMInteractiveQA.toggleAllInlineAnswers(scope, anyClosed);
+        }
         detailsList.forEach((d) => (d.open = anyClosed));
         expandAllBtn.textContent = anyClosed ? "ซ่อนแนวคำตอบทั้งหมด" : "เปิดแนวคำตอบทั้งหมด";
       });
@@ -4580,22 +4588,22 @@
       card.appendChild(make("span", `${item.module} · ข้อที่ ${item.num}`, "badge cat-HS"));
       card.appendChild(make("h3", item.question, "qa-question"));
 
-      const scratch = make("textarea", null, "qa-scratch");
-      scratch.placeholder = "ลองพิมพ์ร่างคำตอบด้วยตนเองสั้นๆ ก่อนเปิดดูแนวคำตอบ (Retrieval Practice)…";
-      card.appendChild(scratch);
-
-      const ansBox = make("div", null, "qa-answer");
-      ansBox.innerHTML = item.answerHtml;
-      ansBox.hidden = true;
-
-      const btn = make("button", "ดูแนวคำตอบ", "btn sm teal");
-      btn.type = "button";
-      btn.addEventListener("click", () => {
-        ansBox.hidden = !ansBox.hidden;
-        btn.textContent = ansBox.hidden ? "ดูแนวคำตอบ" : "ซ่อนแนวคำตอบ";
-      });
-
-      card.append(btn, ansBox);
+      if (window.RACMInteractiveQA) {
+        window.RACMInteractiveQA.enhancePracticeCard(card, item);
+      } else {
+        const scratch = make("textarea", null, "qa-scratch");
+        scratch.placeholder = "ลองพิมพ์ร่างคำตอบด้วยตนเองสั้นๆ ก่อนเปิดดูแนวคำตอบ (Retrieval Practice)…";
+        const ansBox = make("div", null, "qa-answer");
+        ansBox.innerHTML = item.answerHtml;
+        ansBox.hidden = true;
+        const btn = make("button", "ดูแนวคำตอบ", "btn sm teal");
+        btn.type = "button";
+        btn.addEventListener("click", () => {
+          ansBox.hidden = !ansBox.hidden;
+          btn.textContent = ansBox.hidden ? "ดูแนวคำตอบ" : "ซ่อนแนวคำตอบ";
+        });
+        card.append(scratch, btn, ansBox);
+      }
       wrap.appendChild(card);
     });
   }
