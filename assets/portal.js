@@ -71,6 +71,9 @@
     activeDocId: "HS1",
     activeFacultyDocId: "hs1-tg",
     readerFontPx: Number(localStorage.getItem("racm303_font_px")) || 16.5,
+    readerViewMode: "scroll", // scroll | deck | sorter
+    sorterZoomPct: Number(localStorage.getItem("racm303_sorter_zoom")) || 100,
+    canvasZoomPct: Number(localStorage.getItem("racm303_canvas_zoom")) || 100,
     masteredCards: new Set(JSON.parse(localStorage.getItem("racm303_mastered_fc") || "[]")),
     fcShuffleSeed: null
   };
@@ -3216,29 +3219,196 @@
     });
   }
 
-  function attachProseEnhancements(proseContainer, tocContainer) {
-    if (!proseContainer) return;
-    if (tocContainer) {
-      tocContainer.replaceChildren();
-      const headings = proseContainer.querySelectorAll("h2, h3");
-      headings.forEach((h, idx) => {
-        if (!h.id) h.id = `sec-h-${idx}`;
-        const li = document.createElement("li");
-        const a = make("a", h.textContent.trim(), `toc-link${h.tagName === "H3" ? " toc-sub" : ""}`);
-        a.href = `#${h.id}`;
-        a.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          h.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-        li.appendChild(a);
-        tocContainer.appendChild(li);
-      });
+  /* ---------- Keynote-Style Slide Sorter, Slide Deck & Zoom In/Out Engine ---------- */
+  const lbState = {
+    gallery: [],
+    index: 0,
+    zoom: 100,
+    panX: 0,
+    panY: 0,
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    wired: false
+  };
+
+  let activeDeckKeyHandler = null;
+
+  function applyLightboxTransform() {
+    const img = $("lightboxImg");
+    if (!img) return;
+    const scale = lbState.zoom / 100;
+    img.style.transform = `translate(${lbState.panX}px, ${lbState.panY}px) scale(${scale})`;
+    img.style.cursor = lbState.zoom > 100 ? (lbState.dragging ? "grabbing" : "grab") : "zoom-in";
+    const pctBtn = $("lbZoomResetBtn");
+    if (pctBtn) pctBtn.textContent = `${lbState.zoom}%`;
+    const slider = $("lbZoomRange");
+    if (slider) slider.value = String(lbState.zoom);
+  }
+
+  function setLightboxZoom(nextPct) {
+    const clamped = Math.min(350, Math.max(50, Math.round(nextPct / 25) * 25));
+    lbState.zoom = clamped;
+    if (clamped <= 100) {
+      lbState.panX = 0;
+      lbState.panY = 0;
+    }
+    applyLightboxTransform();
+  }
+
+  function showLightboxAt(idx) {
+    if (!lbState.gallery.length) return;
+    const n = lbState.gallery.length;
+    lbState.index = ((idx % n) + n) % n;
+    const item = lbState.gallery[lbState.index];
+    const img = $("lightboxImg");
+    const cap = $("lightboxCaption");
+    if (img) img.src = item.src;
+    if (cap) cap.textContent = item.caption || "";
+    lbState.zoom = 100;
+    lbState.panX = 0;
+    lbState.panY = 0;
+    applyLightboxTransform();
+
+    const counter = $("lbGalleryCounter");
+    const prevBtn = $("lbPrevImgBtn");
+    const nextBtn = $("lbNextImgBtn");
+    const hasMulti = n > 1;
+    if (counter) {
+      counter.hidden = !hasMulti;
+      counter.textContent = `ภาพ ${lbState.index + 1} / ${n}`;
+    }
+    if (prevBtn) prevBtn.hidden = !hasMulti;
+    if (nextBtn) nextBtn.hidden = !hasMulti;
+  }
+
+  function ensureLightboxControls() {
+    const lb = $("imageLightbox");
+    if (!lb || lbState.wired) return;
+    lbState.wired = true;
+
+    const inner = lb.querySelector(".lightbox-inner");
+    const img = $("lightboxImg");
+    if (!inner || !img) return;
+
+    let stage = inner.querySelector(".lightbox-stage");
+    if (!stage) {
+      stage = make("div", null, "lightbox-stage");
+      img.replaceWith(stage);
+      stage.appendChild(img);
     }
 
-    proseContainer.querySelectorAll("img").forEach((img) => {
+    const hud = make("div", null, "lightbox-hud");
+    hud.innerHTML = `
+      <div class="lb-nav-group">
+        <button type="button" class="btn sm" id="lbPrevImgBtn" title="ภาพก่อนหน้า (←)">‹ ภาพก่อนหน้า</button>
+        <span class="lb-counter-pill" id="lbGalleryCounter">ภาพ 1 / 1</span>
+        <button type="button" class="btn sm" id="lbNextImgBtn" title="ภาพถัดไป (→)">ภาพถัดไป ›</button>
+      </div>
+      <div class="lb-zoom-group" role="group" aria-label="ซูมย่อ-ขยายภาพอินโฟกราฟิก">
+        <button type="button" class="btn sm" id="lbZoomOutBtn" title="ซูมออก (−)">−</button>
+        <input type="range" id="lbZoomRange" min="50" max="350" step="25" value="100" aria-label="แถบซูมภาพ">
+        <button type="button" class="btn sm" id="lbZoomInBtn" title="ซูมเข้า (+)">+</button>
+        <button type="button" class="btn sm" id="lbZoomResetBtn" title="คลิกเพื่อรีเซ็ตขนาด 100%">100%</button>
+      </div>
+    `;
+    inner.insertBefore(hud, stage);
+
+    $("lbPrevImgBtn")?.addEventListener("click", () => showLightboxAt(lbState.index - 1));
+    $("lbNextImgBtn")?.addEventListener("click", () => showLightboxAt(lbState.index + 1));
+    $("lbZoomOutBtn")?.addEventListener("click", () => setLightboxZoom(lbState.zoom - 25));
+    $("lbZoomInBtn")?.addEventListener("click", () => setLightboxZoom(lbState.zoom + 25));
+    $("lbZoomResetBtn")?.addEventListener("click", () => setLightboxZoom(100));
+    $("lbZoomRange")?.addEventListener("input", (e) => setLightboxZoom(Number(e.target.value)));
+
+    img.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (lbState.zoom === 100) setLightboxZoom(175);
+      else if (lbState.zoom >= 175 && !lbState.dragging) setLightboxZoom(100);
+    });
+
+    stage.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        setLightboxZoom(lbState.zoom + (e.deltaY < 0 ? 25 : -25));
+      },
+      { passive: false }
+    );
+
+    stage.addEventListener("pointerdown", (e) => {
+      if (lbState.zoom <= 100) return;
+      lbState.dragging = true;
+      lbState.startX = e.clientX - lbState.panX;
+      lbState.startY = e.clientY - lbState.panY;
+      if (stage.setPointerCapture) {
+        try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      applyLightboxTransform();
+    });
+
+    stage.addEventListener("pointermove", (e) => {
+      if (!lbState.dragging) return;
+      lbState.panX = e.clientX - lbState.startX;
+      lbState.panY = e.clientY - lbState.startY;
+      applyLightboxTransform();
+    });
+
+    const stopDrag = () => {
+      if (!lbState.dragging) return;
+      lbState.dragging = false;
+      applyLightboxTransform();
+    };
+    stage.addEventListener("pointerup", stopDrag);
+    stage.addEventListener("pointercancel", stopDrag);
+
+    document.addEventListener("keydown", (e) => {
+      if (lb.hidden) return;
+      if (e.key === "ArrowLeft" && lbState.gallery.length > 1) {
+        e.preventDefault();
+        showLightboxAt(lbState.index - 1);
+      } else if (e.key === "ArrowRight" && lbState.gallery.length > 1) {
+        e.preventDefault();
+        showLightboxAt(lbState.index + 1);
+      } else if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setLightboxZoom(lbState.zoom + 25);
+      } else if (e.key === "-") {
+        e.preventDefault();
+        setLightboxZoom(lbState.zoom - 25);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setLightboxZoom(100);
+      }
+    });
+  }
+
+  function openLightbox(src, caption, gallery) {
+    const lb = $("imageLightbox");
+    if (!lb) return;
+    ensureLightboxControls();
+    if (Array.isArray(gallery) && gallery.length) {
+      lbState.gallery = gallery;
+      const foundIdx = gallery.findIndex((g) => g.src === src);
+      showLightboxAt(foundIdx >= 0 ? foundIdx : 0);
+    } else {
+      lbState.gallery = [{ src, caption }];
+      showLightboxAt(0);
+    }
+    lb.hidden = false;
+  }
+
+  function wireInteractiveProseChildren(rootEl, gallery) {
+    if (!rootEl) return;
+    rootEl.querySelectorAll("img").forEach((img) => {
       img.loading = "lazy";
       img.classList.add("zoomable-img");
-      img.addEventListener("click", () => openLightbox(img.src, img.alt || ""));
+      if (img._lbWired) return;
+      img._lbWired = true;
+      const fig = img.closest ? img.closest("figure") : null;
+      const figCap = fig && fig.querySelector ? fig.querySelector("figcaption") : null;
+      const capText = (figCap && figCap.textContent && figCap.textContent.trim()) || img.alt || "";
+      img.addEventListener("click", () => openLightbox(img.src, capText, gallery));
     });
 
     const isIOSDevice =
@@ -3246,9 +3416,9 @@
       (/iPad|iPhone|iPod/.test(navigator.userAgent || "") ||
         (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints) > 1));
 
-    proseContainer.querySelectorAll(".macos-pdf-card").forEach((card) => {
-      if (card.dataset.wiredPdf) return;
-      card.dataset.wiredPdf = "1";
+    rootEl.querySelectorAll(".macos-pdf-card").forEach((card) => {
+      if (card._pdfWired) return;
+      card._pdfWired = true;
 
       const localUrl = card.dataset.pdfLocal || "";
       const driveId = card.dataset.pdfDriveId || "";
@@ -3307,12 +3477,679 @@
     });
   }
 
-  function openLightbox(src, caption) {
-    const lb = $("imageLightbox");
-    if (!lb) return;
-    $("lightboxImg").src = src;
-    $("lightboxCaption").textContent = caption;
-    lb.hidden = false;
+  function extractSlidesFromProse(proseContainer) {
+    const blocks = [];
+    const topChildren = [...(proseContainer.children || [])];
+    if (!topChildren.length) return [];
+
+    topChildren.forEach((child) => {
+      const tag = String(child.tagName || "").toUpperCase();
+      if (tag === "HR") return;
+      if (tag === "SECTION" && child.children && child.children.length) {
+        const secId = child.id || "";
+        [...child.children].forEach((sub) => {
+          if (String(sub.tagName || "").toUpperCase() === "HR") return;
+          blocks.push({ node: sub, sectionId: secId });
+        });
+      } else {
+        blocks.push({ node: child, sectionId: "" });
+      }
+    });
+
+    if (!blocks.length) return [];
+
+    const h2Count = blocks.filter((b) => String(b.node.tagName || "").toUpperCase() === "H2").length;
+    const splitOnH3 = h2Count <= 22;
+
+    const rawChunks = [];
+    let currentH2Title = "";
+    let cur = null;
+
+    blocks.forEach(({ node, sectionId }) => {
+      const tag = String(node.tagName || "").toUpperCase();
+      if (tag === "H1" || tag === "H2") {
+        currentH2Title = (node.textContent || "").trim();
+        cur = {
+          eyebrow: "",
+          title: currentH2Title,
+          headingId: node.id || sectionId || "",
+          allIds: new Set([node.id, sectionId].filter(Boolean)),
+          onlyH2Heading: true,
+          nodes: [node]
+        };
+        rawChunks.push(cur);
+      } else if (tag === "H3" && splitOnH3) {
+        const h3Title = (node.textContent || "").trim();
+        if (cur && cur.onlyH2Heading && cur.nodes.length === 1) {
+          cur.eyebrow = currentH2Title;
+          cur.title = h3Title;
+          if (node.id) {
+            cur.headingId = node.id;
+            cur.allIds.add(node.id);
+          }
+          cur.onlyH2Heading = false;
+          cur.nodes.push(node);
+        } else {
+          cur = {
+            eyebrow: currentH2Title,
+            title: h3Title,
+            headingId: node.id || sectionId || "",
+            allIds: new Set([node.id, sectionId].filter(Boolean)),
+            onlyH2Heading: false,
+            nodes: [node]
+          };
+          rawChunks.push(cur);
+        }
+      } else {
+        if (!cur) {
+          cur = {
+            eyebrow: "",
+            title: "บทนำและภาพรวมเอกสาร",
+            headingId: node.id || sectionId || "",
+            allIds: new Set([node.id, sectionId].filter(Boolean)),
+            onlyH2Heading: false,
+            nodes: []
+          };
+          rawChunks.push(cur);
+        }
+        if (node.id) cur.allIds.add(node.id);
+        if (sectionId) cur.allIds.add(sectionId);
+        cur.onlyH2Heading = false;
+        cur.nodes.push(node);
+      }
+    });
+
+    return rawChunks.map((ch, idx) => {
+      let imgSrc = "";
+      let imgAlt = "";
+      let imgCount = 0;
+      let tableCount = 0;
+      let tableHeaders = [];
+      let hasPdf = false;
+      let takeaway = "";
+
+      ch.nodes.forEach((n) => {
+        if (!n.querySelectorAll) return;
+        n.querySelectorAll("h2, h3, [id]").forEach((idEl) => {
+          if (idEl.id) ch.allIds.add(idEl.id);
+        });
+        const imgs = String(n.tagName || "").toUpperCase() === "IMG" ? [n] : [...n.querySelectorAll("img")];
+        imgCount += imgs.length;
+        if (!imgSrc && imgs[0]) {
+          imgSrc = imgs[0].getAttribute("src") || imgs[0].src || "";
+          imgAlt = imgs[0].getAttribute("alt") || imgs[0].alt || "";
+        }
+        const tbls = String(n.tagName || "").toUpperCase() === "TABLE" ? [n] : [...n.querySelectorAll("table")];
+        tableCount += tbls.length;
+        if (!tableHeaders.length && tbls[0]) {
+          tableHeaders = [...tbls[0].querySelectorAll("th")]
+            .slice(0, 4)
+            .map((th) => (th.textContent || "").trim())
+            .filter(Boolean);
+        }
+        if (
+          (n.classList && n.classList.contains("macos-pdf-card")) ||
+          (n.querySelector && n.querySelector(".macos-pdf-card"))
+        ) {
+          hasPdf = true;
+        }
+        if (!takeaway) {
+          const tag = String(n.tagName || "").toUpperCase();
+          if (tag === "P" || tag === "BLOCKQUOTE" || tag === "UL" || tag === "OL") {
+            const strong = n.querySelector ? n.querySelector("strong") : null;
+            const rawTxt = ((strong && strong.textContent.length > 24 ? strong.textContent : n.textContent) || "")
+              .replace(/\s+/g, " ")
+              .trim();
+            if (rawTxt.length > 14) {
+              takeaway = rawTxt.length > 165 ? `${rawTxt.slice(0, 165)}…` : rawTxt;
+            }
+          }
+        }
+      });
+
+      const html = ch.nodes.map((n) => n.outerHTML || "").join("\n");
+      return {
+        index: idx,
+        numLabel: String(idx + 1).padStart(2, "0"),
+        eyebrow: ch.eyebrow,
+        title: ch.title || `ส่วนที่ ${idx + 1}`,
+        headingId: ch.headingId,
+        allIds: ch.allIds,
+        html,
+        imgSrc,
+        imgAlt,
+        imgCount,
+        tableCount,
+        tableHeaders,
+        hasPdf,
+        takeaway
+      };
+    });
+  }
+
+  function attachProseEnhancements(proseContainer, tocContainer) {
+    if (!proseContainer) return;
+
+    const headings = [...proseContainer.querySelectorAll("h2, h3")];
+    headings.forEach((h, idx) => {
+      if (!h.id) h.id = `sec-h-${idx}`;
+    });
+
+    // Build gallery list of all figures in this document for Lightbox Prev/Next
+    const docGallery = [...proseContainer.querySelectorAll("img")].map((img) => {
+      const fig = img.closest ? img.closest("figure") : null;
+      const figCap = fig && fig.querySelector ? fig.querySelector("figcaption") : null;
+      return {
+        src: img.src || img.getAttribute("src") || "",
+        caption: (figCap && figCap.textContent && figCap.textContent.trim()) || img.alt || ""
+      };
+    });
+
+    wireInteractiveProseChildren(proseContainer, docGallery);
+
+    const paper = proseContainer.parentElement;
+    const toolbar = paper && paper.querySelector ? paper.querySelector(".reader-toolbar") : null;
+    const slides = paper && paper.classList && paper.classList.contains("reader-paper")
+      ? extractSlidesFromProse(proseContainer)
+      : [];
+
+    // Controller hook for TOC links so sidebar works across Scroll, Slide Deck, and Slide Sorter
+    let jumpToHeadingHandler = (h) => {
+      h.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    if (tocContainer) {
+      tocContainer.replaceChildren();
+      headings.forEach((h) => {
+        const li = document.createElement("li");
+        const a = make("a", h.textContent.trim(), `toc-link${h.tagName === "H3" ? " toc-sub" : ""}`);
+        a.href = `#${h.id}`;
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          jumpToHeadingHandler(h);
+        });
+        li.appendChild(a);
+        tocContainer.appendChild(li);
+      });
+    }
+
+    if (!paper || !toolbar || !slides.length) return;
+
+    // Ensure sibling Slide Sorter & Slide Deck stage containers exist inside .reader-paper
+    let sorterStage = paper.querySelector(".reader-sorter-stage");
+    if (!sorterStage) {
+      sorterStage = make("div", null, "reader-sorter-stage");
+      sorterStage.hidden = true;
+      paper.appendChild(sorterStage);
+    }
+    let deckStage = paper.querySelector(".reader-deck-stage");
+    if (!deckStage) {
+      deckStage = make("div", null, "reader-deck-stage");
+      deckStage.hidden = true;
+      paper.appendChild(deckStage);
+    }
+
+    // Ensure toolbar has Segmented View Switcher + Slide Sorter / Canvas Zoom Bar
+    let navSuite = toolbar.querySelector(".reader-nav-zoom-suite");
+    if (!navSuite) {
+      navSuite = make("div", null, "reader-nav-zoom-suite");
+      navSuite.innerHTML = `
+        <div class="cal-segmented reader-mode-seg" role="group" aria-label="มุมมองการอ่านและเลื่อนสไลด์">
+          <button type="button" class="cal-seg-btn" data-rmode="scroll" aria-pressed="true" title="เลื่อนอ่านต่อเนื่องขึ้น-ลง">☰ เลื่อนอ่าน</button>
+          <button type="button" class="cal-seg-btn" data-rmode="deck" aria-pressed="false" title="เลื่อนดูทีละสไลด์ซ้าย-ขวา (ปุ่มลูกศร ← / → หรือปัดนิ้ว)">▣ ทีละสไลด์</button>
+          <button type="button" class="cal-seg-btn" data-rmode="sorter" aria-pressed="false" title="มุมมองตารางรวมทุกสไลด์พร้อมย่อ-ขยาย (Slide Sorter)">⊞ Slide Sorter</button>
+        </div>
+        <div class="reader-zoom-cluster" role="group" aria-label="ซูมย่อ-ขยายหน้ากระดาษและ Slide Sorter">
+          <button type="button" class="reader-zoom-btn" data-rzoom-step="-1" title="ซูมออก (Zoom Out)">−</button>
+          <input type="range" class="reader-zoom-slider" min="50" max="160" step="10" value="100" aria-label="ปรับระดับซูมย่อ-ขยาย">
+          <button type="button" class="reader-zoom-btn" data-rzoom-step="1" title="ซูมเข้า (Zoom In)">+</button>
+          <button type="button" class="reader-zoom-pct" data-rzoom-reset title="คลิกเพื่อรีเซ็ตระดับซูม 100%">100%</button>
+        </div>
+      `;
+      const fontCtrl = toolbar.querySelector(".font-Controls");
+      if (fontCtrl) toolbar.insertBefore(navSuite, fontCtrl);
+      else toolbar.appendChild(navSuite);
+    }
+
+    let activeSlideIdx = 0;
+    let sorterFilter = "all"; // all | img | table
+
+    const modeBtns = [...navSuite.querySelectorAll("[data-rmode]")];
+    const zoomSlider = navSuite.querySelector(".reader-zoom-slider");
+    const zoomPctBtn = navSuite.querySelector("[data-rzoom-reset]");
+
+    const getActiveZoom = () => (state.readerViewMode === "sorter" ? state.sorterZoomPct : state.canvasZoomPct);
+
+    const applyZoomStyles = () => {
+      const mode = state.readerViewMode;
+      const pct = getActiveZoom();
+      if (zoomSlider) {
+        zoomSlider.min = mode === "sorter" ? "50" : "70";
+        zoomSlider.max = mode === "sorter" ? "160" : "150";
+        zoomSlider.value = String(pct);
+      }
+      if (zoomPctBtn) zoomPctBtn.textContent = `${pct}%`;
+
+      if (mode === "sorter") {
+        proseContainer.style.zoom = "";
+        // Map 50%..160% -> 155px..495px column min-width (5-6 cols zoomed out -> 1-2 large cards zoomed in)
+        const colPx = Math.round(155 + ((pct - 50) / 110) * 340);
+        const fontScale = (0.80 + ((pct - 50) / 110) * 0.34).toFixed(3);
+        sorterStage.style.setProperty("--sorter-col-min", `${colPx}px`);
+        sorterStage.style.setProperty("--sorter-scale", fontScale);
+        const colHint = sorterStage.querySelector("[data-sorter-zoom-hint]");
+        if (colHint) {
+          const densityLabel =
+            pct <= 65 ? "ภาพรวมมุมสูง (5–6 คอลัมน์)" :
+            pct <= 85 ? "ย่อกะทัดรัด (4 คอลัมน์)" :
+            pct <= 115 ? "มาตรฐาน (3 คอลัมน์)" :
+            pct <= 135 ? "การ์ดใหญ่ (2 คอลัมน์)" : "ขยายเต็มการ์ด (1–2 คอลัมน์)";
+          colHint.textContent = `ระดับซูม ${pct}% · ${densityLabel}`;
+        }
+      } else if (mode === "deck") {
+        proseContainer.style.zoom = "";
+        const deckCanvas = deckStage.querySelector(".deck-slide-canvas");
+        if (deckCanvas) deckCanvas.style.zoom = pct === 100 ? "" : String(pct / 100);
+      } else {
+        proseContainer.style.zoom = pct === 100 ? "" : String(pct / 100);
+      }
+    };
+
+    const setZoomValue = (nextVal) => {
+      if (state.readerViewMode === "sorter") {
+        const clamped = Math.min(160, Math.max(50, Math.round(nextVal / 10) * 10));
+        state.sorterZoomPct = clamped;
+        localStorage.setItem("racm303_sorter_zoom", String(clamped));
+      } else {
+        const clamped = Math.min(150, Math.max(70, Math.round(nextVal / 10) * 10));
+        state.canvasZoomPct = clamped;
+        localStorage.setItem("racm303_canvas_zoom", String(clamped));
+      }
+      applyZoomStyles();
+    };
+
+    const renderSorterStage = () => {
+      sorterStage.replaceChildren();
+
+      const imgSlidesCount = slides.filter((s) => s.imgCount > 0).length;
+      const tblSlidesCount = slides.filter((s) => s.tableCount > 0).length;
+
+      const headBar = make("div", null, "sorter-head-bar");
+      const filterRow = make("div", null, "sorter-filter-pills");
+
+      const makeFilterPill = (key, label, count) => {
+        const b = make("button", `${label} (${count})`, `sorter-filter-pill${sorterFilter === key ? " is-active" : ""}`);
+        b.type = "button";
+        b.addEventListener("click", () => {
+          sorterFilter = key;
+          renderSorterStage();
+          applyZoomStyles();
+        });
+        return b;
+      };
+
+      filterRow.appendChild(makeFilterPill("all", "ทุกสไลด์", slides.length));
+      if (imgSlidesCount > 0) filterRow.appendChild(makeFilterPill("img", "🖼 มีภาพอินโฟกราฟิก", imgSlidesCount));
+      if (tblSlidesCount > 0) filterRow.appendChild(makeFilterPill("table", "📊 มีตารางสรุป", tblSlidesCount));
+
+      const rightInfo = make("span", "", "sorter-zoom-hint");
+      rightInfo.setAttribute("data-sorter-zoom-hint", "1");
+      headBar.append(filterRow, rightInfo);
+      sorterStage.appendChild(headBar);
+
+      const visibleSlides = slides.filter((s) => {
+        if (sorterFilter === "img") return s.imgCount > 0;
+        if (sorterFilter === "table") return s.tableCount > 0;
+        return true;
+      });
+
+      const grid = make("div", null, "sorter-cards-grid");
+      visibleSlides.forEach((s) => {
+        const card = make(
+          "article",
+          null,
+          `sorter-slide-card${s.index === activeSlideIdx ? " is-current-slide" : ""}`
+        );
+        card.dataset.slideIdx = String(s.index);
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.setAttribute("aria-label", `เปิดสไลด์ที่ ${s.index + 1}: ${s.title}`);
+
+        const topMeta = make("div", null, "sorter-card-top");
+        const numPill = make("span", s.numLabel, "sorter-num-pill");
+        const badgesWrap = make("div", null, "sorter-media-badges");
+        if (s.imgCount > 0) badgesWrap.appendChild(make("span", `🖼 ${s.imgCount}`, "sorter-mini-badge is-img"));
+        if (s.tableCount > 0) badgesWrap.appendChild(make("span", `📊 ${s.tableCount}`, "sorter-mini-badge is-tbl"));
+        if (s.hasPdf) badgesWrap.appendChild(make("span", "PDF", "sorter-mini-badge is-pdf"));
+        topMeta.append(numPill, badgesWrap);
+        card.appendChild(topMeta);
+
+        if (s.eyebrow && s.eyebrow !== s.title) {
+          card.appendChild(make("div", s.eyebrow, "sorter-eyebrow"));
+        }
+        card.appendChild(make("h4", s.title, "sorter-card-title"));
+
+        const bodyBox = make("div", null, "sorter-card-preview");
+        if (s.imgSrc) {
+          const thumbWrap = make("div", null, "sorter-thumb-wrap");
+          const thumbImg = document.createElement("img");
+          thumbImg.src = s.imgSrc;
+          thumbImg.alt = s.imgAlt || s.title;
+          thumbImg.loading = "lazy";
+          const zoomImgBtn = make("button", "🔍 ขยายภาพ", "sorter-zoom-img-btn");
+          zoomImgBtn.type = "button";
+          zoomImgBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            openLightbox(s.imgSrc, s.imgAlt || s.title, docGallery);
+          });
+          thumbWrap.append(thumbImg, zoomImgBtn);
+          bodyBox.appendChild(thumbWrap);
+          if (s.takeaway) {
+            bodyBox.appendChild(make("p", s.takeaway, "sorter-takeaway compact"));
+          }
+        } else if (s.tableHeaders.length) {
+          const tblStrip = make("div", null, "sorter-tbl-preview");
+          s.tableHeaders.forEach((th) => tblStrip.appendChild(make("span", th, "sorter-th-chip")));
+          bodyBox.appendChild(tblStrip);
+          if (s.takeaway) bodyBox.appendChild(make("p", s.takeaway, "sorter-takeaway"));
+        } else if (s.takeaway) {
+          bodyBox.appendChild(make("p", s.takeaway, "sorter-takeaway"));
+        }
+        card.appendChild(bodyBox);
+
+        const foot = make("div", null, "sorter-card-foot");
+        const openDeckSpan = make("span", "▶ ซูมเข้าสไลด์นี้", "sorter-open-hint");
+        const scrollJumpBtn = make("button", "¶ อ่านจุดนี้", "sorter-scroll-jump-btn");
+        scrollJumpBtn.type = "button";
+        scrollJumpBtn.title = "สลับไปโหมดเลื่อนอ่านต่อเนื่องตรงหัวข้อนี้";
+        scrollJumpBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          activeSlideIdx = s.index;
+          switchReaderMode("scroll");
+          const targetEl = s.headingId ? document.getElementById(s.headingId) : null;
+          if (targetEl) targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        foot.append(openDeckSpan, scrollJumpBtn);
+        card.appendChild(foot);
+
+        const activateCard = () => {
+          activeSlideIdx = s.index;
+          switchReaderMode("deck");
+          paper.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+        card.addEventListener("click", activateCard);
+        card.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            activateCard();
+          }
+        });
+
+        grid.appendChild(card);
+      });
+
+      sorterStage.appendChild(grid);
+    };
+
+    const renderDeckSlide = (idx, direction = 0) => {
+      if (!slides.length) return;
+      activeSlideIdx = Math.min(slides.length - 1, Math.max(0, idx));
+      const s = slides[activeSlideIdx];
+      deckStage.replaceChildren();
+
+      const buildDeckNavBar = (isBottom) => {
+        const bar = make("div", null, `deck-nav-bar${isBottom ? " is-bottom" : ""}`);
+        const prevBtn = make("button", "‹ สไลด์ก่อนหน้า", "btn sm");
+        prevBtn.type = "button";
+        prevBtn.disabled = activeSlideIdx === 0;
+        prevBtn.addEventListener("click", () => {
+          renderDeckSlide(activeSlideIdx - 1, -1);
+          if (isBottom) deckStage.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
+        const jumpSel = document.createElement("select");
+        jumpSel.className = "deck-slide-select";
+        jumpSel.setAttribute("aria-label", "เลือกสไลด์ที่ต้องการเปิด");
+        slides.forEach((sl) => {
+          const mediaTag = sl.imgCount ? " 🖼" : sl.tableCount ? " 📊" : "";
+          const opt = new Option(
+            `สไลด์ ${sl.numLabel} / ${String(slides.length).padStart(2, "0")}${mediaTag} — ${sl.title.slice(0, 58)}`,
+            String(sl.index)
+          );
+          if (sl.index === activeSlideIdx) opt.selected = true;
+          jumpSel.add(opt);
+        });
+        jumpSel.addEventListener("change", () => {
+          const next = Number(jumpSel.value);
+          renderDeckSlide(next, next > activeSlideIdx ? 1 : -1);
+        });
+
+        const midGroup = make("div", null, "deck-mid-controls");
+        const toSorterBtn = make("button", "⊞ ดูรวม Slide Sorter", "btn sm");
+        toSorterBtn.type = "button";
+        toSorterBtn.title = "ซูมออกเพื่อดูตารางรวมทุกสไลด์ (Slide Sorter)";
+        toSorterBtn.addEventListener("click", () => {
+          paper.classList.remove("is-deck-theater");
+          switchReaderMode("sorter");
+        });
+
+        const isTheater = paper.classList.contains("is-deck-theater");
+        const theaterBtn = make("button", isTheater ? "✕ ออกจากเต็มจอ" : "⛶ เต็มจอ", "btn sm");
+        theaterBtn.type = "button";
+        theaterBtn.addEventListener("click", () => {
+          paper.classList.toggle("is-deck-theater");
+          renderDeckSlide(activeSlideIdx, 0);
+        });
+
+        midGroup.append(jumpSel, toSorterBtn, theaterBtn);
+
+        const nextBtn = make("button", "สไลด์ถัดไป ›", "btn sm primary");
+        nextBtn.type = "button";
+        nextBtn.disabled = activeSlideIdx === slides.length - 1;
+        nextBtn.addEventListener("click", () => {
+          renderDeckSlide(activeSlideIdx + 1, 1);
+          if (isBottom) deckStage.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
+        bar.append(prevBtn, midGroup, nextBtn);
+        return bar;
+      };
+
+      const progressTrack = make("div", null, "deck-progress-track");
+      const progressFill = make("div", null, "deck-progress-fill");
+      progressFill.style.width = `${((activeSlideIdx + 1) / slides.length) * 100}%`;
+      progressTrack.appendChild(progressFill);
+
+      const slideCard = make(
+        "div",
+        null,
+        `deck-slide-card${direction > 0 ? " anim-next" : direction < 0 ? " anim-prev" : ""}`
+      );
+      if (s.eyebrow && s.eyebrow !== s.title) {
+        const crumb = make("div", `${s.eyebrow}  ·  สไลด์ ${s.numLabel} / ${String(slides.length).padStart(2, "0")}`, "deck-slide-eyebrow");
+        slideCard.appendChild(crumb);
+      }
+      const canvas = make("div", null, "editorial-prose deck-slide-canvas");
+      canvas.innerHTML = s.html;
+      wireInteractiveProseChildren(canvas, docGallery);
+      slideCard.appendChild(canvas);
+
+      // Swipe Left / Right support on touch devices (iPad / iPhone)
+      let touchStartX = 0;
+      let touchStartY = 0;
+      slideCard.addEventListener(
+        "touchstart",
+        (ev) => {
+          if (!ev.touches || !ev.touches[0]) return;
+          touchStartX = ev.touches[0].clientX;
+          touchStartY = ev.touches[0].clientY;
+        },
+        { passive: true }
+      );
+      slideCard.addEventListener(
+        "touchend",
+        (ev) => {
+          if (!ev.changedTouches || !ev.changedTouches[0]) return;
+          const dx = ev.changedTouches[0].clientX - touchStartX;
+          const dy = ev.changedTouches[0].clientY - touchStartY;
+          if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0 && activeSlideIdx < slides.length - 1) renderDeckSlide(activeSlideIdx + 1, 1);
+            else if (dx > 0 && activeSlideIdx > 0) renderDeckSlide(activeSlideIdx - 1, -1);
+          }
+        },
+        { passive: true }
+      );
+
+      // Horizontal Filmstrip Scrubber
+      const filmstrip = make("div", null, "deck-filmstrip");
+      slides.forEach((sl) => {
+        const chip = make(
+          "button",
+          `${sl.numLabel}${sl.imgCount ? " 🖼" : ""}`,
+          `deck-film-chip${sl.index === activeSlideIdx ? " is-active" : ""}`
+        );
+        chip.type = "button";
+        chip.title = sl.title;
+        chip.addEventListener("click", () => {
+          renderDeckSlide(sl.index, sl.index > activeSlideIdx ? 1 : -1);
+        });
+        filmstrip.appendChild(chip);
+      });
+
+      deckStage.append(buildDeckNavBar(false), progressTrack, slideCard, filmstrip, buildDeckNavBar(true));
+      applyZoomStyles();
+
+      // Highlight matching TOC item
+      if (tocContainer) {
+        tocContainer.querySelectorAll(".toc-link").forEach((a) => {
+          const hid = (a.getAttribute("href") || "").replace(/^#/, "");
+          a.classList.toggle("is-active-toc", s.allIds.has(hid));
+        });
+      }
+    };
+
+    const switchReaderMode = (nextMode) => {
+      state.readerViewMode = nextMode;
+      if (nextMode !== "deck") {
+        paper.classList.remove("is-deck-theater");
+      }
+      modeBtns.forEach((b) => {
+        b.setAttribute("aria-pressed", b.dataset.rmode === nextMode ? "true" : "false");
+      });
+
+      proseContainer.hidden = nextMode !== "scroll";
+      deckStage.hidden = nextMode !== "deck";
+      sorterStage.hidden = nextMode !== "sorter";
+
+      if (nextMode === "sorter") {
+        renderSorterStage();
+        applyZoomStyles();
+        const curCard = sorterStage.querySelector(`[data-slide-idx="${activeSlideIdx}"]`);
+        if (curCard && curCard.scrollIntoView) {
+          setTimeout(() => curCard.scrollIntoView({ behavior: "smooth", block: "nearest" }), 30);
+        }
+      } else if (nextMode === "deck") {
+        renderDeckSlide(activeSlideIdx, 0);
+      } else {
+        applyZoomStyles();
+      }
+    };
+
+    // Re-bind toolbar events cleanly onto the latest document's slides closure
+    navSuite._onModeClick = switchReaderMode;
+    navSuite._onZoomStep = (dir) => {
+      const curPct = getActiveZoom();
+      if (state.readerViewMode === "sorter" && dir > 0 && curPct >= 160) {
+        switchReaderMode("deck");
+        return;
+      }
+      if (state.readerViewMode === "deck" && dir < 0 && curPct <= 70) {
+        switchReaderMode("sorter");
+        return;
+      }
+      setZoomValue(curPct + dir * 15);
+    };
+    navSuite._onZoomInput = (val) => setZoomValue(val);
+    navSuite._onZoomReset = () => setZoomValue(100);
+
+    if (!navSuite._eventsWired) {
+      navSuite._eventsWired = true;
+      modeBtns.forEach((b) => {
+        b.addEventListener("click", () => navSuite._onModeClick && navSuite._onModeClick(b.dataset.rmode));
+      });
+      navSuite.querySelectorAll("[data-rzoom-step]").forEach((b) => {
+        b.addEventListener("click", () => navSuite._onZoomStep && navSuite._onZoomStep(Number(b.dataset.rzoomStep)));
+      });
+      if (zoomSlider) {
+        zoomSlider.addEventListener("input", (e) => navSuite._onZoomInput && navSuite._onZoomInput(Number(e.target.value)));
+      }
+      if (zoomPctBtn) {
+        zoomPctBtn.addEventListener("click", () => navSuite._onZoomReset && navSuite._onZoomReset());
+      }
+      paper.addEventListener(
+        "wheel",
+        (e) => {
+          if (!e.altKey) return;
+          e.preventDefault();
+          if (navSuite._onZoomStep) navSuite._onZoomStep(e.deltaY < 0 ? 1 : -1);
+        },
+        { passive: false }
+      );
+    }
+
+    // Wire TOC sidebar links to respect active view mode
+    jumpToHeadingHandler = (h) => {
+      const matchedSlide = slides.find((sl) => sl.allIds.has(h.id));
+      if (state.readerViewMode === "deck" && matchedSlide) {
+        renderDeckSlide(matchedSlide.index, matchedSlide.index > activeSlideIdx ? 1 : -1);
+        paper.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (state.readerViewMode === "sorter" && matchedSlide) {
+        activeSlideIdx = matchedSlide.index;
+        renderSorterStage();
+        applyZoomStyles();
+        const card = sorterStage.querySelector(`[data-slide-idx="${matchedSlide.index}"]`);
+        if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        h.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+
+    // Global keyboard Left / Right arrow handler for active Slide Deck
+    paper._deckKeyListener = (e) => {
+      if (state.readerViewMode !== "deck" || deckStage.hidden) return;
+      const panel = paper.closest ? paper.closest(".tab-panel") : null;
+      if (panel && panel.hidden) return;
+      if ($("imageLightbox") && !$("imageLightbox").hidden) return;
+      const tag = String((e.target && e.target.tagName) || "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "ArrowRight") {
+        if (activeSlideIdx < slides.length - 1) {
+          e.preventDefault();
+          renderDeckSlide(activeSlideIdx + 1, 1);
+        }
+      } else if (e.key === "ArrowLeft") {
+        if (activeSlideIdx > 0) {
+          e.preventDefault();
+          renderDeckSlide(activeSlideIdx - 1, -1);
+        }
+      } else if (e.key === "Escape" && paper.classList.contains("is-deck-theater")) {
+        e.preventDefault();
+        paper.classList.remove("is-deck-theater");
+        renderDeckSlide(activeSlideIdx, 0);
+      }
+    };
+
+    if (!activeDeckKeyHandler) {
+      activeDeckKeyHandler = (ev) => {
+        document.querySelectorAll(".reader-paper").forEach((rp) => {
+          if (rp._deckKeyListener) rp._deckKeyListener(ev);
+        });
+      };
+      document.addEventListener("keydown", activeDeckKeyHandler);
+    }
+
+    switchReaderMode(state.readerViewMode || "scroll");
   }
 
   /* ---------- Tab 3: 2569 Course Manual ---------- */
@@ -3395,8 +4232,9 @@
     if (expandAllBtn) {
       expandAllBtn.addEventListener("click", () => {
         const prose = $("textbookProseContainer");
-        if (!prose) return;
-        const detailsList = [...prose.querySelectorAll("details")];
+        const scope = (prose && prose.parentElement) || prose;
+        if (!scope) return;
+        const detailsList = [...scope.querySelectorAll("details")];
         const anyClosed = detailsList.some((d) => !d.open);
         detailsList.forEach((d) => (d.open = anyClosed));
         expandAllBtn.textContent = anyClosed ? "ซ่อนแนวคำตอบทั้งหมด" : "เปิดแนวคำตอบทั้งหมด";
