@@ -1,42 +1,43 @@
 /* ==========================================================================
-   RACM 303 (ปีการศึกษา 2569) — Editorial & Course Portal Design System
+   RACM 303 (ปีการศึกษา 2569) — Apple macOS Sequoia & iOS 18 / iPadOS HIG UI
    Department of Community Medicine, Faculty of Medicine Ramathibodi Hospital
-   Palette harmonized with RACM 303 Apps Script (#123b50 / #236d6a / #f3f6f7)
+   Frosted Glass Translucent Chrome · Grouped Surfaces · Dotless Tabular Numerals
    ========================================================================== */
 
 :root {
-  --brand: #123b50;
-  --brand-deep: #0c2837;
-  --brand-mid: #1c506b;
-  --teal: #236d6a;
-  --teal-deep: #19524f;
-  --teal-soft: #eaf3f1;
-  --teal-line: #bfd8d4;
-  --ink: #183047;
-  --ink-body: #22384d;
-  --muted: #5a6d7c;
-  --line: #d8e2e7;
-  --line-soft: #e9eff2;
+  --brand: #007aff;
+  --brand-deep: #1d1d1f;
+  --brand-mid: #0062cc;
+  --teal: #0d9488;
+  --teal-deep: #0f766e;
+  --teal-soft: #e6f6f4;
+  --teal-line: #b2dfdb;
+  --ink: #1d1d1f;
+  --ink-body: #3a3a3c;
+  --muted: #6e6e73;
+  --line: rgba(60, 60, 67, 0.13);
+  --line-soft: rgba(60, 60, 67, 0.08);
   --paper: #ffffff;
-  --paper-warm: #fcfbf8;
-  --bg: #f3f6f7;
-  --bg-alt: #eaf0f2;
-  --amber: #7d5110;
-  --amber-bg: #fcf6e8;
-  --amber-line: #ebd5a7;
-  --crimson: #8b2e29;
-  --crimson-bg: #fdf1f0;
-  --crimson-line: #eabfb9;
-  --indigo-soft: #eef3f8;
-  --shadow-xs: 0 1px 2px rgba(18, 59, 80, 0.05);
-  --shadow-sm: 0 4px 14px rgba(18, 59, 80, 0.06);
-  --shadow-md: 0 10px 28px rgba(18, 59, 80, 0.09);
-  --radius-sm: 7px;
-  --radius-md: 11px;
-  --radius-lg: 15px;
-  --font-display: "Anuphan", "Sarabun", "Leelawadee UI", sans-serif;
-  --font-body: "Sarabun", "Leelawadee UI", sans-serif;
-  --font-mono: "Anuphan", "Sarabun", "Helvetica Neue", Arial, sans-serif;
+  --paper-warm: #fbfbfd;
+  --bg: #f5f5f7;
+  --bg-alt: #ebebf0;
+  --amber: #b25000;
+  --amber-bg: #fff8eb;
+  --amber-line: #f5d49b;
+  --crimson: #d70015;
+  --crimson-bg: #fff2f1;
+  --crimson-line: #f5b9b4;
+  --indigo-soft: #eef0ff;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 0.5px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Anuphan", "Sarabun", "Helvetica Neue", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sarabun", "Anuphan", "Helvetica Neue", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sarabun", "Anuphan", "Helvetica Neue", sans-serif;
+  --font-mono: "Anuphan", "Sarabun", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --reader-size: 16.5px;
 }
 
@@ -47,6 +48,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -55,7 +58,7 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.62;
   text-rendering: optimizeLegibility;
   font-variant-numeric: lining-nums;
   font-feature-settings: "zero" 0;
@@ -77,17 +80,17 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 a {
-  color: var(--teal-deep);
+  color: var(--brand);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
 a:hover {
-  color: var(--brand);
+  color: var(--brand-mid);
 }
 
 [hidden] {
@@ -95,59 +98,73 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 3px solid #8fc9ce;
+  outline: 3px solid rgba(0, 122, 255, 0.38);
   outline-offset: 2px;
 }
 
-/* ---------- Masthead & Primary Navigation ---------- */
+/* ---------- macOS Translucent Frosted Glass Masthead & Segmented Nav ---------- */
 .masthead {
-  background: linear-gradient(180deg, var(--brand-deep) 0%, var(--brand) 100%);
-  color: #ffffff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  color: var(--ink);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.12);
 }
 
 .masthead.faculty-masthead {
-  background: linear-gradient(180deg, #102534 0%, #173f52 100%);
+  background: rgba(248, 248, 254, 0.86);
+  border-bottom: 1px solid rgba(88, 86, 214, 0.18);
 }
 
 .head-inner {
-  max-width: 1260px;
+  max-width: 1420px;
   margin: 0 auto;
-  padding: 24px 24px 0;
+  padding: 20px 24px 14px;
 }
 
 .head-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
 .dept-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-display);
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  color: #b4d4da;
-  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--brand);
+  background: rgba(0, 122, 255, 0.09);
+  padding: 3px 10px;
+  border-radius: 980px;
+  margin: 0 0 8px;
+}
+
+.masthead.faculty-masthead .dept-line {
+  color: #5856d6;
+  background: rgba(88, 86, 214, 0.10);
 }
 
 .masthead h1 {
   font-family: var(--font-display);
-  font-size: clamp(23px, 2.6vw, 31px);
-  line-height: 1.28;
+  font-size: clamp(22px, 2.3vw, 29px);
+  line-height: 1.25;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   margin: 0;
-  color: #ffffff;
+  color: var(--ink);
 }
 
 .head-subtitle {
-  margin: 7px 0 0;
-  color: #d2e2e7;
-  font-size: 14.5px;
-  max-width: 780px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14.2px;
+  max-width: 820px;
 }
 
 .head-links {
@@ -161,30 +178,31 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 13px;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.07);
-  color: #eef6f8;
+  padding: 7px 14px;
+  border-radius: 980px;
+  border: 1px solid rgba(60, 60, 67, 0.12);
+  background: rgba(118, 118, 128, 0.08);
+  color: var(--ink);
   text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 500;
-  transition: background 0.16s ease, border-color 0.16s ease;
+  font-family: var(--font-display);
+  font-size: 13.2px;
+  font-weight: 600;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.1s ease;
 }
 
 .ghost-link:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.42);
-  color: #ffffff;
+  background: rgba(0, 122, 255, 0.11);
+  border-color: rgba(0, 122, 255, 0.28);
+  color: var(--brand);
 }
 
-/* Personalization Bar inside Masthead */
+/* iOS Spotlight / UISearchBar Personalization Bar */
 .personal-bar {
-  margin-top: 18px;
-  padding: 12px 15px;
+  margin-top: 14px;
+  padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(118, 118, 128, 0.07);
+  border: 1px solid rgba(60, 60, 67, 0.10);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -192,9 +210,10 @@ a:hover {
 }
 
 .personal-bar label {
+  font-family: var(--font-display);
   font-size: 13px;
-  color: #d6e6ea;
-  font-weight: 500;
+  color: var(--ink-body);
+  font-weight: 600;
 }
 
 .personal-input-wrap {
@@ -205,82 +224,101 @@ a:hover {
 
 .personal-input-wrap input {
   width: 100%;
-  height: 38px;
+  height: 36px;
   padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.96);
+  border-radius: 10px;
+  border: 1px solid rgba(60, 60, 67, 0.16);
+  background: #ffffff;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13.8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.personal-input-wrap input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
 }
 
 .personal-summary {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  font-size: 13.5px;
-  color: #eff7f8;
+  gap: 7px;
+  font-size: 13.2px;
+  color: var(--muted);
 }
 
 .personal-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: rgba(35, 109, 106, 0.55);
-  border: 1px solid rgba(191, 216, 212, 0.38);
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 500;
+  padding: 4px 11px;
+  border-radius: 980px;
+  background: rgba(0, 122, 255, 0.11);
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  color: #005bb5;
+  font-family: var(--font-display);
+  font-size: 12.6px;
+  font-weight: 600;
 }
 
 .personal-clear {
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: transparent;
-  color: #dcebef;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12.5px;
+  border: 1px solid rgba(60, 60, 67, 0.18);
+  background: #ffffff;
+  color: var(--ink-body);
+  border-radius: 980px;
+  padding: 4px 11px;
+  font-size: 12.4px;
+  font-weight: 500;
 }
 
 .personal-clear:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 59, 48, 0.09);
+  border-color: rgba(255, 59, 48, 0.28);
+  color: var(--crimson);
 }
 
-/* Primary Tabs */
+/* Apple UISegmentedControl Primary Navigation Tabs */
 .nav-tabs {
   display: flex;
-  gap: 5px;
-  margin-top: 18px;
+  gap: 3px;
+  margin-top: 14px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(118, 118, 128, 0.11);
   overflow-x: auto;
-  scrollbar-width: thin;
-  padding-bottom: 0;
+  scrollbar-width: none;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-tab {
   border: 0;
-  background: rgba(255, 255, 255, 0.05);
-  color: #cfe0e6;
-  padding: 11px 17px;
-  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: #3a3a3c;
+  padding: 8px 14px;
+  border-radius: 9px;
   font-family: var(--font-display);
-  font-size: 14.5px;
+  font-size: 13.8px;
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .nav-tab:hover {
-  background: rgba(255, 255, 255, 0.13);
-  color: #ffffff;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .nav-tab[aria-selected="true"] {
-  background: var(--bg);
-  color: var(--brand-deep);
+  background: #ffffff;
+  color: var(--ink);
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0.5px 1px rgba(0, 0, 0, 0.06);
 }
 
 .nav-tab .tab-count {
@@ -288,21 +326,22 @@ a:hover {
   margin-left: 6px;
   padding: 1px 7px;
   border-radius: 99px;
-  font-size: 11.5px;
-  background: rgba(255, 255, 255, 0.15);
-  color: inherit;
+  font-size: 11.2px;
+  font-weight: 600;
+  background: rgba(60, 60, 67, 0.09);
+  color: var(--muted);
 }
 
 .nav-tab[aria-selected="true"] .tab-count {
-  background: var(--teal-soft);
-  color: var(--teal-deep);
+  background: rgba(0, 122, 255, 0.13);
+  color: var(--brand);
 }
 
-/* ---------- Main Container & Shared Controls ---------- */
+/* ---------- Main Container & Apple HIG Shared Controls ---------- */
 .portal-main {
-  max-width: 1260px;
+  max-width: 1420px;
   margin: 0 auto;
-  padding: 26px 24px 64px;
+  padding: 22px 24px 64px;
 }
 
 .section-header {
@@ -311,13 +350,14 @@ a:hover {
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .section-header h2 {
   font-family: var(--font-display);
   font-size: 23px;
   font-weight: 700;
+  letter-spacing: -0.018em;
   margin: 0;
   color: var(--ink);
 }
@@ -325,7 +365,7 @@ a:hover {
 .section-header p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 14.3px;
 }
 
 .header-actions {
@@ -340,32 +380,35 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 7.5px 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid #bdcdd3;
+  border: 1px solid rgba(60, 60, 67, 0.16);
   background: var(--paper);
-  color: var(--brand);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 13.8px;
+  font-weight: 600;
+  line-height: 1.38;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
 .btn:hover {
-  background: #ecf3f4;
-  border-color: #9ab3bc;
-  color: var(--brand-deep);
+  background: #f2f2f7;
+  border-color: rgba(60, 60, 67, 0.26);
+  color: var(--ink);
 }
 
 .btn:active {
-  transform: translateY(1px);
+  transform: scale(0.985);
 }
 
 .btn.primary {
   background: var(--brand);
   border-color: var(--brand);
   color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.24);
 }
 
 .btn.primary:hover {
@@ -378,6 +421,7 @@ a:hover {
   background: var(--teal);
   border-color: var(--teal);
   color: #ffffff;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.20);
 }
 
 .btn.teal:hover {
@@ -387,57 +431,61 @@ a:hover {
 }
 
 .btn.sm {
-  padding: 5px 11px;
-  font-size: 13px;
+  padding: 5.5px 11.5px;
+  font-size: 12.8px;
+  border-radius: 8px;
 }
 
 /* Sub-view Switcher Pills */
 .subnav {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 3px;
+  padding: 3.5px;
+  border-radius: 11px;
+  background: rgba(118, 118, 128, 0.11);
   margin-bottom: 18px;
 }
 
 .subnav-btn {
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--muted);
-  padding: 8px 15px;
-  border-radius: var(--radius-sm);
+  border: 0;
+  background: transparent;
+  color: #3a3a3c;
+  padding: 7px 14px;
+  border-radius: 8px;
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13.6px;
+  font-weight: 600;
   transition: all 0.15s ease;
 }
 
 .subnav-btn:hover {
-  border-color: #acc2ca;
   color: var(--ink);
 }
 
 .subnav-btn[aria-pressed="true"] {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #ffffff;
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.09);
 }
 
-/* Filter Panel */
+/* Apple Grouped Filter Panel */
 .filter-panel {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 16px 18px;
+  padding: 15px 17px;
   box-shadow: var(--shadow-xs);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-  gap: 13px;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
 .filter-field label {
   display: block;
-  font-size: 12.5px;
+  font-family: var(--font-display);
+  font-size: 12.2px;
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 5px;
@@ -446,13 +494,22 @@ a:hover {
 .filter-field input,
 .filter-field select {
   width: 100%;
-  height: 41px;
-  padding: 7px 11px;
-  border: 1px solid #c6d4da;
-  border-radius: var(--radius-sm);
-  background: var(--paper);
+  height: 39px;
+  padding: 6px 11px;
+  border: 1px solid rgba(60, 60, 67, 0.16);
+  border-radius: 10px;
+  background: #f9f9fb;
   color: var(--ink);
-  font-size: 14.5px;
+  font-size: 14px;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-field input:focus,
+.filter-field select:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.16);
 }
 
 .toolbar-row {
@@ -460,11 +517,11 @@ a:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin: 12px 0 18px;
+  margin: 10px 0 15px;
 }
 
 .status-text {
-  font-size: 14px;
+  font-size: 13.6px;
   color: var(--muted);
   margin-right: auto;
   font-weight: 500;
@@ -881,53 +938,66 @@ a:hover {
   flex-wrap: wrap;
 }
 
-/* Student Cards Grid (Matches Apps Script + Print Ready) */
+/* Student Cards Grid (Apple Contacts / Photos Style + 1-Page A4 Print Ready) */
 .student-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(192px, 1fr));
   gap: 14px;
 }
 
 .area-group-header {
   grid-column: 1 / -1;
-  margin: 12px 0 2px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line);
+  margin: 14px 0 4px;
+  padding: 12px 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px 14px;
 }
 
 .area-group-header h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 18px;
-  color: var(--brand-deep);
+  font-size: 17.5px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .area-group-header p {
-  margin: 0;
-  font-size: 13.5px;
+  margin: 3px 0 0;
+  font-size: 13.2px;
   color: var(--muted);
 }
 
 .student-card {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 11px;
   min-width: 0;
   box-shadow: var(--shadow-xs);
   display: flex;
   flex-direction: column;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.student-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(0, 122, 255, 0.24);
 }
 
 .student-portrait {
-  height: 196px;
-  background: #eef3f5;
-  border-radius: 6px;
+  width: 100%;
+  aspect-ratio: 230 / 312;
+  max-height: 222px;
+  background: #f2f2f7;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -935,17 +1005,20 @@ a:hover {
   margin-bottom: 9px;
   color: var(--brand);
   position: relative;
+  border: 1px solid rgba(60, 60, 67, 0.06);
 }
 
 .student-portrait.compact-avatar {
-  height: 62px;
-  background: linear-gradient(135deg, #e8f1f3 0%, #dce9ec 100%);
+  aspect-ratio: auto;
+  height: 58px;
+  background: linear-gradient(135deg, #eef4ff 0%, #e5eff8 100%);
 }
 
 .student-portrait img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center top;
   display: block;
 }
 
@@ -959,31 +1032,38 @@ a:hover {
 
 .student-card h3 {
   font-family: var(--font-display);
-  font-size: 16.5px;
-  line-height: 1.35;
-  margin: 2px 2px 5px;
+  font-size: 16px;
+  line-height: 1.32;
+  margin: 2px 2px 3px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .student-card p {
-  font-size: 13px;
-  line-height: 1.48;
-  margin: 2px 2px;
+  font-size: 12.8px;
+  line-height: 1.44;
+  margin: 1.5px 2px;
   color: var(--muted);
 }
 
 .student-card .sid-mono {
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--brand);
+  font-size: 12.4px;
+  color: var(--ink-body);
+  font-weight: 600;
+}
+
+.student-card .disc-room-line {
+  font-size: 12.4px;
+  color: var(--muted);
   font-weight: 500;
+  margin-top: 3px;
 }
 
 .student-card .s-area {
-  color: var(--teal-deep);
-  font-weight: 600;
-  margin-top: 5px;
+  margin-top: auto;
+  padding-top: 6px;
 }
 
 .print-heading {
@@ -1841,13 +1921,13 @@ a:hover {
   line-height: 1.5;
 }
 
-/* Apple Calendar / Google Calendar Top Bar */
+/* Apple Calendar.app Top Bar & Segmented Controls */
 .cal-topbar {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 12px 16px;
-  margin-bottom: 14px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
   box-shadow: var(--shadow-xs);
   display: flex;
   justify-content: space-between;
@@ -1863,13 +1943,21 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.cal-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .cal-stepper {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #c6d4da;
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(60, 60, 67, 0.16);
+  border-radius: 9px;
   overflow: hidden;
   background: var(--paper);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .cal-stepper button {
@@ -1877,8 +1965,9 @@ a:hover {
   background: var(--paper);
   color: var(--ink);
   padding: 6px 11px;
-  font-size: 13.5px;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: 13.2px;
+  font-weight: 600;
   border-right: 1px solid var(--line-soft);
   transition: background 0.14s ease;
 }
@@ -1888,48 +1977,49 @@ a:hover {
 }
 
 .cal-stepper button:hover:not(:disabled) {
-  background: #edf3f5;
+  background: #f2f2f7;
 }
 
 .cal-period-title {
   font-family: var(--font-display);
   font-size: 17.5px;
   font-weight: 700;
-  color: var(--brand-deep);
+  letter-spacing: -0.015em;
+  color: var(--ink);
   margin: 0;
 }
 
-/* Segmented View Switcher (iCal / Google Calendar style) */
+/* Segmented View Switcher (macOS / iPadOS UISegmentedControl) */
 .cal-segmented {
   display: inline-flex;
   flex-wrap: wrap;
-  background: #eaf0f2;
+  background: rgba(118, 118, 128, 0.12);
   padding: 3px;
   border-radius: 9px;
-  border: 1px solid #d5e0e5;
+  border: 0;
   gap: 2px;
 }
 
 .cal-seg-btn {
   border: 0;
   background: transparent;
-  color: #49606f;
-  padding: 6px 13px;
-  border-radius: 6px;
+  color: #3a3a3c;
+  padding: 5.5px 12.5px;
+  border-radius: 7px;
   font-family: var(--font-display);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .cal-seg-btn:hover {
-  color: var(--brand-deep);
+  color: var(--ink);
 }
 
 .cal-seg-btn[aria-pressed="true"] {
-  background: var(--paper);
-  color: var(--brand-deep);
-  box-shadow: 0 1px 3px rgba(18, 59, 80, 0.12);
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 0.5px 1px rgba(0, 0, 0, 0.06);
 }
 
 /* Category Color Legend */
@@ -1937,8 +2027,8 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 16px;
-  font-size: 12.8px;
+  gap: 10px 15px;
+  font-size: 12.6px;
   color: var(--muted);
 }
 
@@ -1949,46 +2039,46 @@ a:hover {
 }
 
 .cal-dot {
-  width: 9px;
-  height: 9px;
+  width: 8.5px;
+  height: 8.5px;
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
 }
 
-.cal-dot.cat-HS { background: #1e7a72; }
-.cal-dot.cat-EP { background: #235c96; }
-.cal-dot.cat-SG { background: #3b7631; }
-.cal-dot.cat-PANEL { background: #62478f; }
-.cal-dot.cat-EXAM { background: #b43831; }
-.cal-dot.cat-HOLIDAY { background: #a86c14; }
-.cal-dot.cat-STAFF { background: #5a6d7c; }
+.cal-dot.cat-HS { background: #0d9488; }
+.cal-dot.cat-EP { background: #007aff; }
+.cal-dot.cat-SG { background: #34c759; }
+.cal-dot.cat-PANEL { background: #af52de; }
+.cal-dot.cat-EXAM { background: #ff3b30; }
+.cal-dot.cat-HOLIDAY { background: #ff9500; }
+.cal-dot.cat-STAFF { background: #8e8e93; }
 
-/* ---------- Month View Grid (6-Week Course Calendar) ---------- */
+/* ---------- Month View Grid (Apple Calendar.app 6-Week Canvas) ---------- */
 .cal-month-shell {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
 }
 
 .cal-month-min {
-  min-width: 860px;
+  min-width: 700px;
 }
 
 .cal-dow-header {
   display: grid;
-  grid-template-columns: 54px repeat(7, minmax(0, 1fr));
-  background: #f4f8f9;
+  grid-template-columns: 50px repeat(7, minmax(0, 1fr));
+  background: #fbfbfd;
   border-bottom: 1px solid var(--line);
 }
 
 .cal-dow-cell {
-  padding: 9px 10px;
+  padding: 9px 6px;
   font-family: var(--font-display);
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--muted);
   text-align: center;
   border-right: 1px solid var(--line-soft);
@@ -2000,7 +2090,7 @@ a:hover {
 
 .cal-month-row {
   display: grid;
-  grid-template-columns: 54px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 50px repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -2009,7 +2099,7 @@ a:hover {
 }
 
 .cal-week-num {
-  background: #f8fbfc;
+  background: #fbfbfd;
   border-right: 1px solid var(--line-soft);
   padding: 10px 4px;
   display: flex;
@@ -2017,24 +2107,25 @@ a:hover {
   align-items: center;
   justify-content: flex-start;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--teal-deep);
+  color: var(--brand);
   cursor: pointer;
+  transition: background 0.14s ease;
 }
 
 .cal-week-num:hover {
-  background: #eaf3f4;
+  background: rgba(0, 122, 255, 0.08);
 }
 
 .cal-day-cell {
-  min-height: 118px;
-  padding: 6px 6px 8px;
+  min-height: 116px;
+  padding: 6px 5.5px 8px;
   border-right: 1px solid var(--line-soft);
   background: var(--paper);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3.5px;
   min-width: 0;
 }
 
@@ -2043,12 +2134,12 @@ a:hover {
 }
 
 .cal-day-cell.is-weekend {
-  background: #fafcfd;
+  background: #fafafa;
 }
 
 .cal-day-cell.is-outside {
-  background: #f4f7f8;
-  opacity: 0.68;
+  background: #f5f5f7;
+  opacity: 0.65;
 }
 
 .cal-day-head {
@@ -2060,17 +2151,18 @@ a:hover {
 
 .cal-day-num {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 12.8px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .cal-day-num.is-month-start {
-  background: var(--brand);
+  background: #ff3b30;
   color: #ffffff;
-  padding: 1px 7px;
+  padding: 1.5px 7.5px;
   border-radius: 99px;
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
 .cal-day-events {
@@ -2082,11 +2174,12 @@ a:hover {
 .cal-chip {
   width: 100%;
   text-align: left;
-  border: 1px solid transparent;
-  border-radius: 5px;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
   padding: 3.5px 6px;
-  font-size: 11.8px;
-  line-height: 1.32;
+  font-size: 11.4px;
+  line-height: 1.3;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2095,15 +2188,15 @@ a:hover {
 }
 
 .cal-chip:hover {
-  filter: brightness(0.95);
+  filter: brightness(0.96);
 }
 
 .cal-chip .chip-time {
   font-family: var(--font-mono);
-  font-size: 10.8px;
+  font-size: 10.5px;
   font-weight: 600;
   flex-shrink: 0;
-  opacity: 0.88;
+  opacity: 0.86;
 }
 
 .cal-chip .chip-title {
@@ -2115,45 +2208,45 @@ a:hover {
 }
 
 .cal-chip .chip-zoom {
-  font-size: 10.5px;
+  font-size: 10px;
   padding: 0 4px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #134678;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0055b3;
   font-weight: 700;
   flex-shrink: 0;
 }
 
-.cal-chip.cat-HS { background: #e3f3f0; color: #134e48; border-color: #bfe0da; }
-.cal-chip.cat-EP { background: #e5effa; color: #164370; border-color: #c2d7ef; }
-.cal-chip.cat-SG { background: #eaf4e4; color: #25511f; border-color: #c8dfc0; }
-.cal-chip.cat-PANEL { background: #efeaf8; color: #442f69; border-color: #d6cae9; }
-.cal-chip.cat-EXAM { background: #fbe9e7; color: #84251f; border-color: #ecc1bc; }
-.cal-chip.cat-HOLIDAY { background: #fcf3df; color: #784c0c; border-color: #ebd5a6; }
-.cal-chip.cat-STAFF { background: #edf1f3; color: #3c505e; border-color: #cfd9de; }
+.cal-chip.cat-HS { background: #e6f7f5; color: #0f5c54; border-left-color: #0d9488; }
+.cal-chip.cat-EP { background: #e8f2ff; color: #004c99; border-left-color: #007aff; }
+.cal-chip.cat-SG { background: #eaf9ee; color: #166534; border-left-color: #34c759; }
+.cal-chip.cat-PANEL { background: #f5ebfc; color: #5b2182; border-left-color: #af52de; }
+.cal-chip.cat-EXAM { background: #ffeceb; color: #9e1c13; border-left-color: #ff3b30; }
+.cal-chip.cat-HOLIDAY { background: #fff4e2; color: #8c4600; border-left-color: #ff9500; }
+.cal-chip.cat-STAFF { background: #f0f0f5; color: #3a3a3c; border-left-color: #8e8e93; }
 
 .cal-chip.is-allday {
   font-weight: 700;
 }
 
-/* ---------- Week Time-Grid View (Google Calendar / Apple iCal Hourly Grid) ---------- */
+/* ---------- Week Time-Grid View (Apple Calendar.app Hourly Grid) ---------- */
 .cal-week-shell {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
   --hour-h: 56px;
 }
 
 .cal-week-min {
-  min-width: 880px;
+  min-width: 720px;
 }
 
 .cal-week-head {
   display: grid;
-  grid-template-columns: 68px repeat(7, minmax(0, 1fr));
-  background: #f4f8f9;
+  grid-template-columns: 62px repeat(7, minmax(0, 1fr));
+  background: #fbfbfd;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2169,7 +2262,7 @@ a:hover {
 
 .cal-week-head-cell .wd-name {
   display: block;
-  font-size: 12px;
+  font-size: 11.8px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -2180,19 +2273,19 @@ a:hover {
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 700;
-  color: var(--brand-deep);
+  color: var(--ink);
 }
 
 .cal-allday-row {
   display: grid;
-  grid-template-columns: 68px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 62px repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
-  background: #fafcfd;
+  background: #fbfbfd;
 }
 
 .cal-gutter-label {
   padding: 8px 6px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   text-align: right;
@@ -2214,13 +2307,13 @@ a:hover {
 
 .cal-timegrid-body {
   display: grid;
-  grid-template-columns: 68px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 62px repeat(7, minmax(0, 1fr));
   position: relative;
 }
 
 .cal-time-gutter {
   border-right: 1px solid var(--line-soft);
-  background: #fbfcfd;
+  background: #fbfbfd;
 }
 
 .cal-hour-tick {
@@ -2228,7 +2321,7 @@ a:hover {
   padding: 3px 8px 0 0;
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--muted);
   border-bottom: 1px solid var(--line-soft);
 }
@@ -2251,43 +2344,44 @@ a:hover {
 }
 
 .cal-day-col.is-weekend {
-  background-color: #fafcfd;
+  background-color: #fafafa;
 }
 
 .cal-timed-event {
   position: absolute;
-  left: 4px;
-  right: 4px;
-  border-radius: 6px;
+  left: 3px;
+  right: 3px;
+  border-radius: 7px;
   padding: 5px 7px;
-  border: 1px solid transparent;
+  border: 0;
+  border-left: 3.5px solid transparent;
   text-align: left;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  box-shadow: 0 1px 3px rgba(18, 59, 80, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
   transition: transform 0.1s ease, box-shadow 0.14s ease;
   z-index: 2;
 }
 
 .cal-timed-event:hover {
   z-index: 5;
-  box-shadow: 0 4px 12px rgba(18, 59, 80, 0.16);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
 }
 
 .cal-timed-event .ev-time {
   font-family: var(--font-mono);
-  font-size: 10.8px;
+  font-size: 10.5px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .cal-timed-event .ev-title {
   font-family: var(--font-display);
-  font-size: 12.2px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 1.28;
+  line-height: 1.26;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2295,27 +2389,27 @@ a:hover {
 }
 
 .cal-timed-event .ev-room {
-  font-size: 11px;
+  font-size: 10.8px;
   opacity: 0.9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.cal-timed-event.cat-HS { background: #e2f3f0; color: #124b46; border-color: #b7dcd5; }
-.cal-timed-event.cat-EP { background: #e4effa; color: #15406b; border-color: #bad2ec; }
-.cal-timed-event.cat-SG { background: #e9f4e3; color: #244e1e; border-color: #c2dcb9; }
-.cal-timed-event.cat-PANEL { background: #efe9f8; color: #422d66; border-color: #d2c5e8; }
-.cal-timed-event.cat-EXAM { background: #fbe8e6; color: #82231d; border-color: #eabbb5; }
-.cal-timed-event.cat-STAFF { background: #edf1f3; color: #3b4f5d; border-color: #cdd7dc; }
+.cal-timed-event.cat-HS { background: #e6f7f5; color: #0f5c54; border-left-color: #0d9488; }
+.cal-timed-event.cat-EP { background: #e8f2ff; color: #004c99; border-left-color: #007aff; }
+.cal-timed-event.cat-SG { background: #eaf9ee; color: #166534; border-left-color: #34c759; }
+.cal-timed-event.cat-PANEL { background: #f5ebfc; color: #5b2182; border-left-color: #af52de; }
+.cal-timed-event.cat-EXAM { background: #ffeceb; color: #9e1c13; border-left-color: #ff3b30; }
+.cal-timed-event.cat-STAFF { background: #f0f0f5; color: #3a3a3c; border-left-color: #8e8e93; }
 
 /* Inline Zoom Classroom Box inside Agenda Card & Event Popover */
 .zoom-inline-box {
   margin: 10px 0;
   padding: 11px 14px;
   border-radius: var(--radius-sm);
-  background: #eff5fc;
-  border: 1px solid #c3d8ee;
+  background: #f0f6ff;
+  border: 1px solid rgba(0, 122, 255, 0.22);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2325,24 +2419,26 @@ a:hover {
 
 .zoom-inline-meta {
   font-size: 13.5px;
-  color: #163e64;
+  color: #004085;
 }
 
 .zoom-inline-meta code {
   font-family: var(--font-mono);
   background: #ffffff;
   padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid #d0e0f0;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 122, 255, 0.20);
   font-size: 12.5px;
 }
 
-/* ---------- Google Calendar / iCal Event Detail Popover Modal ---------- */
+/* ---------- macOS Vibrancy Event Detail Popover Sheet ---------- */
 .cal-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 950;
-  background: rgba(12, 32, 44, 0.54);
+  background: rgba(29, 29, 31, 0.38);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2354,10 +2450,12 @@ a:hover {
   max-width: 620px;
   max-height: 90vh;
   overflow-y: auto;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 18px 46px rgba(12, 32, 44, 0.24);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid rgba(60, 60, 67, 0.14);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   padding: 22px 24px 20px;
 }
 
@@ -2370,18 +2468,19 @@ a:hover {
 }
 
 .cal-modal-close {
-  border: 1px solid var(--line);
-  background: #f5f8f9;
-  color: var(--ink);
-  width: 34px;
-  height: 34px;
+  border: 0;
+  background: rgba(118, 118, 128, 0.14);
+  color: var(--ink-body);
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background 0.15s ease;
 }
 
 .cal-modal-close:hover {
@@ -3234,17 +3333,593 @@ a:hover {
   }
 }
 
+/* ---------- macOS Collapsible iCal / Google Calendar Sync Disclosure ---------- */
+.macos-studio-disclosure {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.macos-studio-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.macos-studio-summary::-webkit-details-marker {
+  display: none;
+}
+
+.macos-studio-summary:hover {
+  background: #f8f8fc;
+}
+
+.macos-studio-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13.8px;
+  color: var(--ink-body);
+}
+
+.macos-studio-summary-left strong {
+  font-family: var(--font-display);
+  font-size: 14.4px;
+  color: var(--ink);
+}
+
+.macos-studio-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.macos-studio-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 980px;
+  background: rgba(0, 122, 255, 0.10);
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.macos-studio-disclosure[open] .macos-studio-summary {
+  border-bottom: 1px solid var(--line-soft);
+  background: #fbfbfd;
+}
+
+.macos-studio-disclosure .cal-studio-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+}
+
+/* ---------- macOS / iPadOS Calendar Split-View & Side-Tab Inspector ---------- */
+.cal-sidebar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12.5px;
+  border-radius: 9px;
+  border: 1px solid rgba(60, 60, 67, 0.15);
+  background: var(--paper);
+  color: var(--ink-body);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.cal-sidebar-toggle-btn:hover {
+  background: #f2f2f7;
+  color: var(--ink);
+}
+
+.cal-sidebar-toggle-btn[aria-expanded="true"] {
+  background: rgba(0, 122, 255, 0.11);
+  border-color: rgba(0, 122, 255, 0.28);
+  color: var(--brand);
+}
+
+.cal-workspace-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 326px;
+  gap: 18px;
+  align-items: start;
+}
+
+.cal-workspace-split.is-sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cal-workspace-main {
+  min-width: 0;
+}
+
+.cal-side-inspector {
+  position: sticky;
+  top: 16px;
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px;
+  box-shadow: var(--shadow-sm);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.cal-side-head {
+  margin-bottom: 10px;
+}
+
+.cal-side-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(118, 118, 128, 0.12);
+}
+
+.cal-side-tab {
+  border: 0;
+  background: transparent;
+  color: #3a3a3c;
+  padding: 6px 6px;
+  border-radius: 7.5px;
+  font-family: var(--font-display);
+  font-size: 12.2px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.cal-side-tab:hover {
+  color: var(--ink);
+}
+
+.cal-side-tab[aria-selected="true"] {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.10), 0 0.5px 1px rgba(0, 0, 0, 0.05);
+}
+
+.cal-side-caption {
+  margin: 0 2px 10px;
+  font-size: 12.2px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.cal-side-inspector .milestone-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8.5px;
+  margin-bottom: 0;
+}
+
+.cal-side-inspector .milestone-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 3.5px solid var(--brand);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+
+.cal-side-inspector .milestone-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.07);
+}
+
+.cal-side-inspector .milestone-card.ms-type-exam {
+  border-left-color: #ff3b30;
+}
+
+.cal-side-inspector .milestone-card.ms-type-deadline {
+  border-left-color: #ff9500;
+}
+
+.cal-side-inspector .milestone-card.ms-type-fieldwork {
+  border-left-color: #34c759;
+}
+
+.cal-side-inspector .milestone-card.ms-type-presentation {
+  border-left-color: #5856d6;
+}
+
+.ms-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.cal-side-inspector .milestone-card .ms-date {
+  margin-bottom: 0;
+  font-size: 11.4px;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.cal-side-inspector .milestone-card.ms-type-exam .ms-date { color: #d70015; }
+.cal-side-inspector .milestone-card.ms-type-deadline .ms-date { color: #b25000; }
+.cal-side-inspector .milestone-card.ms-type-fieldwork .ms-date { color: #15803d; }
+.cal-side-inspector .milestone-card.ms-type-presentation .ms-date { color: #4338ca; }
+
+.ms-action-hint {
+  font-family: var(--font-display);
+  font-size: 10.6px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cal-side-inspector .milestone-card .ms-title {
+  font-size: 13.4px;
+  line-height: 1.36;
+  color: var(--ink);
+}
+
+.cal-side-inspector .milestone-card .ms-channel {
+  font-size: 11.8px;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.side-zoom-list,
+.side-sync-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.side-zoom-card {
+  background: #f8f9fc;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.side-zoom-title {
+  font-family: var(--font-display);
+  font-size: 12.8px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.side-zoom-meta {
+  font-family: var(--font-mono);
+  font-size: 11.6px;
+  color: var(--muted);
+}
+
+.side-zoom-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+@media (max-width: 1100px) {
+  .cal-workspace-split {
+    grid-template-columns: 1fr;
+  }
+  .cal-side-inspector {
+    position: static;
+    max-height: none;
+  }
+  .cal-side-inspector .milestone-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+/* ---------- 9-Site Color-Coded Fieldwork Area Sub-Labels (Discussion & Roster) ---------- */
+.disc-area-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 13px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 12px;
+}
+
+.area-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 5px 10.5px;
+  border-radius: 980px;
+  border: 1px solid transparent;
+  font-family: var(--font-display);
+  font-size: 12.3px;
+  font-weight: 600;
+  line-height: 1.25;
+  transition: transform 0.12s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+}
+
+.area-filter-pill:hover {
+  transform: translateY(-1px);
+}
+
+.area-filter-pill.area-all {
+  background: #ebebf0;
+  color: var(--ink);
+  border-color: rgba(60, 60, 67, 0.14);
+}
+
+.area-filter-pill.is-active {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.area-filter-pill.is-zero {
+  opacity: 0.42;
+}
+
+.area-filter-pill .pill-cnt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0.5px 5.5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.area-sub-pill-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.area-sub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3.5px 9.5px;
+  border-radius: 980px;
+  border: 1px solid transparent;
+  font-family: var(--font-display);
+  font-size: 11.8px;
+  font-weight: 600;
+  line-height: 1.28;
+  max-width: 100%;
+}
+
+.area-sub-pill.sm {
+  padding: 2px 7.5px;
+  font-size: 11px;
+}
+
+.area-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+/* 9 Distinct Apple HIG Harmonized Fieldwork Hospital Palettes */
+.area-site-1 { background: #e8f2ff; color: #004c99; border-color: #bddbff; }
+.area-site-1 .area-dot { background: #007aff; }
+
+.area-site-2 { background: #e9f9ee; color: #14632f; border-color: #bcebc9; }
+.area-site-2 .area-dot { background: #34c759; }
+
+.area-site-3 { background: #e5f6fb; color: #0a586c; border-color: #b5e5f3; }
+.area-site-3 .area-dot { background: #00a3c4; }
+
+.area-site-4 { background: #fff3e0; color: #944800; border-color: #fbd9a5; }
+.area-site-4 .area-dot { background: #ff9500; }
+
+.area-site-5 { background: #efeffe; color: #3533a1; border-color: #cbcbfa; }
+.area-site-5 .area-dot { background: #5856d6; }
+
+.area-site-6 { background: #f7ecfc; color: #6b2390; border-color: #e4c4f4; }
+.area-site-6 .area-dot { background: #af52de; }
+
+.area-site-7 { background: #fef6e2; color: #824b0a; border-color: #f6df9e; }
+.area-site-7 .area-dot { background: #d97706; }
+
+.area-site-8 { background: #e6f7f5; color: #0f5c54; border-color: #b5e3dd; }
+.area-site-8 .area-dot { background: #0d9488; }
+
+.area-site-9 { background: #ffebf0; color: #9c1238; border-color: #fcc2d0; }
+.area-site-9 .area-dot { background: #ff2d55; }
+
+.disc-site-mix,
+.disc-header-site-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4.5px;
+  margin-top: 2px;
+}
+
+.disc-card-foot {
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 12.4px;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+/* ---------- macOS Preview / Quick Look PDF Card in Manual Section 2 ---------- */
+.macos-pdf-card {
+  margin: 14px 0 18px;
+  background: #fbfbfd;
+  border: 1px solid rgba(60, 60, 67, 0.16);
+  border-radius: 14px;
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.macos-pdf-bar {
+  padding: 13px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.macos-pdf-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.macos-pdf-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ff453a 0%, #d70015 100%);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(215, 0, 21, 0.25);
+}
+
+.macos-pdf-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.macos-pdf-titles strong {
+  font-family: var(--font-display);
+  font-size: 14.8px;
+  line-height: 1.32;
+  color: var(--ink);
+}
+
+.macos-pdf-titles span {
+  font-size: 12.6px;
+  line-height: 1.38;
+  color: var(--muted);
+}
+
+.macos-pdf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.macos-pdf-viewer-shell {
+  border-top: 1px solid var(--line);
+  background: #ebebf0;
+}
+
+.macos-pdf-viewer-toolbar {
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.macos-pdf-viewer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.macos-pdf-frame-wrap {
+  width: 100%;
+  height: 760px;
+  background: #525659;
+}
+
+.macos-pdf-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+@media (max-width: 680px) {
+  .macos-pdf-frame-wrap {
+    height: 520px;
+  }
+}
+
 @media print {
   .disc-overview-grid,
   .disc-rotation-banner,
+  .disc-area-legend-bar,
   .elearning-bridge-card,
-  .srn-studio-card {
+  .srn-studio-card,
+  .cal-side-inspector,
+  .macos-studio-disclosure,
+  .macos-pdf-card {
     display: none !important;
+  }
+  .cal-workspace-split {
+    display: block !important;
+  }
+  body.print-students-mode .student-portrait {
+    aspect-ratio: auto !important;
+    max-height: none !important;
+    border: 0 !important;
+  }
+  body.print-students-mode .student-portrait img {
+    object-fit: contain !important;
   }
   body.print-disc-mode .student-card .s-area {
     display: block !important;
+    padding-top: 1px !important;
   }
-  body.print-disc-mode .student-card .disc-line {
+  body.print-disc-mode .student-card .area-sub-pill {
+    font-size: var(--pb, 6.8pt) !important;
+    padding: 0.4mm 1.6mm !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.print-disc-mode .student-card .disc-line,
+  body.print-disc-mode .student-card .disc-room-line {
     display: none !important;
   }
 }
