@@ -6040,7 +6040,7 @@
       lbl.setAttribute("y", String(sy + geo.dy));
       lbl.setAttribute("text-anchor", geo.anchor || "start");
       lbl.setAttribute("class", "th-pin-label");
-      lbl.textContent = `${site.id}.${site.shortName}`;
+      lbl.textContent = site.shortName;
 
       pinG.append(groundShadow, halo, dot, numTxt, lbl);
 
