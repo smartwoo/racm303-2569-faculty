@@ -494,7 +494,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r1_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,
@@ -529,7 +529,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r2_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,
@@ -564,7 +564,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r3_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,
@@ -599,7 +599,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r4_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,
@@ -634,7 +634,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r5_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,
@@ -669,7 +669,7 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r6_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "placeholder": "ชื่อ Building Block…",
                     "compact": true,
                     "maxWords": 15,
                     "maxChars": 90,

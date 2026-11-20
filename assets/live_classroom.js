@@ -368,12 +368,25 @@
       if (existing && (existing.updatedWallMs || 0) > updatedMs) return;
 
       const cleanCells = {};
+      const cleanCellStatuses = {};
       let hasNonEmpty = false;
+      let anySubmitted = false;
+      const rawCellStatuses =
+        msg.cellStatuses && typeof msg.cellStatuses === "object" ? msg.cellStatuses : {};
       if (msg.cells && typeof msg.cells === "object") {
-        Object.keys(msg.cells).slice(0, 24).forEach((k) => {
+        Object.keys(msg.cells).slice(0, 32).forEach((k) => {
           const val = String(msg.cells[k] || "").slice(0, 500);
           if (val.trim()) {
             cleanCells[k] = val;
+            const cStat = rawCellStatuses[k]
+              ? rawCellStatuses[k] === "submitted"
+                ? "submitted"
+                : "typing"
+              : msg.status === "submitted"
+              ? "submitted"
+              : "typing";
+            cleanCellStatuses[k] = cStat;
+            if (cStat === "submitted") anySubmitted = true;
             hasNonEmpty = true;
           }
         });
@@ -390,7 +403,8 @@
           area: String(msg.area || "").slice(0, 40),
           questionId: qid,
           cells: cleanCells,
-          status: msg.status === "submitted" ? "submitted" : "typing",
+          cellStatuses: cleanCellStatuses,
+          status: msg.status === "submitted" || anySubmitted ? "submitted" : "typing",
           updatedWallMs: updatedMs
         });
       }
@@ -664,10 +678,11 @@
     if (studentObj && studentObj.id) {
       state.studentId = String(studentObj.id);
       state.participantId = `sid_${studentObj.id}`;
-      state.nickname = studentObj.nick || "";
+      const nick = String(studentObj.nickname || studentObj.nick || "").trim();
+      state.nickname = nick;
       state.area = studentObj.area || "";
-      const full = `${studentObj.id} ${studentObj.fullName}${studentObj.nick ? " (" + studentObj.nick + ")" : ""}`;
-      state.displayName = full;
+      const baseName = studentObj.name || studentObj.fullName || studentObj.id;
+      state.displayName = nick ? `${nick} (${baseName})` : `${studentObj.id} ${baseName}`;
       if (studentObj.disc >= 1 && studentObj.disc <= 6) {
         setRoom(studentObj.disc, true);
       }
@@ -838,27 +853,66 @@
     );
   }
 
-  /* ---------- Student Live Typing & Submission ---------- */
+  /* ---------- Student Per-Cell Live Typing & Per-Block Submission ---------- */
   const debounceTimers = new Map();
   const lastSentAtByQuestion = new Map();
   const pendingCellsByQuestion = new Map();
+  let submittedTextByCell = (function () {
+    try {
+      return JSON.parse(safeGetStorage("racm303_hs_disc_submitted_cells_v1", "{}")) || {};
+    } catch (_) {
+      return {};
+    }
+  })();
 
-  function publishStudentQuestionCells(questionId, cellsObj, statusOverride) {
+  function saveSubmittedCellsStore() {
+    safeSetStorage("racm303_hs_disc_submitted_cells_v1", JSON.stringify(submittedTextByCell));
+  }
+
+  function getCellSubmissionState(inputId, currentVal) {
+    const trimmed = String(currentVal || "").trim();
+    if (!trimmed) return "empty";
+    const prevSent = submittedTextByCell[inputId];
+    if (prevSent === undefined) return "ready";
+    return prevSent === trimmed ? "submitted" : "dirty";
+  }
+
+  function clearSubmittedCells(inputIds) {
+    if (!inputIds) {
+      submittedTextByCell = {};
+    } else {
+      inputIds.forEach((id) => delete submittedTextByCell[id]);
+    }
+    saveSubmittedCellsStore();
+  }
+
+  function publishStudentQuestionCells(questionId, cellsObj, forceSubmitAll) {
     if (!questionId || !cellsObj) return;
-    const status = statusOverride === "submitted" ? "submitted" : "typing";
     const cleanCells = {};
+    const cleanCellStatuses = {};
     let hasAny = false;
+    let anySubmitted = false;
+
     Object.keys(cellsObj).forEach((k) => {
       const v = String(cellsObj[k] || "").slice(0, 500);
-      if (v.trim()) {
+      const trimmed = v.trim();
+      if (trimmed) {
         cleanCells[k] = v;
         hasAny = true;
+        if (forceSubmitAll) {
+          submittedTextByCell[k] = trimmed;
+        }
+        const isCellSub = submittedTextByCell[k] === trimmed;
+        cleanCellStatuses[k] = isCellSub ? "submitted" : "typing";
+        if (isCellSub) anySubmitted = true;
       }
     });
+    if (forceSubmitAll) saveSubmittedCellsStore();
 
+    const overallStatus = anySubmitted ? "submitted" : "typing";
     const updatedMs = Date.now();
     lastSentAtByQuestion.set(questionId, updatedMs);
-    // Update local map immediately so local UI reflects status
+
     if (!state.responsesByQuestion.has(questionId)) {
       state.responsesByQuestion.set(questionId, new Map());
     }
@@ -874,7 +928,8 @@
         area: state.area,
         questionId,
         cells: cleanCells,
-        status,
+        cellStatuses: cleanCellStatuses,
+        status: overallStatus,
         updatedWallMs: updatedMs
       });
     }
@@ -890,7 +945,8 @@
         area: state.area,
         questionId,
         cells: cleanCells,
-        status,
+        cellStatuses: cleanCellStatuses,
+        status: overallStatus,
         updatedWallMs: updatedMs
       },
       true
@@ -913,7 +969,7 @@
         debounceTimers.delete(questionId);
       }
       pendingCellsByQuestion.delete(questionId);
-      publishStudentQuestionCells(questionId, cellsObj, "typing");
+      publishStudentQuestionCells(questionId, cellsObj, false);
       return;
     }
 
@@ -924,7 +980,7 @@
         debounceTimers.delete(questionId);
         const latest = pendingCellsByQuestion.get(questionId);
         pendingCellsByQuestion.delete(questionId);
-        if (latest) publishStudentQuestionCells(questionId, latest, "typing");
+        if (latest) publishStudentQuestionCells(questionId, latest, false);
       }, waitMs);
       debounceTimers.set(questionId, t);
     }
@@ -939,7 +995,23 @@
     }
     const latest = cellsObj || pendingCellsByQuestion.get(questionId);
     pendingCellsByQuestion.delete(questionId);
-    if (latest) publishStudentQuestionCells(questionId, latest, "typing");
+    if (latest) publishStudentQuestionCells(questionId, latest, false);
+  }
+
+  function submitSingleCell(questionId, inputId, cellsObj) {
+    if (!questionId || !inputId || !cellsObj) return false;
+    const val = String(cellsObj[inputId] || "").trim();
+    if (!val) return false;
+    const prevT = debounceTimers.get(questionId);
+    if (prevT) {
+      clearTimeout(prevT);
+      debounceTimers.delete(questionId);
+    }
+    pendingCellsByQuestion.delete(questionId);
+    submittedTextByCell[inputId] = val;
+    saveSubmittedCellsStore();
+    publishStudentQuestionCells(questionId, cellsObj, false);
+    return true;
   }
 
   function submitQuestionFinal(questionId, cellsObj) {
@@ -949,7 +1021,7 @@
       debounceTimers.delete(questionId);
     }
     pendingCellsByQuestion.delete(questionId);
-    publishStudentQuestionCells(questionId, cellsObj, "submitted");
+    publishStudentQuestionCells(questionId, cellsObj, true);
   }
 
   function clearQuestionResponses(questionId) {
@@ -974,6 +1046,39 @@
     const qMap = state.responsesByQuestion.get(questionId);
     if (!qMap) return [];
     return Array.from(qMap.values()).sort((a, b) => {
+      if (a.status !== b.status) return a.status === "submitted" ? -1 : 1;
+      return (b.updatedWallMs || 0) - (a.updatedWallMs || 0);
+    });
+  }
+
+  function getCellResponses(questionId, inputId) {
+    const qMap = state.responsesByQuestion.get(questionId);
+    if (!qMap || !inputId) return [];
+    const items = [];
+    qMap.forEach((rec) => {
+      const txt = rec.cells && rec.cells[inputId];
+      if (!txt || !String(txt).trim()) return;
+      const cStat =
+        rec.cellStatuses && rec.cellStatuses[inputId]
+          ? rec.cellStatuses[inputId]
+          : rec.status === "submitted"
+          ? "submitted"
+          : "typing";
+      items.push({
+        participantId: rec.participantId,
+        studentId: rec.studentId,
+        displayName: rec.displayName,
+        nickname: rec.nickname,
+        area: rec.area,
+        questionId,
+        inputId,
+        text: String(txt).trim(),
+        status: cStat === "submitted" ? "submitted" : "typing",
+        updatedWallMs: rec.updatedWallMs || 0,
+        fullRecord: rec
+      });
+    });
+    return items.sort((a, b) => {
       if (a.status !== b.status) return a.status === "submitted" ? -1 : 1;
       return (b.updatedWallMs || 0) - (a.updatedWallMs || 0);
     });
@@ -1027,9 +1132,13 @@
     getTeacherPointer: () => Object.assign({}, state.teacherPointer),
     queueLiveTyping,
     flushLiveTyping,
+    submitSingleCell,
     submitQuestionFinal,
+    getCellSubmissionState,
+    clearSubmittedCells,
     clearQuestionResponses,
     getQuestionResponses,
+    getCellResponses,
     getFollowTeacher: () => state.followTeacher,
     setFollowTeacher,
     getAnonymousWall: () => state.anonymousWall,

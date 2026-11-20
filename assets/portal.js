@@ -60,6 +60,7 @@
     hsdHideScenario: false,
     hsdTheater: false,
     hsdFacultyMode: "teacher", // teacher | projector | student
+    hsdLiveWallMode: localStorage.getItem("racm303_hsd_live_wall_mode") || "sheet", // sheet | people | demo
     hsdDrafts: JSON.parse(localStorage.getItem("racm303_hs_disc_drafts_v1") || "{}"),
     hsdRevealedKeys: new Set(),
     myStudent: null,
@@ -8631,7 +8632,7 @@
     return qHead;
   }
 
-  function buildWideWorksheetTableDOM(qObj) {
+  function buildWideWorksheetTableDOM(qObj, forceInteractive) {
     const frag = document.createDocumentFragment();
     const ws = qObj.worksheet;
     if (!ws || ws.type !== "table") return frag;
@@ -8655,6 +8656,8 @@
     (ws.headers || []).forEach((thText) => hr.appendChild(make("th", thText)));
     thead.appendChild(hr);
 
+    const cellSyncCallbacks = [];
+
     const tbody = document.createElement("tbody");
     (ws.rows || []).forEach((r) => {
       const tr = document.createElement("tr");
@@ -8670,21 +8673,65 @@
           const maxWords = cell.maxWords || 45;
           const maxChars = cell.maxChars || 240;
           const isCompact = Boolean(cell.compact);
-          const minPx = isCompact ? 38 : 52;
+          const minPx = isCompact ? 40 : 52;
+          const maxPx = isCompact ? 92 : 170;
           const savedVal = enforceA4ConciseText(state.hsdDrafts[cell.inputId] || "", cell, false);
 
           const ta = document.createElement("textarea");
           ta.className = `hsd-input${isCompact ? " is-compact" : ""}`;
-          ta.id = `input_${cell.inputId}`;
+          ta.id = `${forceInteractive ? "demo_" : "input_"}${cell.inputId}`;
+          ta.dataset.inputId = cell.inputId;
           ta.maxLength = maxChars;
           ta.rows = isCompact ? 1 : 2;
           ta.placeholder = cell.placeholder || "พิมพ์คำตอบกระชับตรงประเด็น…";
           ta.value = savedVal;
 
           const foot = make("div", null, "hsd-cell-foot");
-          const footRule = make("span", cell.a4BoxLabel || `≤${maxWords} คำ`);
-          const footCount = make("span", "");
-          foot.append(footRule, footCount);
+          const footCount = make("span", "", "hsd-cell-counter");
+          foot.appendChild(footCount);
+
+          let cellSendBtn = null;
+          const syncCellSendBtnUI = () => {
+            if (!cellSendBtn || !LIVE) return;
+            const st =
+              typeof LIVE.getCellSubmissionState === "function"
+                ? LIVE.getCellSubmissionState(cell.inputId, ta.value)
+                : ta.value.trim()
+                ? "ready"
+                : "empty";
+            cellSendBtn.disabled = st === "empty";
+            cellSendBtn.classList.toggle("is-submitted", st === "submitted");
+            cellSendBtn.classList.toggle("is-dirty", st === "dirty");
+            ta.classList.toggle("is-cell-submitted", st === "submitted");
+            if (st === "submitted") {
+              cellSendBtn.textContent = "✓ ส่งแล้ว";
+              cellSendBtn.title = "ส่งคำตอบช่องนี้ขึ้นจออาจารย์เรียบร้อยแล้ว (พิมพ์แก้และกดอัปเดตได้ตลอด)";
+            } else if (st === "dirty") {
+              cellSendBtn.textContent = "อัปเดตช่องนี้ ↗";
+              cellSendBtn.title = "ส่งข้อความที่แก้ไขในช่องนี้ขึ้นจออาจารย์ (หรือกด Ctrl+Enter)";
+            } else if (st === "ready") {
+              cellSendBtn.textContent = "ส่งช่องนี้ ✓";
+              cellSendBtn.title = "ส่งเฉพาะช่องนี้ขึ้นจออาจารย์ทันที ไม่ต้องรอกรอกช่องอื่น (หรือกด Ctrl+Enter)";
+            } else {
+              cellSendBtn.textContent = "ส่งช่องนี้";
+              cellSendBtn.title = "พิมพ์คำตอบในช่องนี้แล้วกดส่งแยกเฉพาะช่องได้ทันที";
+            }
+          };
+
+          if (LIVE && ROLE === "student") {
+            cellSendBtn = make("button", "ส่งช่องนี้", "hsd-cell-send-btn hsd-no-print");
+            cellSendBtn.type = "button";
+            cellSendBtn.dataset.sendCellId = cell.inputId;
+            cellSendBtn.addEventListener("click", () => {
+              const map = collectQuestionCellsMap(qObj);
+              if (!String(ta.value || "").trim()) return;
+              map[cell.inputId] = ta.value;
+              LIVE.submitSingleCell(qObj.id, cell.inputId, map);
+              syncCellSendBtnUI();
+            });
+            foot.appendChild(cellSendBtn);
+            cellSyncCallbacks.push(syncCellSendBtnUI);
+          }
 
           const mirror = make(
             "div",
@@ -8702,11 +8749,27 @@
             ta.classList.toggle("is-at-limit", ratio >= 1);
             footCount.textContent =
               ratio >= 1
-                ? `${wCnt}/${maxWords} คำ · เต็มกรอบ A4`
-                : `${wCnt}/${maxWords} คำ · ${cCnt}/${maxChars}`;
+                ? `${wCnt}/${maxWords} คำ · เต็ม A4`
+                : isCompact
+                ? `${wCnt}/${maxWords} คำ (${cCnt}/${maxChars})`
+                : `${wCnt}/${maxWords} คำ · ${cCnt}/${maxChars} (กรอบ A4)`;
             ta.style.height = "auto";
-            ta.style.height = `${Math.min(isCompact ? 86 : 170, Math.max(minPx, ta.scrollHeight))}px`;
+            const sH = ta.scrollHeight;
+            ta.style.overflowY = sH > maxPx ? "auto" : "hidden";
+            ta.style.height = `${Math.min(maxPx, Math.max(minPx, sH))}px`;
+            syncCellSendBtnUI();
           };
+
+          ta.addEventListener("keydown", (ev) => {
+            if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter" && LIVE && ROLE === "student") {
+              ev.preventDefault();
+              if (!String(ta.value || "").trim()) return;
+              const map = collectQuestionCellsMap(qObj);
+              map[cell.inputId] = ta.value;
+              LIVE.submitSingleCell(qObj.id, cell.inputId, map);
+              syncCellSendBtnUI();
+            }
+          });
 
           ta.addEventListener("compositionstart", () => {
             composing = true;
@@ -8757,10 +8820,10 @@
       const rNum = LIVE.getRoomId();
       const hint = make(
         "span",
-        `● ซิงค์คำตอบสดเข้าห้องกลุ่มที่ ${rNum} อัตโนมัติขณะพิมพ์`,
+        `● กด “ส่งช่องนี้ ✓” ใต้แต่ละช่องได้ทันทีโดยไม่ต้องรอกรอกครบทุกช่อง (ซิงค์เข้าห้องกลุ่มที่ ${rNum})`,
         "hsd-live-sync-hint"
       );
-      const sendBtn = make("button", `ส่งคำตอบข้อนี้ขึ้นจอห้องกลุ่ม ${rNum} ✓`, "btn sm teal");
+      const sendBtn = make("button", `ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓`, "btn sm teal");
       sendBtn.type = "button";
       sendBtn.addEventListener("click", () => {
         const map = collectQuestionCellsMap(qObj);
@@ -8769,10 +8832,11 @@
           return;
         }
         LIVE.submitQuestionFinal(qObj.id, map);
-        sendBtn.textContent = "✓ ส่งขึ้นจออาจารย์แล้ว!";
-        hint.textContent = `ส่งคำตอบขึ้นจอห้องกลุ่มที่ ${LIVE.getRoomId()} เรียบร้อยแล้ว (แก้ไขเพิ่มเติมได้ตลอด)`;
+        cellSyncCallbacks.forEach((fn) => fn());
+        sendBtn.textContent = "✓ ส่งทุกช่องที่กรอกแล้ว!";
+        hint.textContent = `ส่งคำตอบทุกช่องที่กรอกขึ้นจอห้องกลุ่มที่ ${LIVE.getRoomId()} เรียบร้อยแล้ว`;
         setTimeout(() => {
-          sendBtn.textContent = `อัปเดตคำตอบขึ้นจอห้องกลุ่ม ${LIVE.getRoomId()} ✓`;
+          sendBtn.textContent = `ส่งทุกช่องที่กรอกแล้วขึ้นจอ ✓`;
         }, 2000);
       });
       subBar.append(hint, sendBtn);
@@ -8927,26 +8991,15 @@
       const rightPane = make("div", null, "hsd-slide-right");
       rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj));
 
-      // On Faculty Portal: Show Live Student Response Wall right under Question Prompt!
-      if (ROLE === "faculty" && typeof renderFacultyLiveWallForQuestion === "function") {
+      // On Faculty Portal: Live Wall renders the exact Answer Sheet Table with per-cell live answers!
+      if (
+        ROLE === "faculty" &&
+        state.hsdFacultyMode !== "student" &&
+        typeof renderFacultyLiveWallForQuestion === "function"
+      ) {
         rightPane.appendChild(renderFacultyLiveWallForQuestion(cur.qObj, cur.caseObj));
-      }
-
-      if (ROLE === "faculty") {
-        const wsDetails = document.createElement("details");
-        wsDetails.open = true;
-        const sum = make(
-          "summary",
-          "ตารางใบงานฝั่งนักศึกษา (สำหรับสาธิตหน้าชั้น / ทดลองพิมพ์)",
-          "sidebar-label"
-        );
-        sum.style.cursor = "pointer";
-        sum.style.marginBottom = "4px";
-        wsDetails.appendChild(sum);
-        wsDetails.appendChild(buildWideWorksheetTableDOM(cur.qObj));
-        rightPane.appendChild(wsDetails);
       } else {
-        rightPane.appendChild(buildWideWorksheetTableDOM(cur.qObj));
+        rightPane.appendChild(buildWideWorksheetTableDOM(cur.qObj, ROLE === "faculty"));
       }
 
       stage.append(leftPane, rightPane);
@@ -9044,6 +9097,9 @@
           try {
             localStorage.setItem("racm303_hs_disc_drafts_v1", JSON.stringify(state.hsdDrafts));
           } catch (_) {}
+          if (LIVE && typeof LIVE.clearSubmittedCells === "function") {
+            LIVE.clearSubmittedCells(ids);
+          }
           renderHsDiscussionView();
         });
 
@@ -9067,11 +9123,15 @@
           qBlock.id = `hsd-qblock-${qObj.id}`;
           qBlock.appendChild(buildQuestionHeaderDOM(qObj));
 
-          if (ROLE === "faculty" && typeof renderFacultyLiveWallForQuestion === "function") {
+          if (
+            ROLE === "faculty" &&
+            state.hsdFacultyMode !== "student" &&
+            typeof renderFacultyLiveWallForQuestion === "function"
+          ) {
             qBlock.appendChild(renderFacultyLiveWallForQuestion(qObj, c));
+          } else {
+            qBlock.appendChild(buildWideWorksheetTableDOM(qObj, ROLE === "faculty"));
           }
-
-          qBlock.appendChild(buildWideWorksheetTableDOM(qObj));
 
           if (ROLE === "faculty" && state.hsdFacultyMode !== "student" && typeof appendFacultyTeacherKey === "function") {
             appendFacultyTeacherKey(qBlock, qObj, c, mod);
@@ -10874,7 +10934,8 @@
           </div>
           <div class="filter-field">
             <label for="slideUploaderInput">ชื่ออาจารย์ผู้อัปโหลด</label>
-            <input type="text" id="slideUploaderInput" placeholder="เช่น อ.นพ.ฉัตรชัย อิ่มอารมย์" value="${escapeHtml(defaultUploader)}">
+            <select id="slideUploaderInput"></select>
+            <input type="text" id="slideUploaderCustomInput" placeholder="ระบุชื่ออาจารย์ / วิทยากรผู้อัปโหลด…" style="margin-top:6px" hidden>
           </div>
           <div class="header-actions">
             <button type="button" class="btn primary" id="saveSessionSlideBtn">💾 บันทึก &amp; เปิดใช้งาน Slide ประจำคาบนี้</button>
@@ -10894,6 +10955,24 @@
     mount.replaceChildren(card);
     pendingSlideFileObj = null;
 
+    const allTeachers = getAllCourseTeachers();
+    const uploaderSel = $("slideUploaderInput");
+    const uploaderCustom = $("slideUploaderCustomInput");
+    if (uploaderSel) {
+      uploaderSel.add(new Option("— เลือกชื่ออาจารย์ผู้อัปโหลด —", ""));
+      allTeachers.forEach((t) => {
+        uploaderSel.add(new Option(t.label, t.label));
+      });
+      uploaderSel.add(new Option("ทีมผู้ประสานงานรายวิชา RACM 303", "ทีมผู้ประสานงานรายวิชา RACM 303"));
+      uploaderSel.add(new Option("อาจารย์ / วิทยากรท่านอื่น (ระบุชื่อเอง…)", "__CUSTOM__"));
+      uploaderSel.addEventListener("change", () => {
+        if (uploaderCustom) {
+          uploaderCustom.hidden = uploaderSel.value !== "__CUSTOM__";
+          if (!uploaderCustom.hidden) uploaderCustom.focus();
+        }
+      });
+    }
+
     const sel = $("slideTargetSessionSelect");
     sessions.forEach((s) => {
       const has = Boolean(getSessionSlideRecord(s.id));
@@ -10905,7 +10984,34 @@
     const syncSelectedSlideFields = () => {
       const rec = getSessionSlideRecord(sel.value);
       if ($("slideExternalUrlInput")) $("slideExternalUrlInput").value = (rec && rec.externalUrl) || "";
-      if ($("slideUploaderInput") && rec && rec.uploadedBy) $("slideUploaderInput").value = rec.uploadedBy;
+      if (uploaderSel) {
+        const hasOpt = (val) =>
+          Boolean(val) &&
+          val !== "__CUSTOM__" &&
+          Array.from(uploaderSel.options).some((o) => o.value === val);
+        if (rec && rec.uploadedBy) {
+          if (hasOpt(rec.uploadedBy)) {
+            uploaderSel.value = rec.uploadedBy;
+            if (uploaderCustom) uploaderCustom.value = "";
+          } else {
+            uploaderSel.value = "__CUSTOM__";
+            if (uploaderCustom) uploaderCustom.value = rec.uploadedBy;
+          }
+        } else if (defaultUploader && hasOpt(defaultUploader)) {
+          uploaderSel.value = defaultUploader;
+          if (uploaderCustom) uploaderCustom.value = "";
+        } else {
+          const sessObj = sessions.find((x) => x.id === sel.value);
+          const matchedTeacher = allTeachers.find(
+            (t) => sessObj && String(sessObj.lecturers || "").includes(t.key)
+          );
+          uploaderSel.value = matchedTeacher ? matchedTeacher.label : "";
+          if (uploaderCustom) uploaderCustom.value = "";
+        }
+        if (uploaderCustom) {
+          uploaderCustom.hidden = uploaderSel.value !== "__CUSTOM__";
+        }
+      }
       pendingSlideFileObj = null;
       const fBadge = $("slideSelectedFileBadge");
       if (fBadge) {
@@ -10956,7 +11062,11 @@
     $("saveSessionSlideBtn").addEventListener("click", async () => {
       const targetSid = sel.value;
       const extUrl = (($("slideExternalUrlInput") && $("slideExternalUrlInput").value) || "").trim();
-      const uploader = (($("slideUploaderInput") && $("slideUploaderInput").value) || "").trim() || "อาจารย์ผู้สอน";
+      const rawUploader =
+        uploaderSel && uploaderSel.value === "__CUSTOM__"
+          ? (uploaderCustom && uploaderCustom.value) || ""
+          : (uploaderSel && uploaderSel.value) || "";
+      const uploader = rawUploader.trim() || "อาจารย์ผู้สอน";
       const fb = $("slideStudioFeedback");
 
       if (!pendingSlideFileObj && !extUrl) {
@@ -12740,7 +12850,7 @@
     }
   }
 
-  /* ---------- Faculty-Only: Mentimeter Live Student Response Wall & Next-Slide Teacher Answer Key ---------- */
+  /* ---------- Faculty-Only: Live Answer Sheet Block View & Next-Slide Teacher Answer Key ---------- */
   function getFacultyKeySearchText(qId) {
     const tk = (HSD_KEY.keys || {})[qId];
     if (!tk) return "";
@@ -12767,6 +12877,98 @@
     modSec.appendChild(box);
   }
 
+  function buildAnonIndexMap(qId) {
+    const map = new Map();
+    if (!LIVE) return map;
+    LIVE.getQuestionResponses(qId).forEach((rec, idx) => {
+      map.set(rec.participantId, idx + 1);
+    });
+    return map;
+  }
+
+  function openCellResponsesSpotlight(qObj, cellId, colHeader, rowLabel) {
+    const modal = $("hsdSpotlightModal");
+    const card = $("hsdSpotlightCard");
+    if (!modal || !card || !LIVE) return;
+    card.replaceChildren();
+
+    const items = LIVE.getCellResponses(qObj.id, cellId);
+    const subCnt = items.filter((x) => x.status === "submitted").length;
+    const typCnt = items.length - subCnt;
+    const isAnon = LIVE.getAnonymousWall();
+    const anonMap = buildAnonIndexMap(qObj.id);
+    const blockTitle = [rowLabel, colHeader].filter(Boolean).join(" · ") || cellId;
+
+    const top = make("div", null, "hsd-tk-header");
+    top.append(
+      make("h4", `คำตอบสดรายช่อง (กลุ่มที่ ${LIVE.getRoomId()}): ${blockTitle}`, "hsd-tk-title"),
+      make(
+        "span",
+        `ส่งช่องนี้แล้ว ${subCnt} · กำลังพิมพ์ ${typCnt}`,
+        `hsd-resp-status ${subCnt > 0 ? "is-submitted" : "is-typing"}`
+      )
+    );
+    card.appendChild(top);
+
+    const qInfo = make("p", `${qObj.label}: ${qObj.title}`, "hsd-q-prompt");
+    qInfo.style.fontWeight = "600";
+    qInfo.style.marginBottom = "10px";
+    card.appendChild(qInfo);
+
+    if (!items.length) {
+      card.appendChild(make("div", "ยังไม่มีคำตอบสดในช่องนี้", "hsd-resp-empty"));
+    } else {
+      const listWrap = make("div", null, "hsd-live-cell-stream");
+      listWrap.style.maxHeight = "56vh";
+      listWrap.style.gap = "8px";
+      items.forEach((it, idx) => {
+        const chip = make(
+          "div",
+          null,
+          `hsd-cell-ans-chip ${it.status === "submitted" ? "is-submitted" : "is-typing"}`
+        );
+        chip.style.padding = "9px 12px";
+        const meta = make("div", null, "hsd-cell-ans-meta");
+        const anonNum = anonMap.get(it.participantId) || idx + 1;
+        const author = isAnon
+          ? `ผู้เรียนนิรนาม #${anonNum}`
+          : `${it.displayName || "นักศึกษา"}${it.area ? " · พื้นที่ " + it.area : ""}`;
+        const authorEl = make("span", author, "hsd-cell-ans-author");
+        authorEl.style.fontSize = "13.5px";
+        const tagEl = make(
+          "span",
+          it.status === "submitted" ? "✓ ส่งช่องนี้แล้ว" : "✍ กำลังพิมพ์สด…",
+          `hsd-cell-ans-tag ${it.status === "submitted" ? "is-submitted" : "is-typing"}`
+        );
+        meta.append(authorEl, tagEl);
+
+        const txtEl = make("div", it.text, "hsd-cell-ans-text");
+        txtEl.style.fontSize = "15px";
+        chip.append(meta, txtEl);
+        if (it.fullRecord) {
+          chip.title = "คลิกเพื่อดูตารางคำตอบทุกช่องของนักศึกษาคนนี้";
+          chip.addEventListener("click", () => {
+            openStudentResponseSpotlight(it.fullRecord, qObj, (anonNum || 1) - 1);
+          });
+        }
+        listWrap.appendChild(chip);
+      });
+      card.appendChild(listWrap);
+    }
+
+    const closeRow = make("div", null, "header-actions");
+    closeRow.style.justifyContent = "flex-end";
+    closeRow.style.marginTop = "12px";
+    const closeBtn = make("button", "ปิดหน้าต่างขยาย (Esc)", "btn sm primary");
+    closeBtn.type = "button";
+    closeBtn.addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    closeRow.appendChild(closeBtn);
+    card.appendChild(closeRow);
+    modal.hidden = false;
+  }
+
   function openStudentResponseSpotlight(rec, qObj, idxNum) {
     const modal = $("hsdSpotlightModal");
     const card = $("hsdSpotlightCard");
@@ -12780,10 +12982,10 @@
 
     const top = make("div", null, "hsd-tk-header");
     top.append(
-      make("h4", `คำตอบสดจากห้องกลุ่ม ${LIVE ? LIVE.getRoomId() : 1}: ${author}`, "hsd-tk-title"),
+      make("h4", `กระดาษคำตอบสดจากห้องกลุ่ม ${LIVE ? LIVE.getRoomId() : 1}: ${author}`, "hsd-tk-title"),
       make(
         "span",
-        rec.status === "submitted" ? "✓ ส่งคำตอบแล้ว" : "✍ กำลังพิมพ์สด…",
+        rec.status === "submitted" ? "✓ ส่งช่องคำตอบแล้ว" : "✍ กำลังพิมพ์สด…",
         `hsd-resp-status ${rec.status === "submitted" ? "is-submitted" : "is-typing"}`
       )
     );
@@ -12821,9 +13023,19 @@
             td.innerHTML = escapeHtml(cell.static).replace(/\n/g, "<br>");
           } else if (cell.inputId) {
             const ans = (rec.cells && rec.cells[cell.inputId]) || "";
-            td.innerHTML = ans
-              ? escapeHtml(ans).replace(/\n/g, "<br>")
-              : `<span style="color:var(--muted)">—</span>`;
+            const cStat =
+              rec.cellStatuses && rec.cellStatuses[cell.inputId]
+                ? rec.cellStatuses[cell.inputId]
+                : rec.status;
+            if (ans) {
+              const badgeHtml =
+                cStat === "submitted"
+                  ? `<span class="hsd-cell-ans-tag is-submitted" style="display:inline-block;margin-bottom:3px">✓ ส่งช่องนี้แล้ว</span><br>`
+                  : `<span class="hsd-cell-ans-tag is-typing" style="display:inline-block;margin-bottom:3px">✍ กำลังพิมพ์…</span><br>`;
+              td.innerHTML = badgeHtml + escapeHtml(ans).replace(/\n/g, "<br>");
+            } else {
+              td.innerHTML = `<span style="color:var(--muted)">— (ยังไม่ได้กรอกช่องนี้)</span>`;
+            }
           }
           tr.appendChild(td);
         });
@@ -12847,81 +13059,243 @@
     modal.hidden = false;
   }
 
+  function buildLiveAnswerSheetTableDOM(qObj) {
+    const ws = qObj.worksheet;
+    const wrap = make("div", null, "hsd-ws-wrap");
+    wrap.setAttribute("data-live-sheet-wrap", "1");
+    if (!ws || ws.type !== "table") return wrap;
+
+    const tbl = make("table", null, "hsd-ws-table");
+    const colWidths = ws.colWidths || [];
+    if (colWidths.length === (ws.headers || []).length) {
+      const cg = document.createElement("colgroup");
+      colWidths.forEach((w) => {
+        const col = document.createElement("col");
+        col.style.width = w;
+        cg.appendChild(col);
+      });
+      tbl.appendChild(cg);
+    }
+
+    const thead = document.createElement("thead");
+    const hr = document.createElement("tr");
+    (ws.headers || []).forEach((thText) => hr.appendChild(make("th", thText)));
+    thead.appendChild(hr);
+
+    const tbody = document.createElement("tbody");
+    (ws.rows || []).forEach((r, rIdx) => {
+      const tr = document.createElement("tr");
+      const firstStatic = (r.cells || []).find((c) => c.static);
+      const rowLabel = firstStatic
+        ? String(firstStatic.static).split("\n")[0].trim()
+        : (ws.rows.length > 1 ? `แถวที่ ${rIdx + 1}` : "");
+
+      (r.cells || []).forEach((cell, colIdx) => {
+        const td = document.createElement("td");
+        const colHeader = (ws.headers && ws.headers[colIdx]) || "";
+        if (colHeader) td.setAttribute("data-col-label", colHeader);
+
+        if (cell.static) {
+          td.className = "hsd-ws-static";
+          td.innerHTML = escapeHtml(cell.static).replace(/\n/g, "<br>");
+        } else if (cell.inputId) {
+          td.className = "hsd-live-sheet-td";
+          td.setAttribute("data-live-cell-id", cell.inputId);
+          td.setAttribute("data-row-label", rowLabel);
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    tbl.append(thead, tbody);
+    wrap.appendChild(tbl);
+    return wrap;
+  }
+
+  function populateLiveAnswerSheetCells(sheetHolder, qObj, anonMap) {
+    if (!sheetHolder || !LIVE) return;
+    const isAnon = LIVE.getAnonymousWall();
+
+    sheetHolder.querySelectorAll("[data-live-cell-id]").forEach((td) => {
+      const cellId = td.getAttribute("data-live-cell-id");
+      const colHeader = td.getAttribute("data-col-label") || "";
+      const rowLabel = td.getAttribute("data-row-label") || "";
+      const items = LIVE.getCellResponses(qObj.id, cellId);
+
+      td.classList.toggle("has-live-ans", items.length > 0);
+      td.replaceChildren();
+
+      if (!items.length) {
+        td.appendChild(make("div", "รอคำตอบสดในช่องนี้…", "hsd-live-cell-empty"));
+        return;
+      }
+
+      const subCnt = items.filter((x) => x.status === "submitted").length;
+      const typCnt = items.length - subCnt;
+
+      const cellHead = make("div", null, "hsd-live-cell-head");
+      const statText =
+        subCnt && typCnt
+          ? `✓ ส่งแล้ว ${subCnt} · ✍ พิมพ์สด ${typCnt}`
+          : subCnt
+          ? `✓ ส่งแล้ว ${subCnt} คน`
+          : `✍ กำลังพิมพ์ ${typCnt} คน`;
+      const statEl = make("span", statText, "hsd-live-cell-stat");
+
+      const zoomBtn = make("button", "⤢ ขยาย", "hsd-cell-zoom-btn");
+      zoomBtn.type = "button";
+      zoomBtn.title = "ขยายคำตอบทั้งหมดในช่องนี้ขึ้นจอโปรเจกเตอร์";
+      zoomBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openCellResponsesSpotlight(qObj, cellId, colHeader, rowLabel);
+      });
+      cellHead.append(statEl, zoomBtn);
+
+      const stream = make("div", null, "hsd-live-cell-stream");
+      items.forEach((it, idx) => {
+        const chip = make(
+          "div",
+          null,
+          `hsd-cell-ans-chip ${it.status === "submitted" ? "is-submitted" : "is-typing"}`
+        );
+        chip.title = "คลิกเพื่อขยายคำตอบในช่องนี้ขึ้นจอโปรเจกเตอร์";
+        const meta = make("div", null, "hsd-cell-ans-meta");
+        const anonNum = anonMap.get(it.participantId) || idx + 1;
+        const author = isAnon
+          ? `ผู้เรียนนิรนาม #${anonNum}`
+          : it.displayName || "นักศึกษาในห้อง";
+        meta.append(
+          make("span", author, "hsd-cell-ans-author"),
+          make(
+            "span",
+            it.status === "submitted" ? "✓ ส่งแล้ว" : "✍ พิมพ์สด",
+            `hsd-cell-ans-tag ${it.status === "submitted" ? "is-submitted" : "is-typing"}`
+          )
+        );
+        const textEl = make("div", it.text, "hsd-cell-ans-text");
+        chip.append(meta, textEl);
+        chip.addEventListener("click", () => {
+          openCellResponsesSpotlight(qObj, cellId, colHeader, rowLabel);
+        });
+        stream.appendChild(chip);
+      });
+
+      td.append(cellHead, stream);
+    });
+  }
+
   function populateLiveWallBody(wallEl, qObj) {
     if (!wallEl || !LIVE) return;
     const countBadge = wallEl.querySelector("[data-live-count]");
+    const sheetHolder = wallEl.querySelector("[data-live-sheet-holder]");
     const grid = wallEl.querySelector("[data-live-grid]");
+    const demoHolder = wallEl.querySelector("[data-live-demo-holder]");
     const anonBtn = wallEl.querySelector("[data-live-anon-btn]");
-    if (!grid) return;
+
+    const mode = state.hsdLiveWallMode || "sheet";
+    wallEl.querySelectorAll("[data-live-vmode]").forEach((btn) => {
+      btn.setAttribute("aria-pressed", btn.dataset.liveVmode === mode ? "true" : "false");
+    });
 
     const list = LIVE.getQuestionResponses(qObj.id);
-    const submittedCnt = list.filter((x) => x.status === "submitted").length;
-    const typingCnt = list.length - submittedCnt;
     const roomNum = LIVE.getRoomId();
+    let totalSubmittedCells = 0;
+    let totalTypingCells = 0;
+    list.forEach((rec) => {
+      Object.keys(rec.cells || {}).forEach((cid) => {
+        const st = rec.cellStatuses && rec.cellStatuses[cid] ? rec.cellStatuses[cid] : rec.status;
+        if (st === "submitted") totalSubmittedCells += 1;
+        else totalTypingCells += 1;
+      });
+    });
 
     if (countBadge) {
       countBadge.textContent = list.length
-        ? `กลุ่ม ${roomNum}: ส่งแล้ว ${submittedCnt} · กำลังพิมพ์ ${typingCnt} คน`
+        ? `กลุ่ม ${roomNum}: ${list.length} คน (ส่งแล้ว ${totalSubmittedCells} ช่อง · พิมพ์สด ${totalTypingCells} ช่อง)`
         : `กลุ่ม ${roomNum}: รอคำตอบสด…`;
     }
     if (anonBtn) {
-      anonBtn.textContent = LIVE.getAnonymousWall() ? "👁 แสดงชื่อ นศพ." : "🙈 ซ่อนชื่อ (Anonymous)";
+      anonBtn.textContent = LIVE.getAnonymousWall() ? "👁 แสดงชื่อ นศพ." : "🙈 ซ่อนชื่อ";
     }
 
-    grid.replaceChildren();
-    if (!list.length) {
-      grid.appendChild(
-        make(
-          "div",
-          `เมื่อนักศึกษาในห้องกลุ่มที่ ${roomNum} เริ่มพิมพ์คำตอบในข้อนี้ ข้อความจะปรากฏขึ้นบนจอนี้แบบ Real-time ทันที`,
-          "hsd-resp-empty"
-        )
-      );
-      return;
-    }
-
-    const labelMap = buildInputLabelMap(qObj);
-    const isAnon = LIVE.getAnonymousWall();
-
-    list.forEach((rec, idx) => {
-      const card = make(
-        "div",
-        null,
-        `hsd-resp-card ${rec.status === "submitted" ? "is-submitted" : "is-typing"}`
-      );
-      card.title = "คลิกเพื่อขยายคำตอบนี้ขึ้นจอโปรเจกเตอร์";
-
-      const top = make("div", null, "hsd-resp-top");
-      const authorLabel = isAnon
-        ? `ผู้เรียนนิรนาม #${idx + 1}`
-        : rec.displayName || "นักศึกษาในห้อง";
-      top.append(
-        make("span", authorLabel, "hsd-resp-author"),
-        make(
-          "span",
-          rec.status === "submitted" ? "✓ ส่งแล้ว" : "✍ กำลังพิมพ์…",
-          `hsd-resp-status ${rec.status === "submitted" ? "is-submitted" : "is-typing"}`
-        )
-      );
-      card.appendChild(top);
-
-      const cellsWrap = make("div", null, "hsd-resp-cells");
-      const entries = Object.entries(rec.cells || {});
-      entries.slice(0, 6).forEach(([inputId, val]) => {
-        const line = make("div", null, "hsd-resp-line");
-        const lbl = labelMap[inputId] || inputId;
-        line.innerHTML = `<strong>${escapeHtml(lbl)}:</strong> ${escapeHtml(val)}`;
-        cellsWrap.appendChild(line);
-      });
-      if (entries.length > 6) {
-        cellsWrap.appendChild(
-          make("div", `…อีก ${entries.length - 6} ช่อง (คลิกเพื่อดูตารางเต็ม)`, "hsd-resp-line")
-        );
+    if (sheetHolder) sheetHolder.hidden = mode !== "sheet";
+    if (grid) grid.hidden = mode !== "people";
+    if (demoHolder) {
+      demoHolder.hidden = mode !== "demo";
+      if (mode === "demo" && !demoHolder.dataset.mounted) {
+        demoHolder.dataset.mounted = "1";
+        demoHolder.appendChild(buildWideWorksheetTableDOM(qObj, true));
       }
-      card.appendChild(cellsWrap);
-      card.addEventListener("click", () => openStudentResponseSpotlight(rec, qObj, idx));
-      grid.appendChild(card);
-    });
+    }
+
+    const anonMap = buildAnonIndexMap(qObj.id);
+
+    if (mode === "sheet" && sheetHolder) {
+      populateLiveAnswerSheetCells(sheetHolder, qObj, anonMap);
+    }
+
+    if (mode === "people" && grid) {
+      grid.replaceChildren();
+      if (!list.length) {
+        grid.appendChild(
+          make(
+            "div",
+            `เมื่อนักศึกษาในห้องกลุ่มที่ ${roomNum} เริ่มพิมพ์หรือกดส่งรายช่อง ข้อความจะปรากฏขึ้นบนจอนี้แบบ Real-time ทันที`,
+            "hsd-resp-empty"
+          )
+        );
+        return;
+      }
+
+      const labelMap = buildInputLabelMap(qObj);
+      const isAnon = LIVE.getAnonymousWall();
+
+      list.forEach((rec, idx) => {
+        const card = make(
+          "div",
+          null,
+          `hsd-resp-card ${rec.status === "submitted" ? "is-submitted" : "is-typing"}`
+        );
+        card.title = "คลิกเพื่อขยายกระดาษคำตอบของนักศึกษาคนนี้ขึ้นจอโปรเจกเตอร์";
+
+        const top = make("div", null, "hsd-resp-top");
+        const authorLabel = isAnon
+          ? `ผู้เรียนนิรนาม #${idx + 1}`
+          : rec.displayName || "นักศึกษาในห้อง";
+        top.append(
+          make("span", authorLabel, "hsd-resp-author"),
+          make(
+            "span",
+            rec.status === "submitted" ? "✓ ส่งช่องแล้ว" : "✍ กำลังพิมพ์…",
+            `hsd-resp-status ${rec.status === "submitted" ? "is-submitted" : "is-typing"}`
+          )
+        );
+        card.appendChild(top);
+
+        const cellsWrap = make("div", null, "hsd-resp-cells");
+        const entries = Object.entries(rec.cells || {});
+        entries.slice(0, 6).forEach(([inputId, val]) => {
+          const line = make("div", null, "hsd-resp-line");
+          const lbl = labelMap[inputId] || inputId;
+          const cStat =
+            rec.cellStatuses && rec.cellStatuses[inputId]
+              ? rec.cellStatuses[inputId]
+              : rec.status;
+          const icon = cStat === "submitted" ? "✓" : "✍";
+          line.innerHTML = `<strong>${icon} ${escapeHtml(lbl)}:</strong> ${escapeHtml(val)}`;
+          cellsWrap.appendChild(line);
+        });
+        if (entries.length > 6) {
+          cellsWrap.appendChild(
+            make("div", `…อีก ${entries.length - 6} ช่อง (คลิกเพื่อดูตารางเต็ม)`, "hsd-resp-line")
+          );
+        }
+        card.appendChild(cellsWrap);
+        card.addEventListener("click", () => openStudentResponseSpotlight(rec, qObj, idx));
+        grid.appendChild(card);
+      });
+    }
   }
 
   function renderFacultyLiveWallForQuestion(qObj) {
@@ -12932,9 +13306,30 @@
     const titleWrap = make("div", null, "hsd-live-wall-title");
     const badge = make("span", "", "hsd-live-count-badge");
     badge.setAttribute("data-live-count", "1");
-    titleWrap.append(make("span", "📡 Live Responses (เห็นสดขณะเด็กพิมพ์)"), badge);
+    titleWrap.append(make("span", "📡 Live กระดาษคำตอบสด (ตามช่องใบงาน)"), badge);
 
     const acts = make("div", null, "hsd-timer-controls");
+
+    const viewSeg = make("div", null, "hsd-live-view-seg");
+    [
+      { id: "sheet", label: "▦ ตามช่องกระดาษคำตอบ" },
+      { id: "people", label: "👤 รายคน" },
+      { id: "demo", label: "📝 ช่องพิมพ์สาธิต" }
+    ].forEach((m) => {
+      const b = make("button", m.label, "hsd-live-vbtn");
+      b.type = "button";
+      b.dataset.liveVmode = m.id;
+      b.setAttribute("aria-pressed", (state.hsdLiveWallMode || "sheet") === m.id ? "true" : "false");
+      b.addEventListener("click", () => {
+        state.hsdLiveWallMode = m.id;
+        try {
+          localStorage.setItem("racm303_hsd_live_wall_mode", m.id);
+        } catch (_) {}
+        refreshAllVisibleLiveWalls();
+      });
+      viewSeg.appendChild(b);
+    });
+
     const anonBtn = make("button", "", "hsd-tbtn");
     anonBtn.type = "button";
     anonBtn.setAttribute("data-live-anon-btn", "1");
@@ -12943,7 +13338,7 @@
       LIVE.setAnonymousWall(!LIVE.getAnonymousWall());
     });
 
-    const clrBtn = make("button", "ล้างคำตอบบนจอข้อนี้", "hsd-tbtn");
+    const clrBtn = make("button", "ล้างคำตอบข้อนี้", "hsd-tbtn");
     clrBtn.type = "button";
     clrBtn.addEventListener("click", () => {
       if (!LIVE) return;
@@ -12951,13 +13346,22 @@
       LIVE.clearQuestionResponses(qObj.id);
     });
 
-    acts.append(anonBtn, clrBtn);
+    acts.append(viewSeg, anonBtn, clrBtn);
     head.append(titleWrap, acts);
+
+    const sheetHolder = make("div");
+    sheetHolder.setAttribute("data-live-sheet-holder", "1");
+    sheetHolder.appendChild(buildLiveAnswerSheetTableDOM(qObj));
 
     const grid = make("div", null, "hsd-resp-grid");
     grid.setAttribute("data-live-grid", "1");
+    grid.hidden = true;
 
-    wall.append(head, grid);
+    const demoHolder = make("div");
+    demoHolder.setAttribute("data-live-demo-holder", "1");
+    demoHolder.hidden = true;
+
+    wall.append(head, sheetHolder, grid, demoHolder);
     populateLiveWallBody(wall, qObj);
     return wall;
   }
@@ -13106,10 +13510,10 @@
     // Full Teacher Answer Key + Rubric + HS Bridge
     stage.appendChild(buildFacultyTeacherKeyPanelDOM(qObj, modObj));
 
-    // Collapsible Live Responses right below so Teacher can compare student answers vs Answer Key
+    // Collapsible Live Responses Answer Sheet right below so Teacher can compare student answers vs Answer Key
     const cmpDetails = document.createElement("details");
     cmpDetails.open = true;
-    const sum = make("summary", "เทียบกับคำตอบสดของนักศึกษาในห้องกลุ่มนี้ (Live Responses)", "sidebar-label");
+    const sum = make("summary", "เทียบกับกระดาษคำตอบสดของนักศึกษาในห้องกลุ่มนี้ (Live Answer Sheet)", "sidebar-label");
     sum.style.cursor = "pointer";
     sum.style.marginBottom = "5px";
     cmpDetails.appendChild(sum);
