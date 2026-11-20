@@ -149,11 +149,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q1_r1_status",
-                    "placeholder": "ระบุภาวะสุขภาพทางกายหรือความเสี่ยงที่พบจากสถานการณ์…"
+                    "placeholder": "ระบุภาวะสุขภาพทางกายหรือความเสี่ยงที่พบจากสถานการณ์…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c1_q1_r1_events",
-                    "placeholder": "ระบุพฤติกรรม/เหตุการณ์ที่ส่งผลทางบวกหรือทางลบต่อสุขภาพกาย…"
+                    "placeholder": "ระบุพฤติกรรม/เหตุการณ์ที่ส่งผลทางบวกหรือทางลบต่อสุขภาพกาย…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -165,11 +175,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q1_r2_status",
-                    "placeholder": "ระบุแนวโน้มภาวะสุขภาพทางจิตใจจากข้อมูลในสถานการณ์…"
+                    "placeholder": "ระบุแนวโน้มภาวะสุขภาพทางจิตใจจากข้อมูลในสถานการณ์…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c1_q1_r2_events",
-                    "placeholder": "ระบุเหตุการณ์/บริบทการทำงานและครอบครัวที่ส่งผลต่อจิตใจ…"
+                    "placeholder": "ระบุเหตุการณ์/บริบทการทำงานและครอบครัวที่ส่งผลต่อจิตใจ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -181,11 +201,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q1_r3_status",
-                    "placeholder": "ระบุบทบาท ความสัมพันธ์ หรือสุขภาวะทางสังคมของนายสมชาย…"
+                    "placeholder": "ระบุบทบาท ความสัมพันธ์ หรือสุขภาวะทางสังคมของนายสมชาย…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c1_q1_r3_events",
-                    "placeholder": "ระบุสภาพแวดล้อมหรือกิจกรรมที่เอื้อ/กระทบต่อมิติทางสังคม…"
+                    "placeholder": "ระบุสภาพแวดล้อมหรือกิจกรรมที่เอื้อ/กระทบต่อมิติทางสังคม…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -197,14 +227,29 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q1_r4_status",
-                    "placeholder": "วิเคราะห์ความตระหนักรู้ การไตร่ตรองดูแลตนเอง และสุขภาวะทางปัญญา…"
+                    "placeholder": "วิเคราะห์ความตระหนักรู้ การไตร่ตรองดูแลตนเอง และสุขภาวะทางปัญญา…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c1_q1_r4_events",
-                    "placeholder": "ระบุเหตุการณ์หรือปัจจัยแวดล้อมที่กระตุ้นการตระหนักรู้และการตัดสินใจ…"
+                    "placeholder": "ระบุเหตุการณ์หรือปัจจัยแวดล้อมที่กระตุ้นการตระหนักรู้และการตัดสินใจ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "18%",
+              "39%",
+              "43%"
             ]
           }
         },
@@ -228,7 +273,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q2_r1",
-                    "placeholder": "เช่น ปัจจัยทางชีวภาพ/พันธุกรรม และพฤติกรรมสุขภาพส่วนบุคคล…"
+                    "placeholder": "เช่น ปัจจัยทางชีวภาพ/พันธุกรรม และพฤติกรรมสุขภาพส่วนบุคคล…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -240,7 +290,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q2_r2",
-                    "placeholder": "เช่น สภาพแวดล้อมทางกายภาพและสภาพแวดล้อมในที่ทำงาน/ที่พัก…"
+                    "placeholder": "เช่น สภาพแวดล้อมทางกายภาพและสภาพแวดล้อมในที่ทำงาน/ที่พัก…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -252,7 +307,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q2_r3",
-                    "placeholder": "เช่น การจัดบริการตรวจคัดกรอง การรักษา และการติดตามต่อเนื่อง…"
+                    "placeholder": "เช่น การจัดบริการตรวจคัดกรอง การรักษา และการติดตามต่อเนื่อง…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -264,10 +324,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q2_r4",
-                    "placeholder": "เช่น ลักษณะงาน ชั่วโมงการทำงานล่วงเวลา นโยบายและสวัสดิการขององค์กร…"
+                    "placeholder": "เช่น ลักษณะงาน ชั่วโมงการทำงานล่วงเวลา นโยบายและสวัสดิการขององค์กร…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         },
@@ -291,7 +360,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q3_r1",
-                    "placeholder": "ระบุกิจกรรม/สิ่งแวดล้อม กลุ่มเป้าหมาย และเหตุผลที่จัดเป็น Primary prevention…"
+                    "placeholder": "ระบุกิจกรรม/สิ่งแวดล้อม กลุ่มเป้าหมาย และเหตุผลที่จัดเป็น Primary prevention…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -303,7 +377,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q3_r2",
-                    "placeholder": "ระบุกิจกรรมการค้นหาโรคระยะแรกเริ่ม/การส่งต่อรักษา และกลุ่มเป้าหมาย…"
+                    "placeholder": "ระบุกิจกรรมการค้นหาโรคระยะแรกเริ่ม/การส่งต่อรักษา และกลุ่มเป้าหมาย…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -315,7 +394,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q3_r3",
-                    "placeholder": "ระบุการดูแลรักษาต่อเนื่อง/การปรับพฤติกรรมในผู้ที่ตรวจพบโรคแล้วเพื่อลดภาวะแทรกซ้อน…"
+                    "placeholder": "ระบุการดูแลรักษาต่อเนื่อง/การปรับพฤติกรรมในผู้ที่ตรวจพบโรคแล้วเพื่อลดภาวะแทรกซ้อน…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -327,10 +411,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c1_q3_r4",
-                    "placeholder": "ระบุกลไกในสถานการณ์ที่ช่วยปกป้องผู้รับบริการจากการตรวจหรือแทรกแซงทางการแพทย์ที่เกินจำเป็น…"
+                    "placeholder": "ระบุกลไกในสถานการณ์ที่ช่วยปกป้องผู้รับบริการจากการตรวจหรือแทรกแซงทางการแพทย์ที่เกินจำเป็น…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         }
@@ -401,15 +494,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r1_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r1_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r1_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -421,15 +529,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r2_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r2_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r2_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -441,15 +564,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r3_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r3_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r3_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -461,15 +599,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r4_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r4_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r4_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -481,15 +634,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r5_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r5_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r5_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -501,18 +669,39 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c2_q1_r6_bb",
-                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…"
+                    "placeholder": "ระบุชื่อ Building Block (ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r6_ev",
-                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…"
+                    "placeholder": "ระบุหลักฐานปัญหาจากสถานการณ์ที่ตรงกับองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c2_q1_r6_sol",
-                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…"
+                    "placeholder": "ระบุข้อเสนอแนะในที่ประชุมที่แก้ปัญหาองค์ประกอบนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "10%",
+              "18%",
+              "36%",
+              "36%"
             ]
           }
         }
@@ -563,11 +752,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c3_s1_what",
-                    "placeholder": "ระบุชื่อรูปแบบการดูแลหลักสำหรับผู้ป่วยรายที่ 3.1…"
+                    "placeholder": "ระบุชื่อรูปแบบการดูแลหลักสำหรับผู้ป่วยรายที่ 3.1…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c3_s2_what",
-                    "placeholder": "ระบุชื่อรูปแบบการดูแลหลักสำหรับผู้ป่วยรายที่ 3.2…"
+                    "placeholder": "ระบุชื่อรูปแบบการดูแลหลักสำหรับผู้ป่วยรายที่ 3.2…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   }
                 ]
               },
@@ -579,11 +778,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c3_s1_why",
-                    "placeholder": "อธิบายสภาวะความรุนแรง การดำเนินโรค และความสามารถในการดูแลตนเองที่บ่งชี้รูปแบบดังกล่าว…"
+                    "placeholder": "อธิบายสภาวะความรุนแรง การดำเนินโรค และความสามารถในการดูแลตนเองที่บ่งชี้รูปแบบดังกล่าว…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c3_s2_why",
-                    "placeholder": "อธิบายลักษณะการดำเนินโรค ระดับความคงที่ของอาการ และความต้องการระยะยาวของผู้ป่วย…"
+                    "placeholder": "อธิบายลักษณะการดำเนินโรค ระดับความคงที่ของอาการ และความต้องการระยะยาวของผู้ป่วย…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -595,14 +804,29 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c3_s1_how",
-                    "placeholder": "ระบุหลักการสำคัญ บริการที่ให้ สถานที่ดูแล และผู้ให้บริการหลัก/บทบาททีมรักษา…"
+                    "placeholder": "ระบุหลักการสำคัญ บริการที่ให้ สถานที่ดูแล และผู้ให้บริการหลัก/บทบาททีมรักษา…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   },
                   {
                     "inputId": "c3_s2_how",
-                    "placeholder": "ระบุหลักการสำคัญ บริการที่ให้ สถานที่ดูแล และผู้ให้บริการหลัก/บทบาทของผู้ป่วยและทีมสหวิชาชีพ…"
+                    "placeholder": "ระบุหลักการสำคัญ บริการที่ให้ สถานที่ดูแล และผู้ให้บริการหลัก/บทบาทของผู้ป่วยและทีมสหวิชาชีพ…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "18%",
+              "41%",
+              "41%"
             ]
           }
         }
@@ -650,11 +874,12 @@ window.RACM_HS_DISCUSSION_DATA = {
           "id": "q-4-1",
           "label": "ประเด็นอภิปรายที่ 4.1",
           "title": "คุณลักษณะอันพึงประสงค์ที่สะท้อนเด่นชัดที่สุดจากการปลดล็อกให้รักษามะเร็งได้ทุกที่โดยไม่ต้องใช้ใบส่งตัว",
-          "prompt": "จากบทความเรื่อง Cancer Anywhere จงอธิบายว่า การเปิดโอกาสให้ผู้ป่วยมะเร็งรักษาได้ทุกที่โดยไม่ต้องใช้ใบส่งตัว สะท้อนให้เห็นถึง “คุณลักษณะอันพึงประสงค์ของระบบบริการสุขภาพ” มากที่สุดในด้านใดบ้าง (ระบุทั้งคุณลักษณะหลักและคุณลักษณะย่อย) พร้อมอธิบายให้ความหมายตามทฤษฎี และยกตัวอย่างเหตุการณ์จากบทความประกอบ",
+          "prompt": "จากบทความเรื่อง Cancer Anywhere จงอธิบายว่า การเปิดโอกาสให้ผู้ป่วยมะเร็งรักษาได้ทุกที่โดยไม่ต้องใช้ใบส่งตัว สะท้อนให้เห็นถึง “คุณลักษณะอันพึงประสงค์ของระบบบริการสุขภาพ” มากที่สุดในด้านใดบ้าง (ระบุแยกคอลัมน์คุณลักษณะหลักและคุณลักษณะย่อย) พร้อมอธิบายให้ความหมายตามทฤษฎี และยกตัวอย่างเหตุการณ์จากบทความประกอบ",
           "worksheet": {
             "type": "table",
             "headers": [
-              "คุณลักษณะหลัก และ คุณลักษณะย่อย",
+              "คุณลักษณะหลัก (Main)",
+              "คุณลักษณะย่อย (Sub)",
               "คำอธิบายความหมาย / เหตุผลประกอบตามทฤษฎี",
               "ตัวอย่างเหตุการณ์ในบทความที่สนับสนุน"
             ],
@@ -663,16 +888,40 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r1",
                 "cells": [
                   {
-                    "inputId": "c4_q1_r1_char",
-                    "placeholder": "ประเด็นที่ 1: คุณลักษณะหลัก → คุณลักษณะย่อย…"
+                    "inputId": "c4_q1_r1_main",
+                    "placeholder": "ประเด็นที่ 1: คุณลักษณะหลัก…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c4_q1_r1_sub",
+                    "placeholder": "ประเด็นที่ 1: คุณลักษณะย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c4_q1_r1_exp",
-                    "placeholder": "อธิบายความหมายของคุณลักษณะย่อยดังกล่าว…"
+                    "placeholder": "อธิบายความหมายของคุณลักษณะย่อยดังกล่าว…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c4_q1_r1_ev",
-                    "placeholder": "ยกข้อมูล/เหตุการณ์จากบทความประกอบ…"
+                    "placeholder": "ยกข้อมูล/เหตุการณ์จากบทความประกอบ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -680,19 +929,49 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r2",
                 "cells": [
                   {
-                    "inputId": "c4_q1_r2_char",
-                    "placeholder": "ประเด็นที่ 2: คุณลักษณะหลัก → คุณลักษณะย่อย…"
+                    "inputId": "c4_q1_r2_main",
+                    "placeholder": "ประเด็นที่ 2: คุณลักษณะหลัก…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c4_q1_r2_sub",
+                    "placeholder": "ประเด็นที่ 2: คุณลักษณะย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c4_q1_r2_exp",
-                    "placeholder": "อธิบายความหมายของคุณลักษณะย่อยดังกล่าว…"
+                    "placeholder": "อธิบายความหมายของคุณลักษณะย่อยดังกล่าว…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c4_q1_r2_ev",
-                    "placeholder": "ยกข้อมูล/เหตุการณ์จากบทความประกอบ…"
+                    "placeholder": "ยกข้อมูล/เหตุการณ์จากบทความประกอบ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "14%",
+              "16%",
+              "35%",
+              "35%"
             ]
           }
         },
@@ -700,11 +979,12 @@ window.RACM_HS_DISCUSSION_DATA = {
           "id": "q-4-2",
           "label": "ประเด็นอภิปรายที่ 4.2",
           "title": "คุณลักษณะอันพึงประสงค์ของระบบบริการสุขภาพที่ยังบกพร่องอย่างชัดเจนที่สุดในนโยบายนี้",
-          "prompt": "จากบทความดังกล่าว มีคุณลักษณะอันพึงประสงค์ใดของระบบบริการสุขภาพในนโยบายนี้ที่ยังบกพร่องอยู่ จงระบุคุณลักษณะหลักและคุณลักษณะย่อยที่ยังขาดอย่างชัดเจนที่สุด พร้อมอธิบายให้ความหมายและยกตัวอย่างจากบทความประกอบ",
+          "prompt": "จากบทความดังกล่าว มีคุณลักษณะอันพึงประสงค์ใดของระบบบริการสุขภาพในนโยบายนี้ที่ยังบกพร่องอยู่ จงระบุแยกคอลัมน์คุณลักษณะหลักและคุณลักษณะย่อยที่ยังขาดอย่างชัดเจนที่สุด พร้อมอธิบายให้ความหมายและยกตัวอย่างจากบทความประกอบ",
           "worksheet": {
             "type": "table",
             "headers": [
-              "คุณลักษณะหลัก และ คุณลักษณะย่อยที่บกพร่อง",
+              "คุณลักษณะหลักที่บกพร่อง",
+              "คุณลักษณะย่อยที่บกพร่อง",
               "คำอธิบายความหมาย / เหตุผลประกอบตามทฤษฎี",
               "ตัวอย่างเหตุการณ์ในบทความที่สะท้อนข้อบกพร่อง"
             ],
@@ -713,19 +993,49 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r1",
                 "cells": [
                   {
-                    "inputId": "c4_q2_r1_char",
-                    "placeholder": "ระบุคุณลักษณะหลัก → คุณลักษณะย่อยที่บกพร่องเด่นชัด…"
+                    "inputId": "c4_q2_r1_main",
+                    "placeholder": "ระบุคุณลักษณะหลักที่บกพร่อง…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c4_q2_r1_sub",
+                    "placeholder": "ระบุคุณลักษณะย่อยที่บกพร่องเด่นชัด…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c4_q2_r1_exp",
-                    "placeholder": "อธิบายความหมายและเหตุผลเชิงทฤษฎี…"
+                    "placeholder": "อธิบายความหมายและเหตุผลเชิงทฤษฎี…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c4_q2_r1_ev",
-                    "placeholder": "ยกเหตุการณ์ในบทความ (เช่น การดูแลโรคร่วม/การเชื่อมข้อมูล/ทรัพยากร)…"
+                    "placeholder": "ยกเหตุการณ์ในบทความ (เช่น การดูแลโรคร่วม/การเชื่อมข้อมูล/ทรัพยากร)…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "14%",
+              "16%",
+              "35%",
+              "35%"
             ]
           }
         }
@@ -761,11 +1071,12 @@ window.RACM_HS_DISCUSSION_DATA = {
           "id": "q-5-1",
           "label": "ประเด็นอภิปรายที่ 5.1",
           "title": "การวิเคราะห์องค์ประกอบของคุณลักษณะอันพึงประสงค์ที่ยังเป็นข้อบกพร่องในระบบบริการ Palliative Care",
-          "prompt": "จากสถานการณ์การให้บริการดูแลแบบประคับประคองในไทย จงอธิบายว่า “คุณลักษณะอันพึงประสงค์ของระบบบริการสุขภาพ” (Desirable Characteristics of Health Services Systems) มีองค์ประกอบใดบ้างที่ยังเป็นข้อบกพร่องหรือโอกาสพัฒนาสำคัญ โดยระบุทั้งองค์ประกอบหลักและองค์ประกอบย่อย อธิบายความหมายขององค์ประกอบย่อยนั้น ๆ พร้อมยกเหตุผลจากสถานการณ์ประกอบ",
+          "prompt": "จากสถานการณ์การให้บริการดูแลแบบประคับประคองในไทย จงอธิบายว่า “คุณลักษณะอันพึงประสงค์ของระบบบริการสุขภาพ” (Desirable Characteristics of Health Services Systems) มีองค์ประกอบใดบ้างที่ยังเป็นข้อบกพร่องหรือโอกาสพัฒนาสำคัญ โดยระบุแยกคอลัมน์องค์ประกอบหลักและองค์ประกอบย่อย อธิบายความหมายขององค์ประกอบย่อยนั้น ๆ พร้อมยกเหตุผลจากสถานการณ์ประกอบ",
           "worksheet": {
             "type": "table",
             "headers": [
-              "องค์ประกอบหลัก และ องค์ประกอบย่อย",
+              "องค์ประกอบหลัก (Main)",
+              "องค์ประกอบย่อย (Sub)",
               "คำอธิบายความหมายขององค์ประกอบย่อย และเหตุผลประกอบ",
               "ตัวอย่างเหตุการณ์ในบทความที่สะท้อนช่องว่างดังกล่าว"
             ],
@@ -774,16 +1085,40 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r1",
                 "cells": [
                   {
-                    "inputId": "c5_q1_r1_char",
-                    "placeholder": "ประเด็นที่ 1: ระบุองค์ประกอบหลัก → องค์ประกอบย่อย…"
+                    "inputId": "c5_q1_r1_main",
+                    "placeholder": "ประเด็นที่ 1: องค์ประกอบหลัก…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c5_q1_r1_sub",
+                    "placeholder": "ประเด็นที่ 1: องค์ประกอบย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c5_q1_r1_exp",
-                    "placeholder": "อธิบายนิยามและความสำคัญขององค์ประกอบย่อยนี้…"
+                    "placeholder": "อธิบายนิยามและความสำคัญขององค์ประกอบย่อยนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c5_q1_r1_ev",
-                    "placeholder": "เชื่อมโยงข้อมูลจากสถานการณ์ Palliative care ข้างต้น…"
+                    "placeholder": "เชื่อมโยงข้อมูลจากสถานการณ์ Palliative care ข้างต้น…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -791,19 +1126,49 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r2",
                 "cells": [
                   {
-                    "inputId": "c5_q1_r2_char",
-                    "placeholder": "ประเด็นที่ 2: ระบุองค์ประกอบหลัก → องค์ประกอบย่อย…"
+                    "inputId": "c5_q1_r2_main",
+                    "placeholder": "ประเด็นที่ 2: องค์ประกอบหลัก…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c5_q1_r2_sub",
+                    "placeholder": "ประเด็นที่ 2: องค์ประกอบย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c5_q1_r2_exp",
-                    "placeholder": "อธิบายนิยามและความสำคัญขององค์ประกอบย่อยนี้…"
+                    "placeholder": "อธิบายนิยามและความสำคัญขององค์ประกอบย่อยนี้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c5_q1_r2_ev",
-                    "placeholder": "เชื่อมโยงข้อมูลจากสถานการณ์ Palliative care ข้างต้น…"
+                    "placeholder": "เชื่อมโยงข้อมูลจากสถานการณ์ Palliative care ข้างต้น…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "14%",
+              "16%",
+              "35%",
+              "35%"
             ]
           }
         }
@@ -867,7 +1232,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c6_q1_prob",
-                    "placeholder": "ระบุพฤติกรรมเดิมของเกษตรกรที่ก่อให้เกิดปัญหาสุขภาพ…"
+                    "placeholder": "ระบุพฤติกรรมเดิมของเกษตรกรที่ก่อให้เกิดปัญหาสุขภาพ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -879,10 +1249,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c6_q1_targ",
-                    "placeholder": "ระบุพฤติกรรมทางเลือกใหม่ที่ต้องการส่งเสริมให้เกิดขึ้น…"
+                    "placeholder": "ระบุพฤติกรรมทางเลือกใหม่ที่ต้องการส่งเสริมให้เกิดขึ้น…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         },
@@ -890,11 +1269,12 @@ window.RACM_HS_DISCUSSION_DATA = {
           "id": "q-6-2",
           "label": "ประเด็นอภิปรายที่ 6.2",
           "title": "การวิเคราะห์กลไกการปรับเปลี่ยนพฤติกรรมตามกรอบแนวคิด COM-B",
-          "prompt": "จากเนื้อหาโจทย์ มีความพยายามหรือการดำเนินการใดบ้างที่ทำเพื่อช่วยให้เกษตรกรบรรลุ “พฤติกรรมเป้าหมาย (target behavior)” ได้สำเร็จ? จงวิเคราะห์โดยใช้กรอบแนวคิด COM-B โดยระบุองค์ประกอบย่อย (C-Ph = Physical Capability, C-Ps = Psychological Capability, O-Ph = Physical Opportunity, O-So = Social Opportunity, M-Re = Reflective Motivation, M-Au = Automatic Motivation) อย่างน้อย 3 ประเด็น พร้อมระบุการดำเนินการในกรณีศึกษาและอธิบายเหตุผลสนับสนุน",
+          "prompt": "จากเนื้อหาโจทย์ มีความพยายามหรือการดำเนินการใดบ้างที่ทำเพื่อช่วยให้เกษตรกรบรรลุ “พฤติกรรมเป้าหมาย (target behavior)” ได้สำเร็จ? จงวิเคราะห์โดยใช้กรอบแนวคิด COM-B โดยระบุแยกคอลัมน์องค์ประกอบหลัก (C / O / M) และองค์ประกอบย่อย (C-Ph = Physical Capability, C-Ps = Psychological Capability, O-Ph = Physical Opportunity, O-So = Social Opportunity, M-Re = Reflective Motivation, M-Au = Automatic Motivation) อย่างน้อย 3 ประเด็น พร้อมระบุการดำเนินการในกรณีศึกษาและอธิบายเหตุผลสนับสนุน",
           "worksheet": {
             "type": "table",
             "headers": [
-              "องค์ประกอบย่อยของ COM-B (ระบุรหัสและชื่อ)",
+              "องค์ประกอบหลัก (C / O / M)",
+              "องค์ประกอบย่อย (Sub-component)",
               "การดำเนินการในกรณีศึกษาที่สนับสนุน",
               "คำอธิบายและเหตุผลเชิงกลไกที่ช่วยให้บรรลุพฤติกรรมเป้าหมาย"
             ],
@@ -903,16 +1283,40 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r1",
                 "cells": [
                   {
-                    "inputId": "c6_q2_r1_comp",
-                    "placeholder": "ประเด็นที่ 1 (เช่น O-Ph, C-Ps, M-Re…)"
+                    "inputId": "c6_q2_r1_main",
+                    "placeholder": "ประเด็นที่ 1: C / O / M…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c6_q2_r1_sub",
+                    "placeholder": "เช่น O-Ph, C-Ps, M-Re…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r1_act",
-                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…"
+                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r1_why",
-                    "placeholder": "อธิบายว่ามาตรการนี้ปลดล็อกหรือเสริมองค์ประกอบ COM-B นี้อย่างไร…"
+                    "placeholder": "อธิบายว่ามาตรการนี้ปลดล็อกหรือเสริมองค์ประกอบ COM-B นี้อย่างไร…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -920,16 +1324,40 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r2",
                 "cells": [
                   {
-                    "inputId": "c6_q2_r2_comp",
-                    "placeholder": "ประเด็นที่ 2 (ระบุรหัสและชื่อองค์ประกอบย่อย)…"
+                    "inputId": "c6_q2_r2_main",
+                    "placeholder": "ประเด็นที่ 2: C / O / M…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c6_q2_r2_sub",
+                    "placeholder": "ระบุรหัสและชื่อองค์ประกอบย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r2_act",
-                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…"
+                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r2_why",
-                    "placeholder": "อธิบายเหตุผลเชิงกลไก…"
+                    "placeholder": "อธิบายเหตุผลเชิงกลไก…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -937,19 +1365,49 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "rowId": "r3",
                 "cells": [
                   {
-                    "inputId": "c6_q2_r3_comp",
-                    "placeholder": "ประเด็นที่ 3 (ระบุรหัสและชื่อองค์ประกอบย่อย)…"
+                    "inputId": "c6_q2_r3_main",
+                    "placeholder": "ประเด็นที่ 3: C / O / M…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
+                  },
+                  {
+                    "inputId": "c6_q2_r3_sub",
+                    "placeholder": "ระบุรหัสและชื่อองค์ประกอบย่อย…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r3_act",
-                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…"
+                    "placeholder": "ระบุกิจกรรม/มาตรการจากบทความ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c6_q2_r3_why",
-                    "placeholder": "อธิบายเหตุผลเชิงกลไก…"
+                    "placeholder": "อธิบายเหตุผลเชิงกลไก…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "14%",
+              "16%",
+              "35%",
+              "35%"
             ]
           }
         },
@@ -970,11 +1428,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c6_q3_r1_area",
-                    "placeholder": "กลยุทธ์ด้านที่ 1 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…"
+                    "placeholder": "กลยุทธ์ด้านที่ 1 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q3_r1_exp",
-                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…"
+                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -983,11 +1451,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c6_q3_r2_area",
-                    "placeholder": "กลยุทธ์ด้านที่ 2 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…"
+                    "placeholder": "กลยุทธ์ด้านที่ 2 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q3_r2_exp",
-                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…"
+                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -996,11 +1474,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c6_q3_r3_area",
-                    "placeholder": "กลยุทธ์ด้านที่ 3 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…"
+                    "placeholder": "กลยุทธ์ด้านที่ 3 (ระบุชื่อกลยุทธ์ไทย/อังกฤษ)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q3_r3_exp",
-                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…"
+                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -1009,14 +1497,28 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c6_q3_r4_area",
-                    "placeholder": "กลยุทธ์ด้านที่ 4 (เพิ่มเติมถ้ามี)…"
+                    "placeholder": "กลยุทธ์ด้านที่ 4 (เพิ่มเติมถ้ามี)…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c6_q3_r4_exp",
-                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…"
+                    "placeholder": "อภิปรายเหตุผลและยกตัวอย่างมาตรการจากกรณีศึกษา…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "23%",
+              "77%"
             ]
           }
         }
@@ -1092,7 +1594,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c7_q1_r1",
-                    "placeholder": "ระบุวิธีจัดบริการและกลไกขจัดอุปสรรคการเข้าถึงด่านแรกในบทความ…"
+                    "placeholder": "ระบุวิธีจัดบริการและกลไกขจัดอุปสรรคการเข้าถึงด่านแรกในบทความ…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1104,7 +1611,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c7_q1_r2",
-                    "placeholder": "วิเคราะห์ขอบเขตบริการตั้งแต่การคัดกรอง รักษา ฟื้นฟู จิตสังคม และสังคม…"
+                    "placeholder": "วิเคราะห์ขอบเขตบริการตั้งแต่การคัดกรอง รักษา ฟื้นฟู จิตสังคม และสังคม…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1116,7 +1628,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c7_q1_r3",
-                    "placeholder": "วิเคราะห์การเชื่อมต่อการดูแลข้ามระยะความเจ็บป่วยและการป้องกันการป่วยซ้ำ…"
+                    "placeholder": "วิเคราะห์การเชื่อมต่อการดูแลข้ามระยะความเจ็บป่วยและการป้องกันการป่วยซ้ำ…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1128,7 +1645,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c7_q1_r4",
-                    "placeholder": "วิเคราะห์กลไกประสานงานทั้งภายในระบบสุขภาพและข้ามภาคส่วน…"
+                    "placeholder": "วิเคราะห์กลไกประสานงานทั้งภายในระบบสุขภาพและข้ามภาคส่วน…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1140,10 +1662,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c7_q1_r5",
-                    "placeholder": "วิเคราะห์การเคารพบริบทชีวิต การสร้างความไว้วางใจ และการดูแลมิติจิตสังคม…"
+                    "placeholder": "วิเคราะห์การเคารพบริบทชีวิต การสร้างความไว้วางใจ และการดูแลมิติจิตสังคม…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         },
@@ -1164,11 +1695,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c7_q2_r1_pillar",
-                    "placeholder": "ระบุชื่อองค์ประกอบหลักที่ 1 ของ PHC…"
+                    "placeholder": "ระบุชื่อองค์ประกอบหลักที่ 1 ของ PHC…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c7_q2_r1_exp",
-                    "placeholder": "อธิบายเหตุผลและยกตัวอย่างกิจกรรมจากบทความ…"
+                    "placeholder": "อธิบายเหตุผลและยกตัวอย่างกิจกรรมจากบทความ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -1177,14 +1718,28 @@ window.RACM_HS_DISCUSSION_DATA = {
                 "cells": [
                   {
                     "inputId": "c7_q2_r2_pillar",
-                    "placeholder": "ระบุชื่อองค์ประกอบหลักที่ 2 ของ PHC…"
+                    "placeholder": "ระบุชื่อองค์ประกอบหลักที่ 2 ของ PHC…",
+                    "compact": true,
+                    "maxWords": 15,
+                    "maxChars": 90,
+                    "maxLines": 2,
+                    "a4BoxLabel": "กรอบคำสำคัญ A4 (≤15 คำ)"
                   },
                   {
                     "inputId": "c7_q2_r2_exp",
-                    "placeholder": "อธิบายเหตุผลและยกตัวอย่างความร่วมมือ/มาตรการจากบทความ…"
+                    "placeholder": "อธิบายเหตุผลและยกตัวอย่างความร่วมมือ/มาตรการจากบทความ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "23%",
+              "77%"
             ]
           }
         }
@@ -1249,7 +1804,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c8_q1_trend",
-                    "placeholder": "ระบุทิศทางภาพรวมพร้อมอ้างอิงตัวเลขจำนวนประเทศจากแผนภาพ…"
+                    "placeholder": "ระบุทิศทางภาพรวมพร้อมอ้างอิงตัวเลขจำนวนประเทศจากแผนภาพ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -1261,10 +1821,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c8_q1_factors",
-                    "placeholder": "1) …\n2) …"
+                    "placeholder": "1) …\n2) …",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         },
@@ -1288,7 +1857,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c8_q2_trend",
-                    "placeholder": "ระบุทิศทางภาพรวมและข้อสังเกตเชิงเปรียบเทียบจากแผนภาพ…"
+                    "placeholder": "ระบุทิศทางภาพรวมและข้อสังเกตเชิงเปรียบเทียบจากแผนภาพ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -1300,10 +1874,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c8_q2_factors",
-                    "placeholder": "1) …\n2) …"
+                    "placeholder": "1) …\n2) …",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         }
@@ -1351,7 +1934,12 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c9_q1_sti",
-                    "placeholder": "วิเคราะห์ในแง่พฤติกรรมความเสี่ยง การคัดเลือกในทางตรงข้าม (Adverse Selection) และค่าความน่าจะเป็นของการเกิดโรค (p)…"
+                    "placeholder": "วิเคราะห์ในแง่พฤติกรรมความเสี่ยง การคัดเลือกในทางตรงข้าม (Adverse Selection) และค่าความน่าจะเป็นของการเกิดโรค (p)…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1363,10 +1951,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c9_q1_prep",
-                    "placeholder": "วิเคราะห์ในแง่ผลกระทบภายนอกต่อสังคม (Externalities) บทบาทภาครัฐ และกลไกการถัวเฉลี่ยความเสี่ยง…"
+                    "placeholder": "วิเคราะห์ในแง่ผลกระทบภายนอกต่อสังคม (Externalities) บทบาทภาครัฐ และกลไกการถัวเฉลี่ยความเสี่ยง…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "22%",
+              "78%"
             ]
           }
         },
@@ -1390,10 +1987,19 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c9_q2_ans",
-                    "placeholder": "ระบุชื่อกองทุน/มาตรา รูปแบบการสมัคร และทางเลือกอัตราเงินสมทบที่ครอบคลุมครบทั้ง 5 กรณีรวมสงเคราะห์บุตรและชราภาพ…"
+                    "placeholder": "ระบุชื่อกองทุน/มาตรา รูปแบบการสมัคร และทางเลือกอัตราเงินสมทบที่ครอบคลุมครบทั้ง 5 กรณีรวมสงเคราะห์บุตรและชราภาพ…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "20%",
+              "80%"
             ]
           }
         }
@@ -1486,11 +2092,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q1_a_beh",
-                    "placeholder": "ระบุแนวโน้มปริมาณ/ความเข้มข้นของการให้บริการ…"
+                    "placeholder": "ระบุแนวโน้มปริมาณ/ความเข้มข้นของการให้บริการ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q1_a_why",
-                    "placeholder": "อธิบายความสัมพันธ์ระหว่างปริมาณบริการกับรายรับ/ความเสี่ยงทางการเงิน…"
+                    "placeholder": "อธิบายความสัมพันธ์ระหว่างปริมาณบริการกับรายรับ/ความเสี่ยงทางการเงิน…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1502,14 +2118,29 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q1_b_beh",
-                    "placeholder": "ระบุแนวโน้มการให้บริการ การควบคุมต้นทุน หรือการส่งต่อ…"
+                    "placeholder": "ระบุแนวโน้มการให้บริการ การควบคุมต้นทุน หรือการส่งต่อ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q1_b_why",
-                    "placeholder": "อธิบายผลของการรับความเสี่ยงภายใต้วงเงินคงที่ต่อการตัดสินใจ…"
+                    "placeholder": "อธิบายผลของการรับความเสี่ยงภายใต้วงเงินคงที่ต่อการตัดสินใจ…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "18%",
+              "40%",
+              "42%"
             ]
           }
         },
@@ -1534,11 +2165,21 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q2_a_str",
-                    "placeholder": "ระบุจุดแข็งด้านการเข้าถึง/การตอบสนอง…"
+                    "placeholder": "ระบุจุดแข็งด้านการเข้าถึง/การตอบสนอง…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q2_a_wk",
-                    "placeholder": "ระบุจุดอ่อนด้านอุปสงค์ที่ผู้ให้บริการกระตุ้น (SID) และภาระค่าใช้จ่ายรวม…"
+                    "placeholder": "ระบุจุดอ่อนด้านอุปสงค์ที่ผู้ให้บริการกระตุ้น (SID) และภาระค่าใช้จ่ายรวม…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               },
@@ -1550,14 +2191,29 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q2_b_str",
-                    "placeholder": "ระบุจุดแข็งด้านการควบคุมงบประมาณและการส่งเสริมป้องกันโรค…"
+                    "placeholder": "ระบุจุดแข็งด้านการควบคุมงบประมาณและการส่งเสริมป้องกันโรค…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q2_b_wk",
-                    "placeholder": "ระบุจุดอ่อนด้านคุณภาพ/การให้บริการต่ำกว่าเกณฑ์ และการคัดเลือกความเสี่ยง…"
+                    "placeholder": "ระบุจุดอ่อนด้านคุณภาพ/การให้บริการต่ำกว่าเกณฑ์ และการคัดเลือกความเสี่ยง…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "18%",
+              "41%",
+              "41%"
             ]
           }
         },
@@ -1583,15 +2239,30 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q3_a_gap",
-                    "placeholder": "ระบุช่องว่างของ FFS ที่ P4P มุ่งแก้…"
+                    "placeholder": "ระบุช่องว่างของ FFS ที่ P4P มุ่งแก้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q3_a_cond",
-                    "placeholder": "ประเมินโอกาสสำเร็จและเงื่อนไขอัตราจ่าย…"
+                    "placeholder": "ประเมินโอกาสสำเร็จและเงื่อนไขอัตราจ่าย…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q3_a_why",
-                    "placeholder": "เปรียบเทียบแรงจูงใจจาก P4P กับรายรับจากการรักษาเมื่อกำเริบในระบบ FFS…"
+                    "placeholder": "เปรียบเทียบแรงจูงใจจาก P4P กับรายรับจากการรักษาเมื่อกำเริบในระบบ FFS…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               },
@@ -1603,18 +2274,39 @@ window.RACM_HS_DISCUSSION_DATA = {
                   },
                   {
                     "inputId": "c10_q3_b_gap",
-                    "placeholder": "ระบุช่องว่างของ Capitation ที่ P4P มุ่งแก้…"
+                    "placeholder": "ระบุช่องว่างของ Capitation ที่ P4P มุ่งแก้…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q3_b_cond",
-                    "placeholder": "ประเมินโอกาสสำเร็จและความไปในทิศทางเดียวกันของแรงจูงใจ…"
+                    "placeholder": "ประเมินโอกาสสำเร็จและความไปในทิศทางเดียวกันของแรงจูงใจ…",
+                    "compact": false,
+                    "maxWords": 45,
+                    "maxChars": 240,
+                    "maxLines": 4,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤45 คำ)"
                   },
                   {
                     "inputId": "c10_q3_b_why",
-                    "placeholder": "อธิบายว่าโบนัส P4P เสริมกับเป้าหมายประหยัดต้นทุน IPD ระยะยาวของ Capitation อย่างไร…"
+                    "placeholder": "อธิบายว่าโบนัส P4P เสริมกับเป้าหมายประหยัดต้นทุน IPD ระยะยาวของ Capitation อย่างไร…",
+                    "compact": false,
+                    "maxWords": 60,
+                    "maxChars": 330,
+                    "maxLines": 5,
+                    "a4BoxLabel": "กรอบ A4 กระชับ (≤60 คำ)"
                   }
                 ]
               }
+            ],
+            "colWidths": [
+              "15%",
+              "25%",
+              "28%",
+              "32%"
             ]
           }
         }
