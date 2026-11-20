@@ -430,6 +430,19 @@ a:hover {
   color: #ffffff;
 }
 
+.btn.pdf-red {
+  background: #ff3b30;
+  border-color: #e02d22;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(255, 59, 48, 0.28);
+}
+
+.btn.pdf-red:hover {
+  background: #d70015;
+  border-color: #d70015;
+  color: #ffffff;
+}
+
 .btn.sm {
   padding: 5.5px 11.5px;
   font-size: 12.8px;
@@ -3364,7 +3377,8 @@ a:hover {
   background: #f8f8fc;
 }
 
-.macos-studio-summary-left {
+.macos-studio-summary-left,
+.studio-sum-left {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3373,18 +3387,21 @@ a:hover {
   color: var(--ink-body);
 }
 
-.macos-studio-summary-left strong {
+.macos-studio-summary-left strong,
+.studio-sum-left strong {
   font-family: var(--font-display);
   font-size: 14.4px;
   color: var(--ink);
 }
 
-.macos-studio-icon {
+.macos-studio-icon,
+.macos-icon-badge {
   font-size: 18px;
   line-height: 1;
 }
 
-.macos-studio-pill {
+.macos-studio-pill,
+.studio-sum-pill {
   display: inline-flex;
   align-items: center;
   padding: 5px 12px;
