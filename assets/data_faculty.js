@@ -82,91 +82,121 @@ window.RACM_FACULTY_DATA = {
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS1 ฉบับเต็ม (Guided Learning)",
+      "title": "HS1 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/1sHPbKTmSIjZWsNO-fUZKtdinhsGdSraX4W0LY0WGb08/edit",
       "note": "อ. พญ.วริษา / ผศ. นพ.สัมฤทธิ์"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS1 ฉบับย่อ 10 หน้า (Concise Summary)",
+      "title": "HS1 · ฉบับย่อ (Abridged version)",
       "url": "https://docs.google.com/document/d/1C5tpcSlO_EOy-TNJjV5IGu5QjW1Nm1WaPXY3EcYhHwA/edit",
-      "note": "ฉบับสรุปกระชับพร้อมภาพประกอบ 7 ภาพ"
+      "note": "สุขภาพ ปัจจัยกำหนดสุขภาพ และการป้องกันโรค"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS1 สมุดแบบฝึกหัดและเฉลย (Workbook)",
+      "title": "HS1 · Worksheet",
       "url": "https://docs.google.com/document/d/1qr68XeY1DgOH1agGLoTfJFWjNJS400SoOOVjhfv-Db0/edit",
-      "note": "กรณีศึกษาและเฉลยท้ายเล่ม HS1"
+      "note": "ใบงานกรณีศึกษาและแนวคำตอบ HS1"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS1 คู่มือผู้สอน (Teacher Guide)",
+      "title": "HS1 · คู่มือผู้สอน (Teacher Guide)",
       "url": "https://docs.google.com/document/d/1aSQuPcXQUBINv_efeYWthjVobAQePh8_ahcVr6hFuNk/edit",
       "note": "สำหรับอาจารย์ประจำกลุ่มย่อย 6 กลุ่ม"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS2 ฉบับเต็ม (Structure, Functions & 6W Models of Care)",
+      "title": "HS2 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/1lFpBOxWS5yAhgLwrQuhYdVchKgasYzma2VKn8G8TJt8/edit",
       "note": "อ. นพ.ณัฐวุฒิ เอี่ยงธนรัตน์"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS2 สมุดแบบฝึกหัดและเฉลย (Workbook)",
-      "url": "https://docs.google.com/document/d/1lBQ-u18A2fPJ0VsKib389i_ldTGvRGeM216v6yl4uJ0/edit",
-      "note": "กรณีศึกษาและเฉลยท้ายเล่ม HS2"
+      "title": "HS2 · ฉบับย่อ (Abridged version)",
+      "url": "https://docs.google.com/document/d/1kFUmpkOxZtXXRUIPCbQSxFJ27PjHHzF5L6a8ovJnMA4/edit",
+      "note": "หน้าที่และโครงสร้างของระบบสุขภาพและระบบบริการสุขภาพ & กรอบ 6W"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS2 คู่มือผู้สอนและตารางหลักฐาน (Teacher Guide & Evidence Map)",
+      "title": "HS2 · Worksheet",
+      "url": "https://docs.google.com/document/d/1lBQ-u18A2fPJ0VsKib389i_ldTGvRGeM216v6yl4uJ0/edit",
+      "note": "ใบงานกรณีศึกษาและแนวคำตอบ HS2"
+    },
+    {
+      "category": "เอกสาร HS1–HS6 (Google Docs)",
+      "title": "HS2 · คู่มือผู้สอนและตารางหลักฐาน (Teacher Guide & Evidence Map)",
       "url": "https://docs.google.com/document/d/1xvY7kW3JtUe22DGBInT_STWhPky7vYvKT6snPpnprF4/edit",
       "note": "สำหรับอาจารย์ผู้สอน HS2"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS3 ฉบับเต็ม (Desirable Characteristics — EQESaRR)",
+      "title": "HS3 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/1bXv3zw96_ZuwuD6QsS2cX_0NfomBY0bBlyV5CVNJgkE/edit",
       "note": "อ. นพ.ภูษิต ประคองสาย"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS3 ตารางหลักฐาน (Evidence Map)",
+      "title": "HS3 · ฉบับย่อ (Abridged version)",
+      "url": "https://docs.google.com/document/d/133ppRwE6JiRYfpV78izHjOgUVcAkv5jMKBnUaccdv8E/edit",
+      "note": "คุณลักษณะของระบบบริการสุขภาพที่พึงประสงค์ (EQESaRR)"
+    },
+    {
+      "category": "เอกสาร HS1–HS6 (Google Docs)",
+      "title": "HS3 · ตารางหลักฐาน (Evidence Map)",
       "url": "https://docs.google.com/document/d/1lFc6FC0Mj1vLhNc4YjV5xHCJBdZReVSyOsE6tVF-h1c/edit",
       "note": "หลักฐานอ้างอิง HS3"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS4 ฉบับเต็ม (Health Behaviour, COM-B & Health Promotion)",
+      "title": "HS4 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/10_nbJa7GJr9z2xlGxY82MPa9t5GCf8FPFyyyPoawaEI/edit",
       "note": "ผศ. นพ.วิชช์ เกษมทรัพย์"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS4 ตารางตรวจสอบหลักฐาน (Evidence Trace)",
+      "title": "HS4 · ฉบับย่อ (Abridged version)",
+      "url": "https://docs.google.com/document/d/1LoUrl2DEPtzuHKCS-ggtfzAzXj1KhSQzVqI70G-Dn2E/edit",
+      "note": "พฤติกรรมสุขภาพ การปรับเปลี่ยนพฤติกรรม และการสร้างเสริมสุขภาพ"
+    },
+    {
+      "category": "เอกสาร HS1–HS6 (Google Docs)",
+      "title": "HS4 · ตารางตรวจสอบหลักฐาน (Evidence Trace)",
       "url": "https://docs.google.com/document/d/134nQ3hc9D8_DqpYdG-v5aWv9wMNmBk6cTXQ7yu3TXss/edit",
       "note": "หลักฐานอ้างอิง HS4"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS5 ฉบับเต็ม (Primary Health Care & Primary Care)",
+      "title": "HS5 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/1_ThoTdR6U9qittM0-iNYnllwO2_gvOJFy1qd-VH7kcg/edit",
       "note": "อ. นพ.ฉัตรชัย อิ่มอารมย์"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS5 ตารางหลักฐาน (Evidence Map)",
+      "title": "HS5 · ฉบับย่อ (Abridged version)",
+      "url": "https://docs.google.com/document/d/1idDgBosF684UBEc0cKROpkPlAkpoKvtXXg5TumQruCI/edit",
+      "note": "ระบบบริการสุขภาพปฐมภูมิและบริการปฐมภูมิ"
+    },
+    {
+      "category": "เอกสาร HS1–HS6 (Google Docs)",
+      "title": "HS5 · ตารางหลักฐาน (Evidence Map)",
       "url": "https://docs.google.com/document/d/1fRoHLo5fdm70-KN-DzcaM-0H_VDe7PL66doDm_eNL-A/edit",
       "note": "หลักฐานอ้างอิง HS5"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS6 ฉบับเต็ม (Health Insurance & Provider Payment)",
+      "title": "HS6 · ฉบับเต็ม",
       "url": "https://docs.google.com/document/d/1nYXWrm8kL3NBqG3usidhNzhRizIOUdtaNtjt9w-IrQE/edit",
       "note": "ผศ. นพ.สัมฤทธิ์ / นพ.พีรสิชฌ์"
     },
     {
       "category": "เอกสาร HS1–HS6 (Google Docs)",
-      "title": "HS6 ตารางตรวจสอบหลักฐาน (Evidence Trace)",
+      "title": "HS6 · ฉบับย่อ (Abridged version)",
+      "url": "https://docs.google.com/document/d/1TyzBwlpfHBal1CkmeRoVktH3Sq5pJNmCbpQP8dxkJyM/edit",
+      "note": "การประกันสุขภาพและกลไกการจ่ายเงินแก่ผู้ให้บริการ"
+    },
+    {
+      "category": "เอกสาร HS1–HS6 (Google Docs)",
+      "title": "HS6 · ตารางตรวจสอบหลักฐาน (Evidence Trace)",
       "url": "https://docs.google.com/document/d/1ii_tkLULU4K5vyCs4BVekUcoHRNLdgnfygEX6HoXJNg/edit",
       "note": "หลักฐานอ้างอิง HS6"
     },
@@ -187,18 +217,6 @@ window.RACM_FACULTY_DATA = {
       "title": "Google Form ส่งไฟล์นำเสนอภาคสนาม & Health Survey ปี 2569",
       "url": "https://forms.gle/1Gsg2SmSfuuEwmcE9",
       "note": "กำหนดส่งภายใน พุธที่ 30 ธ.ค. 2569 เวลา 17.00 น."
-    },
-    {
-      "category": "เอกสารคำสอนฉบับสรุปกระชับ (Concise Summary Google Docs)",
-      "title": "HS2 Concise Summary — หน้าที่และโครงสร้างของระบบสุขภาพ & กรอบ 6W",
-      "url": "https://docs.google.com/document/d/1kFUmpkOxZtXXRUIPCbQSxFJ27PjHHzF5L6a8ovJnMA4/edit",
-      "note": "ฉบับสรุปกระชับ 25 หน้า พร้อมอินโฟกราฟิก 15 ภาพ และเอกสารอ้างอิง 74 รายการ"
-    },
-    {
-      "category": "เอกสารคำสอนฉบับสรุปกระชับ (Concise Summary Google Docs)",
-      "title": "HS3 Concise Summary — คุณลักษณะระบบบริการสุขภาพที่พึงประสงค์ (EQESaRR)",
-      "url": "https://docs.google.com/document/d/133ppRwE6JiRYfpV78izHjOgUVcAkv5jMKBnUaccdv8E/edit",
-      "note": "ฉบับสรุปกระชับพร้อมอินโฟกราฟิก 8 ภาพ และเอกสารอ้างอิง 123 รายการ"
     }
   ]
 };

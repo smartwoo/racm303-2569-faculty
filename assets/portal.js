@@ -1462,7 +1462,7 @@
         actions.appendChild(bDoc);
       }
       if (s.wbLink) {
-        const bWb = make("button", `สมุดแบบฝึกหัด (${s.wbLink})`, "btn sm");
+        const bWb = make("button", `Worksheet (${s.wbLink.replace("-WB", "")})`, "btn sm");
         bWb.type = "button";
         bWb.addEventListener("click", () => openTextbookDoc(s.wbLink));
         actions.appendChild(bWb);
@@ -1711,7 +1711,7 @@
       studyRow.appendChild(bd);
     }
     if (session.wbLink) {
-      const bw = make("button", `สมุดแบบฝึกหัด (${session.wbLink})`, "btn sm");
+      const bw = make("button", `Worksheet (${session.wbLink.replace("-WB", "")})`, "btn sm");
       bw.type = "button";
       bw.addEventListener("click", () => {
         closeEventModal();
