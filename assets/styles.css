@@ -9963,17 +9963,6 @@ details.bulk-key-archive {
   color: #ffd25a;
 }
 
-.fm-formation-tag {
-  background: rgba(255, 184, 28, 0.18);
-  border: 1px solid rgba(255, 184, 28, 0.48);
-  color: #ffe082;
-  padding: 0.5px 6px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-}
-
 .fm-head-name {
   margin: 0;
   font-family: var(--font-display);
@@ -10099,7 +10088,7 @@ details.bulk-key-archive {
 
 .fm-player-node {
   flex: 1 1 0;
-  max-width: 118px;
+  max-width: 152px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -10115,7 +10104,7 @@ details.bulk-key-archive {
 }
 
 .fm-board.is-wide .fm-player-node {
-  max-width: 138px;
+  max-width: 176px;
 }
 
 .fm-player-node:hover,
@@ -10191,7 +10180,7 @@ details.bulk-key-archive {
   position: relative;
   z-index: 3;
   width: 100%;
-  max-width: 104px;
+  max-width: 146px;
   border-radius: 5px;
   overflow: hidden;
   box-shadow: 0 3px 9px rgba(0, 0, 0, 0.35);
@@ -10199,7 +10188,7 @@ details.bulk-key-archive {
 }
 
 .fm-board.is-wide .fm-nameplate {
-  max-width: 124px;
+  max-width: 168px;
 }
 
 .fm-plate-lead {

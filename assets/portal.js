@@ -703,8 +703,9 @@
     const input = $("personalStudentInput");
     if (list) {
       ROSTER.students.forEach((s) => {
+        const parts = getStudentNameParts(s);
         const opt = document.createElement("option");
-        opt.value = `${s.id} — ${s.fullName}`;
+        opt.value = `${s.id} — ${parts.lead}${parts.paren ? " " + parts.paren : ""}`;
         opt.label = `กลุ่มพื้นที่ ${s.area} · Discussion ${s.disc}`;
         list.appendChild(opt);
       });
@@ -750,7 +751,8 @@
     if (window.RACM_LIVE_CLASSROOM) {
       window.RACM_LIVE_CLASSROOM.setStudentProfile(student);
     }
-    const formatted = `${student.id} — ${student.fullName}`;
+    const parts = getStudentNameParts(student);
+    const formatted = `${student.id} — ${parts.lead}${parts.paren ? " " + parts.paren : ""}`;
     if ($("personalStudentInput")) $("personalStudentInput").value = formatted;
     if ($("studioStudentInput")) $("studioStudentInput").value = formatted;
     if ($("subStudentQuickInput")) $("subStudentQuickInput").value = formatted;
@@ -3906,8 +3908,6 @@
     const siteColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff";
     const parts = getStudentNameParts(s);
     const isMine = state.myStudent && state.myStudent.id === s.id;
-    const cleanFull = String(s.name || s.fullName || "").trim();
-    const firstFormal = cleanFull.split(/\s+/)[0] || s.id;
 
     const btn = make("button", null, `fm-player-node${isMine ? " is-mine" : ""}`);
     btn.type = "button";
@@ -3941,12 +3941,7 @@
 
     const plate = make("div", null, "fm-nameplate");
     const leadTxt = isMine ? `★ ${parts.lead}` : parts.lead;
-    const subTxt =
-      mode === "discussion"
-        ? `${s.area}`
-        : parts.hasNick
-        ? `${firstFormal} · ${s.id.slice(-3)}`
-        : `${s.id}`;
+    const subTxt = parts.paren || `${s.id}`;
     plate.innerHTML =
       `<span class="fm-plate-lead">${escapeHtml(leadTxt)}</span>` +
       `<span class="fm-plate-sub">${escapeHtml(subTxt)}</span>`;
@@ -4003,7 +3998,6 @@
       return a.disc - b.disc || compareTH(a.id, b.id);
     });
     const splitCounts = computeFormationSplit(sortedMembers.length);
-    const formationCode = splitCounts.length ? splitCounts.join("-") : "0";
 
     const board = make("div", null, `fm-board${wide ? " is-wide" : ""}`);
     board.style.setProperty("--fm-team-color", teamColor);
@@ -4032,7 +4026,7 @@
 
     const hTitles = make("div", null, "fm-head-titles");
     hTitles.innerHTML =
-      `<div class="fm-head-eyebrow"><span>${escapeHtml(eyebrowText)}</span><span class="fm-formation-tag">FORMATION ${escapeHtml(formationCode)}</span><span>· ${sortedMembers.length} คน</span></div>` +
+      `<div class="fm-head-eyebrow"><span>${escapeHtml(eyebrowText)} · ${sortedMembers.length} คน</span></div>` +
       `<h3 class="fm-head-name">${escapeHtml(titleText)}</h3>` +
       (subText ? `<p class="fm-head-sub">${escapeHtml(subText)}</p>` : "");
     hLeft.append(crest, hTitles);
@@ -9545,7 +9539,8 @@
   function renderStudentConciergeStage(stage, presetsRow, activeTab, curDate, todayBkk) {
     const s = state.myStudent;
     const sInput = $("conciergeStudentInput");
-    const expectedVal = s ? `${s.id} — ${s.nickname || s.name}` : "";
+    const cParts = s ? getStudentNameParts(s) : null;
+    const expectedVal = s ? `${s.id} — ${cParts.lead}${cParts.paren ? " " + cParts.paren : ""}` : "";
     if (sInput && document.activeElement !== sInput && sInput.value !== expectedVal) {
       sInput.value = expectedVal;
     }
@@ -10081,11 +10076,12 @@
     // 5. 169 Students
     ROSTER.students.forEach((s) => {
       const siteId = getSiteIdByAreaName(s.area);
+      const spParts = getStudentNameParts(s);
       pushIfMatch({
         cat: "students",
         icon: "🎓",
         studentObj: s,
-        title: `${s.id} — ${s.fullName}${s.nickname ? " (" + s.nickname + ")" : ""}`,
+        title: `${s.id} — ${spParts.lead}${spParts.paren ? " " + spParts.paren : ""}`,
         sub: `Discussion กลุ่ม ${s.disc} · พื้นที่ ${siteId}. ${s.area} · อ.${s.advisor || "-"}`,
         badge: `G${s.disc} · ${s.area}`,
         defaultShow: false,
@@ -11186,10 +11182,11 @@
       const hay = `${s.id} ${s.fullName} ${s.nickname || ""} ${s.area} discussion ${s.disc}`.toLocaleLowerCase("th");
       if (hay.includes(q)) {
         stuCount++;
+        const omParts = getStudentNameParts(s);
         results.push({
           cat: "นักศึกษาแพทย์ (169 คน)",
           icon: "🎓",
-          title: `${s.id} · ${s.fullName}${s.nickname ? ` (${s.nickname})` : ""}`,
+          title: `${s.id} · ${omParts.lead}${omParts.paren ? ` ${omParts.paren}` : ""}`,
           sub: `กลุ่มพื้นที่ ${s.area} · Discussion กลุ่ม ${s.disc} · อ.${s.advisor}`,
           studentObj: s,
           run: () => {
@@ -11422,7 +11419,7 @@
     const renderOmnibox = () => {
       const raw = input.value.trim();
       // Ignore formatted student banner value unless actively typing something else
-      if (!raw || (state.myStudent && raw === `${state.myStudent.id} — ${state.myStudent.fullName}` && document.activeElement !== input)) {
+      if (!raw || (state.myStudent && raw.startsWith(`${state.myStudent.id} — `) && document.activeElement !== input)) {
         closeDropdown();
         return;
       }
@@ -11484,7 +11481,7 @@
     });
 
     input.addEventListener("focus", () => {
-      if (input.value.trim() && !(state.myStudent && input.value.trim() === `${state.myStudent.id} — ${state.myStudent.fullName}`)) {
+      if (input.value.trim() && !(state.myStudent && input.value.trim().startsWith(`${state.myStudent.id} — `))) {
         renderOmnibox();
       }
     });
