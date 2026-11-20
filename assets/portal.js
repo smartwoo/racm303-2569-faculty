@@ -3968,28 +3968,40 @@
     return arr;
   }
 
+  const DISC_GROUP_COLORS = {
+    1: "#007aff",
+    2: "#0d9488",
+    3: "#5856d6",
+    4: "#ea580c",
+    5: "#af52de",
+    6: "#e11d48"
+  };
+
   const SHORT_SITE_COLLAR_LABELS = {
-    1: "1.กุฉิฯ",
-    2: "2.ด่านซ้าย",
-    3: "3.ตะกั่วป่า",
-    4: "4.ท่าวังผา",
-    5: "5.พช.1",
-    6: "6.พช.2",
-    7: "7.อุบลฯ",
-    8: "8.ท่าสองยาง",
-    9: "9.อุ้มผาง"
+    1: "กุฉิฯ",
+    2: "ด่านซ้าย",
+    3: "ตะกั่วป่า",
+    4: "ท่าวังผา",
+    5: "พช.1",
+    6: "พช.2",
+    7: "อุบลฯ",
+    8: "ท่าสองยาง",
+    9: "อุ้มผาง"
   };
 
   function buildFormationPlayerNode(s, mode, rowIdx, colIdx) {
     const siteId = getSiteIdByAreaName(s.area);
-    const siteColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff";
+    const nodeColor =
+      mode === "discussion"
+        ? (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff"
+        : DISC_GROUP_COLORS[s.disc] || "#007aff";
     const parts = getStudentNameParts(s);
     const isMine = state.myStudent && state.myStudent.id === s.id;
 
     const btn = make("button", null, `fm-player-node${isMine ? " is-mine" : ""}`);
     btn.type = "button";
-    btn.style.setProperty("--fm-delay", `${rowIdx * 55 + colIdx * 24}ms`);
-    btn.style.setProperty("--node-color", siteColor);
+    btn.style.setProperty("--fm-delay", `${rowIdx * 45 + colIdx * 22}ms`);
+    btn.style.setProperty("--node-color", nodeColor);
     const effNick = getEffectiveNickname(s);
     btn.title = `${s.id} ${s.fullName}${effNick ? " (" + effNick + ")" : ""} · Discussion กลุ่ม ${s.disc} · พื้นที่ ${siteId}.${s.area}`;
 
@@ -4048,6 +4060,51 @@
     return svg;
   }
 
+  function buildFormationSubgroupPods(sortedMembers, mode) {
+    const pods = [];
+    if (mode === "discussion") {
+      const bySite = new Map();
+      (SCHED.fieldworkSites || []).forEach((st) => bySite.set(st.shortName, { site: st, list: [] }));
+      sortedMembers.forEach((s) => {
+        if (!bySite.has(s.area)) {
+          bySite.set(s.area, { site: { id: getSiteIdByAreaName(s.area), shortName: s.area }, list: [] });
+        }
+        bySite.get(s.area).list.push(s);
+      });
+      bySite.forEach(({ site, list }) => {
+        if (!list.length) return;
+        pods.push({
+          key: `site-${site.id}`,
+          badgeText: String(site.id),
+          titleText: site.shortName,
+          color: (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff",
+          members: list
+        });
+      });
+    } else {
+      const byDisc = new Map();
+      (SCHED.hsGroups || []).forEach((g) => byDisc.set(g.id, { grp: g, list: [] }));
+      sortedMembers.forEach((s) => {
+        if (!byDisc.has(s.disc)) {
+          byDisc.set(s.disc, { grp: { id: s.disc, defaultRoom: "" }, list: [] });
+        }
+        byDisc.get(s.disc).list.push(s);
+      });
+      byDisc.forEach(({ grp, list }) => {
+        if (!list.length) return;
+        const roomShort = grp.defaultRoom ? ` · ${grp.defaultRoom.split(" ")[0]}` : "";
+        pods.push({
+          key: `disc-${grp.id}`,
+          badgeText: `G${grp.id}`,
+          titleText: `${tr("กลุ่ม", "Group")} ${grp.id}${roomShort}`,
+          color: DISC_GROUP_COLORS[grp.id] || "#007aff",
+          members: list
+        });
+      });
+    }
+    return pods;
+  }
+
   function renderBroadcastFormationBoard(opts) {
     const {
       mode, // "fieldwork" | "discussion"
@@ -4074,7 +4131,6 @@
       }
       return a.disc - b.disc || compareTH(a.id, b.id);
     });
-    const splitCounts = computeFormationSplit(sortedMembers.length);
 
     const board = make("div", null, `fm-board${wide ? " is-wide" : ""}`);
     board.style.setProperty("--fm-team-color", teamColor);
@@ -4164,24 +4220,42 @@
     } else {
       const pitch = make("div", null, "fm-pitch-stage");
       pitch.appendChild(buildPitchSvgOverlay());
-      const stack = make("div", null, "fm-lines-stack");
       if (!sortedMembers.length) {
-        const emp = make("div", "ไม่พบสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "empty-state");
+        const stack = make("div", null, "fm-lines-stack");
+        const emp = make("div", tr("ไม่พบสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "No matching members in this group"), "empty-state");
         emp.style.background = "rgba(255,255,255,0.92)";
         stack.appendChild(emp);
+        pitch.appendChild(stack);
       } else {
-        let cursor = 0;
-        splitCounts.forEach((cnt, rIdx) => {
-          const rowEl = make("div", null, "fm-line-row");
-          const slice = sortedMembers.slice(cursor, cursor + cnt);
-          cursor += cnt;
-          slice.forEach((stu, cIdx) => {
-            rowEl.appendChild(buildFormationPlayerNode(stu, mode, rIdx, cIdx));
+        const pods = buildFormationSubgroupPods(sortedMembers, mode);
+        const podGrid = make("div", null, `fm-clusters-grid${pods.length <= 2 ? " is-few-pods" : ""}`);
+        pods.forEach((pod, pIdx) => {
+          const hasMine = state.myStudent && pod.members.some((m) => m.id === state.myStudent.id);
+          const podEl = make("div", null, `fm-squad-pod${hasMine ? " has-mine" : ""}`);
+          podEl.style.setProperty("--pod-color", pod.color);
+
+          const podHead = make("div", null, "fm-pod-head");
+          podHead.innerHTML =
+            `<span class="fm-pod-head-left">` +
+            `<span class="fm-pod-num">${escapeHtml(pod.badgeText)}</span>` +
+            `<span class="fm-pod-title">${escapeHtml(pod.titleText)}</span>` +
+            `</span>` +
+            `<span class="fm-pod-cnt">${pod.members.length} ${escapeHtml(tr("คน", "p."))}</span>`;
+
+          const podMembersWrap = make(
+            "div",
+            null,
+            `fm-pod-members count-${Math.min(6, pod.members.length)}`
+          );
+          pod.members.forEach((stu, mIdx) => {
+            podMembersWrap.appendChild(buildFormationPlayerNode(stu, mode, pIdx, mIdx));
           });
-          stack.appendChild(rowEl);
+
+          podEl.append(podHead, podMembersWrap);
+          podGrid.appendChild(podEl);
         });
+        pitch.appendChild(podGrid);
       }
-      pitch.appendChild(stack);
       board.appendChild(pitch);
     }
 
@@ -4732,15 +4806,6 @@
 
     syncPhotoToggleButtons();
   }
-
-  const DISC_GROUP_COLORS = {
-    1: "#007aff",
-    2: "#0d9488",
-    3: "#5856d6",
-    4: "#ea580c",
-    5: "#af52de",
-    6: "#e11d48"
-  };
 
   function appendSvg3DAnimatedArc(svgNS, parentGroup, x1, y1, ctrlX, ctrlY, shX, shY, x2, y2, colorHex, dataAttrName, dataAttrVal, durSec) {
     const arcD = `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`;
