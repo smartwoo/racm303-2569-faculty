@@ -227,6 +227,171 @@
     box.replaceChildren(img);
   }
 
+  /* ---------- Student Nickname Store, Live Sheet Sync & Display Formatter ---------- */
+  const NICKNAME_OVERRIDES_KEY = "racm303_nicknames_v1";
+  const SHEET_NICKNAMES_CACHE_KEY = "racm303_sheet_nicknames_v1";
+
+  function loadJsonMapSafe(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  let nicknameOverridesCache = loadJsonMapSafe(NICKNAME_OVERRIDES_KEY);
+  let sheetNicknamesCache = loadJsonMapSafe(SHEET_NICKNAMES_CACHE_KEY);
+
+  function cleanNicknameValue(raw) {
+    const v = String(raw == null ? "" : raw).trim();
+    if (!v || v === "~" || v === "-" || v === "—") return "";
+    return v;
+  }
+
+  function getEffectiveNickname(s) {
+    if (!s) return "";
+    return (
+      cleanNicknameValue(nicknameOverridesCache[s.id]) ||
+      cleanNicknameValue(sheetNicknamesCache[s.id]) ||
+      cleanNicknameValue(s.nickname)
+    );
+  }
+
+  function saveStudentNicknameOverride(sid, rawNick) {
+    if (!sid) return;
+    const cleaned = cleanNicknameValue(rawNick);
+    if (cleaned) nicknameOverridesCache[sid] = cleaned;
+    else delete nicknameOverridesCache[sid];
+    try {
+      localStorage.setItem(NICKNAME_OVERRIDES_KEY, JSON.stringify(nicknameOverridesCache));
+    } catch (_) {}
+    const stu = (ROSTER.students || []).find((x) => x.id === sid);
+    if (stu) stu.nickname = getEffectiveNickname(stu);
+    try {
+      const ch = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("racm303_live_sync") : null;
+      if (ch) {
+        ch.postMessage({ kind: "nicknames_updated" });
+        ch.close();
+      }
+    } catch (_) {}
+  }
+
+  // Hydrate in-memory roster with any cached/saved nicknames immediately
+  (ROSTER.students || []).forEach((s) => {
+    const eff = getEffectiveNickname(s);
+    if (eff) s.nickname = eff;
+  });
+
+  function getStudentNameParts(s) {
+    const nick = getEffectiveNickname(s);
+    const cleanFull = String((s && (s.name || s.fullName)) || "").trim();
+    if (nick) {
+      return {
+        lead: nick,
+        paren: cleanFull ? `(${cleanFull})` : "",
+        hasNick: true
+      };
+    }
+    const spIdx = cleanFull.indexOf(" ");
+    if (spIdx > 0) {
+      const first = cleanFull.slice(0, spIdx).trim();
+      const rest = cleanFull.slice(spIdx + 1).trim();
+      return {
+        lead: first,
+        paren: rest ? `(${rest})` : "",
+        hasNick: false
+      };
+    }
+    return {
+      lead: cleanFull,
+      paren: "",
+      hasNick: false
+    };
+  }
+
+  function parseSimpleCsvRows(csvText) {
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < csvText.length; i++) {
+      const ch = csvText[i];
+      if (inQuotes) {
+        if (ch === '"' && csvText[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (ch === '"') {
+          inQuotes = false;
+        } else {
+          cur += ch;
+        }
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(cur);
+        cur = "";
+      } else if (ch === "\n") {
+        row.push(cur.replace(/\r$/, ""));
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur.length || row.length) {
+      row.push(cur.replace(/\r$/, ""));
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  async function syncLiveNicknamesFromGoogleSheet() {
+    if (typeof fetch !== "function") return;
+    try {
+      const url = "https://docs.google.com/spreadsheets/d/19ShqCzyAH7vJm1Ssph_Loer3Yh2WwfhnFD_XGFmqv_Q/gviz/tq?tqx=out:csv&sheet=Group%20Name";
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp || !resp.ok) return;
+      const csv = await resp.text();
+      const rows = parseSimpleCsvRows(csv);
+      if (rows.length < 2) return;
+      const header = rows[0].map((h) => String(h || "").trim().toLowerCase());
+      const idIdx = Math.max(0, header.findIndex((h) => h.includes("id")));
+      const nickIdx = header.findIndex((h) => h.includes("nick") || h.includes("ชื่อเล่น"));
+      if (nickIdx < 0) return;
+      let updatedCount = 0;
+      const freshMap = {};
+      for (let r = 1; r < rows.length; r++) {
+        const rawId = String(rows[r][idIdx] || "").replace(/\.0$/, "").trim();
+        const rawNick = cleanNicknameValue(rows[r][nickIdx]);
+        if (/^\d{7}$/.test(rawId) && rawNick) {
+          freshMap[rawId] = rawNick;
+        }
+      }
+      if (Object.keys(freshMap).length > 0) {
+        sheetNicknamesCache = { ...sheetNicknamesCache, ...freshMap };
+        try {
+          localStorage.setItem(SHEET_NICKNAMES_CACHE_KEY, JSON.stringify(sheetNicknamesCache));
+        } catch (_) {}
+        (ROSTER.students || []).forEach((s) => {
+          const next = getEffectiveNickname(s);
+          if (next && next !== s.nickname) {
+            s.nickname = next;
+            updatedCount++;
+          }
+        });
+        if (updatedCount > 0) {
+          if (state.activeTab === "discussion") renderDiscussionView();
+          else if (state.activeTab === "fieldwork") renderFieldworkView();
+          if (typeof renderRoleConcierge === "function") renderRoleConcierge();
+        }
+      }
+    } catch (_) {
+      // Silent fallback if offline
+    }
+  }
+
   /* ---------- Student Lookup & Personalization Sync ---------- */
   function findStudentByQuery(rawVal) {
     const q = String(rawVal || "").trim().toLocaleLowerCase("th");
@@ -237,13 +402,16 @@
       if (byId) return byId;
     }
     return (
-      ROSTER.students.find(
-        (s) =>
+      ROSTER.students.find((s) => {
+        const nick = getEffectiveNickname(s).toLocaleLowerCase("th");
+        return (
           q.startsWith(s.id) ||
+          (nick && nick === q) ||
           s.fullName.toLocaleLowerCase("th") === q ||
           s.name.toLocaleLowerCase("th") === q ||
           `${s.id} — ${s.fullName}`.toLocaleLowerCase("th") === q
-      ) || null
+        );
+      }) || null
     );
   }
 
@@ -2234,15 +2402,16 @@
   }
 
   function renderStudentCardElement(s, mode) {
-    const card = make("article", null, "student-card is-interactive");
+    const siteId = getSiteIdByAreaName(s.area);
+    const parts = getStudentNameParts(s);
+    const card = make("article", null, `student-card is-interactive card-site-${siteId} chip-site-${siteId}`);
     if (state.myStudent && state.myStudent.id === s.id) {
       card.classList.add("is-my-student");
     }
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `${s.fullName} รหัส ${s.id} คลิกเพื่อดูรายละเอียดและตารางเรียน`);
+    card.setAttribute("aria-label", `${parts.lead} ${parts.paren} รหัส ${s.id} คลิกเพื่อดูรายละเอียดและตารางเรียน`);
 
-    const siteId = getSiteIdByAreaName(s.area);
     const initials = studentInitials(s);
     const portrait = make("div", null, `student-portrait${state.showPhotos ? "" : " compact-avatar"}`);
     portrait.dataset.studentId = s.id || "";
@@ -2256,8 +2425,10 @@
     }
 
     card.appendChild(portrait);
-    card.appendChild(make("h3", s.nickname || s.fullName));
-    if (s.nickname) card.appendChild(make("p", s.fullName));
+    card.appendChild(make("h3", parts.lead, "stu-card-lead"));
+    if (parts.paren) {
+      card.appendChild(make("p", parts.paren, "stu-card-paren"));
+    }
     card.appendChild(make("p", `รหัส: ${s.id}${s.program === "MD-M.Eng" ? " (MD-M.Eng)" : ""}`, "sid-mono"));
 
     const pillWrap = make("div", null, "s-area area-sub-pill-wrap");
@@ -2317,6 +2488,7 @@
     const site = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area) || {};
     const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
     const isMine = state.myStudent && state.myStudent.id === s.id;
+    const parts = getStudentNameParts(s);
 
     const top = make("div", null, "cal-modal-top");
     const profileHead = make("div", null, "stu-quick-head");
@@ -2331,13 +2503,41 @@
     const headInfo = make("div", null, "stu-quick-title-col");
     const badgesRow = make("div", null, "stu-quick-badges");
     badgesRow.innerHTML = `<span class="badge cat-EP">รหัส ${escapeHtml(s.id)}</span>` +
+      `<span class="area-sub-pill sm area-site-${siteId}"><i class="area-dot"></i>${siteId}. ${escapeHtml(s.area)}</span>` +
       `<span class="badge">${escapeHtml(s.program === "MD-M.Eng" ? "พ.บ.–วศ.ม. (MD-M.Eng)" : "หลักสูตร พ.บ. ชั้นปีที่ 3")}</span>` +
       (isMine ? `<span class="badge cat-HS">★ ตารางของฉัน</span>` : "");
     headInfo.appendChild(badgesRow);
-    headInfo.appendChild(make("h3", s.nickname ? `${s.fullName} (${s.nickname})` : s.fullName));
+    const h3Title = make("h3", "");
+    h3Title.innerHTML = `${escapeHtml(parts.lead)}${parts.paren ? ` <span class="stu-modal-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
+    headInfo.appendChild(h3Title);
     headInfo.appendChild(
       make("p", `Discussion กลุ่มที่ ${s.disc}${rot.room ? " (ห้อง " + rot.room + ")" : ""} · พื้นที่ภาคสนาม ${siteId}. ${s.area}`, "stu-quick-sub")
     );
+
+    const nickBar = make("div", null, "stu-nick-inline-bar");
+    const nickInp = document.createElement("input");
+    nickInp.type = "text";
+    nickInp.className = "stu-nick-inline-input";
+    nickInp.placeholder = "ตั้ง/แก้ไขชื่อเล่น…";
+    nickInp.value = getEffectiveNickname(s);
+    const nickSaveBtn = make("button", "บันทึกชื่อเล่น", "btn sm teal");
+    nickSaveBtn.type = "button";
+    nickSaveBtn.addEventListener("click", () => {
+      saveStudentNicknameOverride(s.id, nickInp.value);
+      if (state.activeTab === "discussion") renderDiscussionView();
+      else if (state.activeTab === "fieldwork") renderFieldworkView();
+      if (typeof renderRoleConcierge === "function") renderRoleConcierge();
+      openStudentQuickModal(s);
+    });
+    nickInp.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        nickSaveBtn.click();
+      }
+    });
+    nickBar.append(make("span", "✏️ ชื่อเล่น:", "stu-nick-inline-lbl"), nickInp, nickSaveBtn);
+    headInfo.appendChild(nickBar);
+
     profileHead.append(portrait, headInfo);
 
     const closeBtn = make("button", "✕", "cal-modal-close");
@@ -2805,11 +3005,13 @@
   }
 
   function renderRosterMiniChip(s) {
-    const chip = make("button", null, "gsorter-member-chip");
+    const siteId = getSiteIdByAreaName(s.area);
+    const parts = getStudentNameParts(s);
+    const chip = make("button", null, `gsorter-member-chip chip-site-${siteId}`);
     chip.type = "button";
     if (state.myStudent && state.myStudent.id === s.id) chip.classList.add("is-mine");
-    const siteId = getSiteIdByAreaName(s.area);
-    chip.title = `${s.id} ${s.fullName}${s.nickname ? " (" + s.nickname + ")" : ""} · พื้นที่ ${siteId}. ${s.area}`;
+    const effNick = getEffectiveNickname(s);
+    chip.title = `${s.id} ${s.fullName}${effNick ? " (" + effNick + ")" : ""} · พื้นที่ ${siteId}. ${s.area}`;
 
     const av = make("span", null, "gsorter-chip-avatar");
     if (state.showPhotos && s.id) {
@@ -2826,14 +3028,39 @@
       av.textContent = studentInitials(s);
     }
 
-    const label = make("span", s.nickname || s.name || s.fullName, "gsorter-chip-name");
-    const dot = make("i", null, `gsorter-site-dot area-site-${siteId}`);
+    const label = make("span", null, "gsorter-chip-name");
+    label.innerHTML = `<strong class="chip-nick-lead">${escapeHtml(parts.lead)}</strong>${parts.paren ? ` <span class="chip-fullname-paren">${escapeHtml(parts.paren)}</span>` : ""}`;
+    const dot = make("i", null, `gsorter-site-dot chip-dot-site-${siteId}`);
     chip.append(av, label, dot);
     chip.addEventListener("click", (ev) => {
       ev.stopPropagation();
       openStudentQuickModal(s);
     });
     return chip;
+  }
+
+  function renderSiteGroupedMiniChips(students, containerEl) {
+    const sites = SCHED.fieldworkSites || [];
+    const grouped = new Map();
+    sites.forEach((site) => grouped.set(site.shortName, { site, list: [] }));
+    (students || []).forEach((s) => {
+      if (!grouped.has(s.area)) {
+        grouped.set(s.area, { site: { id: getSiteIdByAreaName(s.area), shortName: s.area }, list: [] });
+      }
+      grouped.get(s.area).list.push(s);
+    });
+
+    grouped.forEach(({ site, list }) => {
+      if (!list.length) return;
+      list.sort((a, b) => compareTH(a.id, b.id));
+      const subBlock = make("div", null, `gsorter-site-subgroup chip-site-${site.id}`);
+      const subHead = make("div", null, "gsorter-subgroup-head");
+      subHead.innerHTML = `<span class="area-sub-pill sm area-site-${site.id}"><i class="area-dot"></i>${escapeHtml(site.shortName)} (${list.length})</span>`;
+      const pillsWrap = make("div", null, "gsorter-subgroup-pills");
+      list.forEach((s) => pillsWrap.appendChild(renderRosterMiniChip(s)));
+      subBlock.append(subHead, pillsWrap);
+      containerEl.appendChild(subBlock);
+    });
   }
 
   function renderRosterGroupSorter(scope, stageEl, q, areaSubVal, activeGroupVal) {
@@ -2843,7 +3070,7 @@
 
     const bar = make("div", null, "gsorter-info-bar");
     bar.innerHTML = isDisc
-      ? `<span><strong>⊞ Group Sorter (6 กลุ่ม Discussion)</strong> — ย่อ/ขยายด้วยปุ่ม <code>−</code> <code>+</code> หรือ <code>Alt + เลื่อนเมาส์</code> · คลิกชื่อนักศึกษาเพื่อดูตารางรายบุคคล หรือคลิกการ์ดกลุ่มเพื่อซูมเข้าโหมด <em>ทีละกลุ่ม</em></span>`
+      ? `<span><strong>⊞ Group Sorter (6 กลุ่ม Discussion · จัดกลุ่มย่อยตามพื้นที่แหล่งฝึก 9 แห่ง)</strong> — ย่อ/ขยายด้วยปุ่ม <code>−</code> <code>+</code> หรือ <code>Alt + เลื่อนเมาส์</code> · คลิกชื่อนักศึกษาเพื่อดูตาราง/ตั้งชื่อเล่น</span>`
       : `<span><strong>⊞ Group Sorter (9 พื้นที่ภาคสนาม)</strong> — เปรียบเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางครบทั้ง 9 รพช. ในมุมสูง · คลิกชื่อนักศึกษาเพื่อดูข้อมูลด่วน</span>`;
     stageEl.appendChild(bar);
 
@@ -2851,7 +3078,7 @@
     const matchStudent = (s) => {
       if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
       if (!q) return true;
-      const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+      const hay = `${s.id} ${s.fullName} ${getEffectiveNickname(s)} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
       return hay.includes(q);
     };
 
@@ -2888,9 +3115,11 @@
         mixWrap.innerHTML = buildDiscSiteBreakdownHtml(matched.length ? matched : allMembers, g.id);
         card.appendChild(mixWrap);
 
-        const mosaic = make("div", null, "gsorter-avatar-mosaic");
-        (hasFilter ? matched : allMembers).forEach((s) => mosaic.appendChild(renderRosterMiniChip(s)));
-        if (hasFilter && !matched.length) {
+        const mosaic = make("div", null, "gsorter-avatar-mosaic is-site-grouped");
+        const toShow = hasFilter ? matched : allMembers;
+        if (toShow.length) {
+          renderSiteGroupedMiniChips(toShow, mosaic);
+        } else if (hasFilter) {
           mosaic.appendChild(make("span", "ไม่มีสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "gsorter-empty-note"));
         }
         card.appendChild(mosaic);
@@ -3100,13 +3329,15 @@
     const matchStudent = (s) => {
       if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
       if (!q) return true;
-      const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+      const hay = `${s.id} ${s.fullName} ${getEffectiveNickname(s)} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
       return hay.includes(q);
     };
 
     if (isDisc) {
       const rot = (SCHED.hsRotation || []).find((r) => r.group === curGroupObj.id) || {};
-      const groupAll = ROSTER.students.filter((s) => s.disc === curGroupObj.id).sort((a, b) => compareTH(a.id, b.id));
+      const groupAll = ROSTER.students
+        .filter((s) => s.disc === curGroupObj.id)
+        .sort((a, b) => getSiteIdByAreaName(a.area) - getSiteIdByAreaName(b.area) || compareTH(a.id, b.id));
       const members = groupAll.filter(matchStudent);
 
       const banner = make("div", null, "gdeck-info-banner");
@@ -3131,7 +3362,19 @@
       if (!members.length) {
         grid.appendChild(make("div", "ไม่มีสมาชิกในกลุ่มนี้ที่ตรงกับคำค้นหา/ป้ายพื้นที่ที่เลือก", "empty-state"));
       } else {
-        members.forEach((s) => grid.appendChild(renderStudentCardElement(s, "discussion")));
+        let lastSiteArea = null;
+        members.forEach((s) => {
+          if (s.area !== lastSiteArea) {
+            lastSiteArea = s.area;
+            const sId = getSiteIdByAreaName(s.area);
+            const sMeta = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area);
+            const sCount = members.filter((m) => m.area === s.area).length;
+            const subBand = make("div", null, `disc-site-subband chip-site-${sId}`);
+            subBand.innerHTML = `<span class="area-sub-pill area-site-${sId}"><i class="area-dot"></i>${sId}. ${escapeHtml(s.area)}</span><span class="disc-subband-meta">${sMeta ? escapeHtml(sMeta.hospital) + " (" + escapeHtml(sMeta.province) + ") · " : ""}${sCount} คน</span>`;
+            grid.appendChild(subBand);
+          }
+          grid.appendChild(renderStudentCardElement(s, "discussion"));
+        });
       }
       slideCard.appendChild(grid);
     } else {
@@ -3565,8 +3808,8 @@
       } else if (discOnly) {
         members = ROSTER.students
           .filter((s) => String(s.disc) === String(discOnly))
-          .sort((a, b) => compareTH(a.id, b.id));
-        headHtml = `<span class="badge cat-HS">กลุ่ม Discussion ที่ ${escapeHtml(discOnly)}</span><span class="ghp-count">${members.length} คน</span>`;
+          .sort((a, b) => getSiteIdByAreaName(a.area) - getSiteIdByAreaName(b.area) || compareTH(a.id, b.id));
+        headHtml = `<span class="badge cat-HS">กลุ่ม Discussion ที่ ${escapeHtml(discOnly)}</span><span class="ghp-count">${members.length} คน · แยกตามพื้นที่แหล่งฝึก</span>`;
       }
 
       if (!members.length) {
@@ -3579,9 +3822,10 @@
       head.innerHTML = headHtml;
       pop.appendChild(head);
 
-      const listEl = make("div", null, `ghp-list${members.length > 6 ? " is-two-col" : ""}`);
-      members.forEach((s) => {
-        const row = make("button", null, "ghp-person");
+      const buildPersonRow = (s) => {
+        const sSiteId = getSiteIdByAreaName(s.area);
+        const parts = getStudentNameParts(s);
+        const row = make("button", null, `ghp-person chip-site-${sSiteId}`);
         row.type = "button";
         const av = make("span", null, "ghp-avatar");
         if (s.id) {
@@ -3597,18 +3841,35 @@
           av.textContent = studentInitials(s);
         }
         const txt = make("span", null, "ghp-txt");
-        const nick = s.nickname ? `${s.nickname}` : s.name || s.fullName;
-        const shortFull = s.nickname ? (s.name || s.fullName) : `รหัส ${s.id}`;
-        txt.innerHTML = `<strong>${escapeHtml(nick)}</strong><small>${escapeHtml(shortFull)}</small>`;
-        row.append(av, txt);
+        txt.innerHTML = `<strong>${escapeHtml(parts.lead)}</strong>${parts.paren ? `<small>${escapeHtml(parts.paren)}</small>` : ""}`;
+        const dot = make("i", null, `gsorter-site-dot chip-dot-site-${sSiteId}`);
+        row.append(av, txt, dot);
         row.addEventListener("click", (ev) => {
           ev.stopPropagation();
           pop.hidden = true;
           openStudentQuickModal(s);
         });
-        listEl.appendChild(row);
-      });
-      pop.appendChild(listEl);
+        return row;
+      };
+
+      if (discOnly && !areaName) {
+        const groupedWrap = make("div", null, "ghp-grouped-sites");
+        (SCHED.fieldworkSites || []).forEach((site) => {
+          const sub = members.filter((s) => s.area === site.shortName);
+          if (!sub.length) return;
+          const sec = make("div", null, `ghp-site-sec chip-site-${site.id}`);
+          sec.innerHTML = `<div class="ghp-site-sec-head"><span class="area-sub-pill sm area-site-${site.id}"><i class="area-dot"></i>${escapeHtml(site.shortName)} (${sub.length})</span></div>`;
+          const subGrid = make("div", null, `ghp-list${sub.length > 3 ? " is-two-col" : ""}`);
+          sub.forEach((s) => subGrid.appendChild(buildPersonRow(s)));
+          sec.appendChild(subGrid);
+          groupedWrap.appendChild(sec);
+        });
+        pop.appendChild(groupedWrap);
+      } else {
+        const listEl = make("div", null, `ghp-list${members.length > 6 ? " is-two-col" : ""}`);
+        members.forEach((s) => listEl.appendChild(buildPersonRow(s)));
+        pop.appendChild(listEl);
+      }
 
       pop.hidden = false;
       positionPopover(anchor);
@@ -3915,11 +4176,7 @@
         const backBtn = make("button", "กลับไปปฏิทินสอน", "btn sm");
         backBtn.type = "button";
         backBtn.addEventListener("click", () => switchTab("schedule"));
-        const gasLink = make("a", "เปิดดูรูปถ่ายใน Apps Script ↗", "btn sm teal");
-        gasLink.href = buildAppsScriptDeepLink("", discVal || c.groupId);
-        gasLink.target = "_blank";
-        gasLink.rel = "noopener";
-        right.append(backBtn, gasLink);
+        right.append(backBtn);
         ctxBox.append(left, right);
       }
     }
@@ -3933,13 +4190,13 @@
       if (q) {
         const rot = (SCHED.hsRotation || []).find((r) => r.group === s.disc) || {};
         const teachers = HS_SLOTS_META.map((m) => (rot[m.mod] && rot[m.mod].instructor) || "").join(" ");
-        const hay = `${s.id} ${s.fullName} ${s.nickname} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""} ${teachers}`.toLocaleLowerCase("th");
+        const hay = `${s.id} ${s.fullName} ${getEffectiveNickname(s)} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""} ${teachers}`.toLocaleLowerCase("th");
         if (!hay.includes(q)) return false;
       }
       return true;
     });
 
-    list.sort((a, b) => a.disc - b.disc || compareTH(a.id, b.id));
+    list.sort((a, b) => a.disc - b.disc || getSiteIdByAreaName(a.area) - getSiteIdByAreaName(b.area) || compareTH(a.id, b.id));
     state.visibleDiscStudents = list;
 
     const rotObj = discVal ? (SCHED.hsRotation || []).find((r) => String(r.group) === discVal) : null;
@@ -3978,9 +4235,11 @@
       cardsEl.appendChild(make("div", "ไม่พบรายชื่อสมาชิกกลุ่ม Discussion ที่ตรงกับเงื่อนไขที่เลือก", "empty-state"));
     } else {
       let lastDisc = null;
+      let lastAreaInDisc = null;
       list.forEach((s) => {
         if (!discVal && s.disc !== lastDisc) {
           lastDisc = s.disc;
+          lastAreaInDisc = null;
           const gMeta = (SCHED.hsGroups || []).find((g) => g.id === s.disc);
           const rMeta = (SCHED.hsRotation || []).find((r) => r.group === s.disc);
           const groupMembers = list.filter((st) => st.disc === s.disc);
@@ -3997,6 +4256,16 @@
           mixRow.innerHTML = buildDiscSiteBreakdownHtml(groupMembers, s.disc);
           h.append(leftCol, mixRow);
           cardsEl.appendChild(h);
+        }
+        const areaKey = `${s.disc}::${s.area}`;
+        if (!areaSubVal && areaKey !== lastAreaInDisc) {
+          lastAreaInDisc = areaKey;
+          const sId = getSiteIdByAreaName(s.area);
+          const sMeta = (SCHED.fieldworkSites || []).find((x) => x.shortName === s.area);
+          const sCount = list.filter((st) => st.disc === s.disc && st.area === s.area).length;
+          const subBand = make("div", null, `disc-site-subband chip-site-${sId}`);
+          subBand.innerHTML = `<span class="area-sub-pill area-site-${sId}"><i class="area-dot"></i>${sId}. ${escapeHtml(s.area)}</span><span class="disc-subband-meta">${sMeta ? escapeHtml(sMeta.hospital) + " (" + escapeHtml(sMeta.province) + ") · " : ""}${sCount} คน</span>`;
+          cardsEl.appendChild(subBand);
         }
         cardsEl.appendChild(renderStudentCardElement(s, "discussion"));
       });
@@ -7716,7 +7985,6 @@
 
     const headBar = make("div", null, "concierge-head");
     const headLeft = make("div", null, "concierge-head-left");
-    const badgeIcon = make("span", ROLE === "faculty" ? "👨‍⚕️" : "🧭", "concierge-badge-ico");
     const titleWrap = make("div", null, "concierge-head-titles");
     const hTitle = make(
       "strong",
@@ -7728,7 +7996,7 @@
     const liveSummary = make("span", "", "concierge-live-pill");
     liveSummary.id = "conciergeLiveSummary";
     titleWrap.append(hTitle, liveSummary);
-    headLeft.append(badgeIcon, titleWrap);
+    headLeft.appendChild(titleWrap);
 
     const headRight = make("div", null, "concierge-head-right");
     const spotTriggerBtn = make("button", "🔍 ค้นหาทุกอย่าง (⌘K)", "btn sm");
@@ -8969,7 +9237,7 @@
       searchFabBtn.type = "button";
       searchFabBtn.addEventListener("click", () => openGlobalSpotlight());
 
-      const myDayFabBtn = make("button", ROLE === "faculty" ? "👨‍⚕️ คาบสอน & ห้องคุม" : "🧭 ห้องเรียน & กลุ่มฉัน", "fab-pill-btn");
+      const myDayFabBtn = make("button", ROLE === "faculty" ? "คาบสอน & ห้องคุม" : "ห้องเรียน & กลุ่มฉัน", "fab-pill-btn");
       myDayFabBtn.type = "button";
       myDayFabBtn.addEventListener("click", () => {
         state.conciergeOpen = true;
@@ -11348,6 +11616,15 @@
         } else if (data.kind === "leave_updated") {
           syncLeaveNotificationBadges();
           if (state.activeTab === "leave") renderLeavePortalView();
+        } else if (data.kind === "nicknames_updated") {
+          nicknameOverridesCache = loadJsonMapSafe(NICKNAME_OVERRIDES_KEY);
+          (ROSTER.students || []).forEach((s) => {
+            const eff = getEffectiveNickname(s);
+            if (eff) s.nickname = eff;
+          });
+          if (state.activeTab === "discussion") renderDiscussionView();
+          else if (state.activeTab === "fieldwork") renderFieldworkView();
+          if (typeof renderRoleConcierge === "function") renderRoleConcierge();
         }
       });
     }
@@ -11515,6 +11792,7 @@
     }
     initRoleConcierge();
     initGlobalSpotlightAndFab();
+    syncLiveNicknamesFromGoogleSheet();
 
     const params = new URLSearchParams(window.location.search);
     const moodleParam = params.get("moodle_url");
