@@ -93,8 +93,10 @@
     adminSortAsc: true,
     myTeacherKey: localStorage.getItem("racm303_my_teacher") || "",
     conciergeDateISO: "",
-    conciergeOpen: localStorage.getItem("racm303_concierge_open") !== "0",
+    conciergeOpen: localStorage.getItem("racm303_concierge_tab_open") === "1",
+    conciergeTab: "today",
     conciergeTeacherAllDays: false,
+    mapInspectorStyle: "formation",
     ramedLoginId: localStorage.getItem("racm303_login_uid") || "",
     fieldOverviewStyle: "map", // map | cards
     mapHoverSite: "",
@@ -3047,6 +3049,7 @@
     if (dock) {
       return {
         dock,
+        formationStage: parent.querySelector(`.roster-formation-stage[data-scope="${scope}"]`),
         sorterStage: parent.querySelector(`.roster-gsorter-stage[data-scope="${scope}"]`),
         deckStage: parent.querySelector(`.roster-gdeck-stage[data-scope="${scope}"]`),
         tableStage: parent.querySelector(`.roster-admin-table-stage[data-scope="${scope}"]`),
@@ -3102,6 +3105,7 @@
     viewSeg.setAttribute("aria-label", "เลือกรูปแบบการแสดงรายชื่อกลุ่ม");
     const modes = [
       { id: "cards", label: "☰ การ์ดรูป", title: "มุมมองการ์ดรูปถ่ายต่อเนื่อง (ย่อ-ขยายขนาดการ์ดได้)" },
+      { id: "formation", label: "⚡ Formation", title: "ผังทีมแบบ Broadcast Formation พร้อมแท็บสลับกลุ่มกระชับ" },
       { id: "deck", label: "▣ ทีละกลุ่ม", title: "เลื่อนดูทีละกลุ่มซ้าย-ขวา (ลูกศร ← / → หรือปัดนิ้ว)" },
       { id: "sorter", label: "⊞ Group Sorter", title: "กระดานภาพรวมทุกกลุ่มพร้อมกัน ย่อ-ขยายเทียบสมาชิกทุกกลุ่ม" },
       { id: "table", label: "≡ ตาราง Admin", title: "ตารางจัดการรายชื่อสำหรับผู้ประสานงาน เรียงคอลัมน์และส่งออกได้ทันที" }
@@ -3115,14 +3119,14 @@
         if (isDisc) {
           state.discViewMode = m.id;
           const curSel = ($("discGroupSelect") && $("discGroupSelect").value) || "";
-          if (m.id === "deck" && curSel) {
+          if ((m.id === "deck" || m.id === "formation") && curSel) {
             state.discDeckIdx = Math.max(0, Number(curSel) - 1);
           }
           renderDiscussionView();
         } else {
           state.fieldViewMode = m.id;
           const curArea = ($("fieldAreaSelect") && $("fieldAreaSelect").value) || "";
-          if (m.id === "deck" && curArea) {
+          if ((m.id === "deck" || m.id === "formation") && curArea) {
             const foundIdx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === curArea);
             if (foundIdx >= 0) state.fieldDeckIdx = foundIdx;
           }
@@ -3191,6 +3195,10 @@
     jumpStrip.dataset.jumpStrip = scope;
     dock.append(topRow, jumpStrip);
 
+    const formationStage = make("div", null, "roster-formation-stage");
+    formationStage.dataset.scope = scope;
+    formationStage.hidden = true;
+
     const sorterStage = make("div", null, "roster-gsorter-stage");
     sorterStage.dataset.scope = scope;
     sorterStage.hidden = true;
@@ -3206,6 +3214,7 @@
     const printHeading = $(isDisc ? "discPrintHeading" : "fieldPrintHeading");
     const anchorBefore = printHeading || cardsEl;
     parent.insertBefore(dock, anchorBefore);
+    parent.insertBefore(formationStage, cardsEl);
     parent.insertBefore(sorterStage, cardsEl);
     parent.insertBefore(deckStage, cardsEl);
     parent.insertBefore(tableStage, cardsEl);
@@ -3232,7 +3241,7 @@
         if (($("imageLightbox") && !$("imageLightbox").hidden) || ($("studentQuickModal") && !$("studentQuickModal").hidden) || ($("globalSpotlightModal") && !$("globalSpotlightModal").hidden)) {
           return;
         }
-        if (state.activeTab === "discussion" && state.discViewMode === "deck") {
+        if (state.activeTab === "discussion" && (state.discViewMode === "deck" || state.discViewMode === "formation")) {
           const total = (SCHED.hsGroups || []).length || 6;
           if (ev.key === "ArrowRight") {
             ev.preventDefault();
@@ -3243,7 +3252,7 @@
             state.discDeckIdx = (state.discDeckIdx - 1 + total) % total;
             renderDiscussionView();
           }
-        } else if (state.activeTab === "fieldwork" && state.fieldViewMode === "deck") {
+        } else if (state.activeTab === "fieldwork" && (state.fieldViewMode === "deck" || state.fieldViewMode === "formation")) {
           const total = (SCHED.fieldworkSites || []).length || 9;
           if (ev.key === "ArrowRight") {
             ev.preventDefault();
@@ -3259,7 +3268,7 @@
     }
 
     applyRosterZoomVars();
-    return { dock, sorterStage, deckStage, tableStage, cardsEl };
+    return { dock, formationStage, sorterStage, deckStage, tableStage, cardsEl };
   }
 
   function printSingleGroupHelper(scope, groupValue) {
@@ -3866,6 +3875,362 @@
     stageEl.appendChild(wrap);
   }
 
+  function computeFormationSplit(count) {
+    const n = Number(count) || 0;
+    if (n <= 0) return [];
+    if (n <= 5) return [n];
+    if (n === 18) return [4, 5, 5, 4];
+    if (n === 19) return [4, 5, 5, 5];
+    if (n === 20) return [4, 5, 6, 5];
+    if (n === 28) return [5, 6, 6, 6, 5];
+    if (n === 29) return [5, 6, 6, 6, 6];
+    const rows = n <= 11 ? 2 : n <= 16 ? 3 : n <= 23 ? 4 : 5;
+    const base = Math.floor(n / rows);
+    let rem = n % rows;
+    const arr = new Array(rows).fill(base);
+    // Distribute remainder from middle rows outward for balanced tactical symmetry
+    const order = [];
+    const mid = Math.floor(rows / 2);
+    for (let offset = 0; order.length < rows; offset++) {
+      if (mid + offset < rows) order.push(mid + offset);
+      if (offset > 0 && mid - offset >= 0) order.push(mid - offset);
+    }
+    for (let i = 0; i < rem; i++) {
+      arr[order[i % order.length]] += 1;
+    }
+    return arr;
+  }
+
+  function buildFormationPlayerNode(s, mode, rowIdx, colIdx) {
+    const siteId = getSiteIdByAreaName(s.area);
+    const siteColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff";
+    const parts = getStudentNameParts(s);
+    const isMine = state.myStudent && state.myStudent.id === s.id;
+    const cleanFull = String(s.name || s.fullName || "").trim();
+    const firstFormal = cleanFull.split(/\s+/)[0] || s.id;
+
+    const btn = make("button", null, `fm-player-node${isMine ? " is-mine" : ""}`);
+    btn.type = "button";
+    btn.style.setProperty("--fm-delay", `${rowIdx * 55 + colIdx * 24}ms`);
+    btn.style.setProperty("--node-color", siteColor);
+    const effNick = getEffectiveNickname(s);
+    btn.title = `${s.id} ${s.fullName}${effNick ? " (" + effNick + ")" : ""} · Discussion กลุ่ม ${s.disc} · พื้นที่ ${siteId}.${s.area}`;
+
+    const avWrap = make("div", null, "fm-avatar-wrap");
+    const ring = make("div", null, "fm-avatar-ring");
+    if (state.showPhotos && s.id) {
+      const img = document.createElement("img");
+      img.src = `assets/photos/${encodeURIComponent(s.id)}.jpg`;
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.onerror = () => {
+        ring.textContent = studentInitials(s);
+      };
+      ring.appendChild(img);
+    } else {
+      ring.textContent = studentInitials(s);
+    }
+
+    const collar = make(
+      "span",
+      mode === "discussion" ? `S${siteId}` : `G${s.disc}`,
+      "fm-collar-badge"
+    );
+    avWrap.append(ring, collar);
+
+    const plate = make("div", null, "fm-nameplate");
+    const leadTxt = isMine ? `★ ${parts.lead}` : parts.lead;
+    const subTxt =
+      mode === "discussion"
+        ? `${s.area}`
+        : parts.hasNick
+        ? `${firstFormal} · ${s.id.slice(-3)}`
+        : `${s.id}`;
+    plate.innerHTML =
+      `<span class="fm-plate-lead">${escapeHtml(leadTxt)}</span>` +
+      `<span class="fm-plate-sub">${escapeHtml(subTxt)}</span>`;
+
+    btn.append(avWrap, plate);
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openStudentQuickModal(s);
+    });
+    return btn;
+  }
+
+  function buildPitchSvgOverlay() {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 600 400");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("class", "fm-pitch-svg");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML =
+      `<rect x="6" y="6" width="588" height="388" rx="10" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>` +
+      `<line x1="6" y1="200" x2="594" y2="200" stroke="rgba(255,255,255,0.11)" stroke-width="1.3"/>` +
+      `<circle cx="300" cy="200" r="48" fill="none" stroke="rgba(255,255,255,0.11)" stroke-width="1.3"/>` +
+      `<circle cx="300" cy="200" r="3" fill="rgba(255,255,255,0.18)"/>` +
+      `<rect x="195" y="6" width="210" height="52" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="1.2"/>` +
+      `<rect x="195" y="342" width="210" height="52" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="1.2"/>`;
+    return svg;
+  }
+
+  function renderBroadcastFormationBoard(opts) {
+    const {
+      mode, // "fieldwork" | "discussion"
+      wide = false,
+      tabs = [], // [{ id, label, color, active, onClick, onHover }]
+      crestKicker,
+      crestNum,
+      teamColor = "#007aff",
+      eyebrowText,
+      titleText,
+      subText,
+      mentorLabel,
+      mentorValue,
+      coachesRot = null,
+      members = [],
+      viewStyle = "formation", // "formation" | "chips"
+      onToggleStyle = null,
+      footerActions = null
+    } = opts;
+
+    const sortedMembers = [...members].sort((a, b) => {
+      if (mode === "discussion") {
+        return getSiteIdByAreaName(a.area) - getSiteIdByAreaName(b.area) || compareTH(a.id, b.id);
+      }
+      return a.disc - b.disc || compareTH(a.id, b.id);
+    });
+    const splitCounts = computeFormationSplit(sortedMembers.length);
+    const formationCode = splitCounts.length ? splitCounts.join("-") : "0";
+
+    const board = make("div", null, `fm-board${wide ? " is-wide" : ""}`);
+    board.style.setProperty("--fm-team-color", teamColor);
+
+    if (tabs.length) {
+      const tabStrip = make("div", null, "fm-team-tabs");
+      tabStrip.setAttribute("role", "tablist");
+      tabs.forEach((t) => {
+        const b = make("button", null, `fm-team-tab${t.active ? " is-active" : ""}`);
+        b.type = "button";
+        b.setAttribute("role", "tab");
+        b.setAttribute("aria-selected", t.active ? "true" : "false");
+        if (t.color) b.style.setProperty("--tab-c", t.color);
+        b.innerHTML = (t.color ? `<i class="fm-tab-dot"></i>` : "") + `<span>${escapeHtml(t.label)}</span>`;
+        if (t.onHover) b.addEventListener("mouseenter", t.onHover);
+        if (t.onClick) b.addEventListener("click", t.onClick);
+        tabStrip.appendChild(b);
+      });
+      board.appendChild(tabStrip);
+    }
+
+    const head = make("div", null, "fm-broadcast-head");
+    const hLeft = make("div", null, "fm-head-left");
+    const crest = make("div", null, "fm-crest-box");
+    crest.innerHTML = `<span class="fm-crest-kicker">${escapeHtml(crestKicker)}</span><span class="fm-crest-num">${escapeHtml(crestNum)}</span>`;
+
+    const hTitles = make("div", null, "fm-head-titles");
+    hTitles.innerHTML =
+      `<div class="fm-head-eyebrow"><span>${escapeHtml(eyebrowText)}</span><span class="fm-formation-tag">FORMATION ${escapeHtml(formationCode)}</span><span>· ${sortedMembers.length} คน</span></div>` +
+      `<h3 class="fm-head-name">${escapeHtml(titleText)}</h3>` +
+      (subText ? `<p class="fm-head-sub">${escapeHtml(subText)}</p>` : "");
+    hLeft.append(crest, hTitles);
+
+    const hRight = make("div", null, "fm-head-right");
+    if (mentorValue) {
+      const plaque = make("div", null, "fm-mentor-plaque");
+      plaque.innerHTML =
+        `<span class="fm-mentor-lbl">${escapeHtml(mentorLabel || "อาจารย์ที่ปรึกษา")}</span>` +
+        `<span class="fm-mentor-val">${escapeHtml(mentorValue)}</span>`;
+      hRight.appendChild(plaque);
+    }
+
+    if (typeof onToggleStyle === "function") {
+      const sw = make("div", null, "fm-mode-switch");
+      const bForm = make("button", "⚡ ผังทีม", "fm-mode-btn");
+      bForm.type = "button";
+      bForm.setAttribute("aria-pressed", viewStyle === "formation" ? "true" : "false");
+      bForm.addEventListener("click", () => onToggleStyle("formation"));
+
+      const bChips = make("button", "☰ รายชื่อ", "fm-mode-btn");
+      bChips.type = "button";
+      bChips.setAttribute("aria-pressed", viewStyle === "chips" ? "true" : "false");
+      bChips.addEventListener("click", () => onToggleStyle("chips"));
+      sw.append(bForm, bChips);
+      hRight.appendChild(sw);
+    }
+
+    head.append(hLeft, hRight);
+    board.appendChild(head);
+
+    if (coachesRot) {
+      const cStrip = make("div", null, "fm-coaches-strip");
+      ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
+        const cell = coachesRot[mod] || {};
+        const item = make("div", null, "fm-coach-cell");
+        item.innerHTML = `<strong>${mod} · ${escapeHtml(cell.room || coachesRot.room || "")}</strong><span>${escapeHtml(cell.instructor || "-")}</span>`;
+        cStrip.appendChild(item);
+      });
+      board.appendChild(cStrip);
+    }
+
+    if (viewStyle === "chips") {
+      const chipBody = make("div", null, "th-inspector-body");
+      chipBody.style.background = "#ffffff";
+      chipBody.style.padding = "12px";
+      const mosaic = make("div", null, "gsorter-avatar-mosaic th-ins-mosaic");
+      sortedMembers.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      chipBody.appendChild(mosaic);
+      board.appendChild(chipBody);
+    } else {
+      const pitch = make("div", null, "fm-pitch-stage");
+      pitch.appendChild(buildPitchSvgOverlay());
+      const stack = make("div", null, "fm-lines-stack");
+      if (!sortedMembers.length) {
+        const emp = make("div", "ไม่พบสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "empty-state");
+        emp.style.background = "rgba(255,255,255,0.92)";
+        stack.appendChild(emp);
+      } else {
+        let cursor = 0;
+        splitCounts.forEach((cnt, rIdx) => {
+          const rowEl = make("div", null, "fm-line-row");
+          const slice = sortedMembers.slice(cursor, cursor + cnt);
+          cursor += cnt;
+          slice.forEach((stu, cIdx) => {
+            rowEl.appendChild(buildFormationPlayerNode(stu, mode, rIdx, cIdx));
+          });
+          stack.appendChild(rowEl);
+        });
+      }
+      pitch.appendChild(stack);
+      board.appendChild(pitch);
+    }
+
+    if (footerActions) {
+      const foot = make("div", null, "fm-board-foot");
+      foot.appendChild(footerActions);
+      board.appendChild(foot);
+    }
+
+    return board;
+  }
+
+  function renderRosterFormationStage(scope, stageEl, q, areaSubVal) {
+    if (!stageEl) return;
+    stageEl.replaceChildren();
+    const isDisc = scope === "discussion";
+    const groups = isDisc ? SCHED.hsGroups || [] : SCHED.fieldworkSites || [];
+    if (!groups.length) return;
+
+    const rawIdx = isDisc ? state.discDeckIdx : state.fieldDeckIdx;
+    const idx = ((rawIdx % groups.length) + groups.length) % groups.length;
+    if (isDisc) state.discDeckIdx = idx;
+    else state.fieldDeckIdx = idx;
+
+    const curObj = groups[idx];
+    const matchStudent = (s) => {
+      if (isDisc && areaSubVal && s.area !== areaSubVal) return false;
+      if (!q) return true;
+      const hay = `${s.id} ${s.fullName} ${getEffectiveNickname(s)} discussion กลุ่มที่ ${s.disc} ${s.area} ${s.advisor || ""}`.toLocaleLowerCase("th");
+      return hay.includes(q);
+    };
+
+    const tabs = groups.map((g, i) => ({
+      id: isDisc ? String(g.id) : g.shortName,
+      label: isDisc ? `G${g.id} · ${g.defaultRoom.split(" ")[0]}` : `${g.id}.${g.shortName}`,
+      color: isDisc ? "#ffb81c" : (SITE_PIN_COLORS[g.id] || "#007aff"),
+      active: i === idx,
+      onClick: () => {
+        if (isDisc) {
+          state.discDeckIdx = i;
+          if ($("discGroupSelect")) $("discGroupSelect").value = String(g.id);
+          renderDiscussionView();
+        } else {
+          state.fieldDeckIdx = i;
+          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = g.shortName;
+          renderFieldworkView();
+        }
+      }
+    }));
+
+    const footActs = make("div", null, "header-actions");
+    if (isDisc) {
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === curObj.id) || {};
+      const allM = ROSTER.students.filter((s) => s.disc === curObj.id);
+      const shownM = allM.filter(matchStudent);
+
+      const pdfBtn = make("a", null, "btn sm pdf-red");
+      pdfBtn.href = `exports/pdf/RACM303_2569_Discussion_G${curObj.id}.pdf`;
+      pdfBtn.setAttribute("download", `ใบรายชื่อ_Discussion_กลุ่มที่_${curObj.id}_A4.pdf`);
+      pdfBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF`;
+
+      const printBtn = make("button", null, "btn sm print-ink");
+      printBtn.type = "button";
+      printBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (A4)`;
+      printBtn.addEventListener("click", () => printSingleGroupHelper("discussion", curObj.id));
+      footActs.append(pdfBtn, printBtn);
+
+      stageEl.appendChild(
+        renderBroadcastFormationBoard({
+          mode: "discussion",
+          wide: true,
+          tabs,
+          crestKicker: "GROUP",
+          crestNum: `G${curObj.id}`,
+          teamColor: "#0b4db3",
+          eyebrowText: `กลุ่มอภิปรายระบบสุขภาพ HS1–HS6`,
+          titleText: `Discussion กลุ่มที่ ${curObj.id} · ห้องหลัก ${rot.room || curObj.defaultRoom}`,
+          subText: `จัดแถวตามสังกัดโรงพยาบาลภาคสนาม (S1–S9) · คลิกที่การ์ดนักศึกษาเพื่อดูตารางเรียนส่วนตัว`,
+          mentorLabel: "อาจารย์ประจำกลุ่มหมุนเวียน",
+          mentorValue: "ครบ 6 คาบ HS1–HS6 (แสดงรายคาบด้านล่าง)",
+          coachesRot: rot,
+          members: shownM,
+          footerActions: footActs
+        })
+      );
+    } else {
+      const site = curObj;
+      const geo = (typeof SITE_GEO_COORDS !== "undefined" && SITE_GEO_COORDS[site.id]) || {};
+      const allM = ROSTER.students.filter((s) => s.area === site.shortName);
+      const shownM = allM.filter(matchStudent);
+
+      const pdfBtn = make("a", null, "btn sm pdf-red");
+      pdfBtn.href = `exports/pdf/RACM303_2569_Fieldwork_S${site.id}.pdf`;
+      pdfBtn.setAttribute("download", `ใบรายชื่อ_ภาคสนาม_กลุ่ม${site.id}_${site.shortName}_A4.pdf`);
+      pdfBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF`;
+
+      const printBtn = make("button", null, "btn sm print-ink");
+      printBtn.type = "button";
+      printBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print (A4)`;
+      printBtn.addEventListener("click", () => printSingleGroupHelper("fieldwork", site.shortName));
+
+      const icsBtn = make("a", null, "btn sm teal");
+      icsBtn.href = `calendars/group_${site.id}_${site.slug}.ics`;
+      icsBtn.setAttribute("download", `RACM303_2569_group_${site.id}_${site.slug}.ics`);
+      icsBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export .ics`;
+      footActs.append(pdfBtn, printBtn, icsBtn);
+
+      stageEl.appendChild(
+        renderBroadcastFormationBoard({
+          mode: "fieldwork",
+          wide: true,
+          tabs,
+          crestKicker: "SITE",
+          crestNum: String(site.id).padStart(2, "0"),
+          teamColor: (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff",
+          eyebrowText: `พื้นที่ที่ ${site.id} · ${geo.region || site.province}`,
+          titleText: `${site.hospital} (${site.province})`,
+          subText: `ห้องกลุ่มย่อย ${site.room} · ช่วงฝึก ${site.datesTH} · จัดแถวตามกลุ่ม Discussion (G1–G6)`,
+          mentorLabel: "อาจารย์ที่ปรึกษาประจำพื้นที่",
+          mentorValue: site.advisors,
+          members: shownM,
+          footerActions: footActs
+        })
+      );
+    }
+  }
+
   function syncRosterSuiteUI(scope, opts) {
     const suite = ensureRosterSuite(scope);
     if (!suite) return;
@@ -3930,7 +4295,7 @@
           p.type = "button";
           p.dataset.hoverDiscOnly = String(g.id);
           p.addEventListener("click", () => {
-            if (state.discViewMode === "deck") {
+            if (state.discViewMode === "deck" || state.discViewMode === "formation") {
               state.discDeckIdx = idx;
               renderDiscussionView();
               return;
@@ -3955,7 +4320,7 @@
           p.dataset.hoverArea = site.shortName;
           p.innerHTML = `<i class="area-dot"></i><span>${site.id}. ${escapeHtml(site.shortName)}</span><strong>(${cnt})</strong>`;
           p.addEventListener("click", () => {
-            if (state.fieldViewMode === "deck") {
+            if (state.fieldViewMode === "deck" || state.fieldViewMode === "formation") {
               state.fieldDeckIdx = idx;
               renderFieldworkView();
               return;
@@ -3974,11 +4339,14 @@
 
     // Toggle visible stage while keeping cardsEl populated for 1-page A4 printing
     suite.cardsEl.hidden = viewMode !== "cards";
+    if (suite.formationStage) suite.formationStage.hidden = viewMode !== "formation";
     suite.sorterStage.hidden = viewMode !== "sorter";
     suite.deckStage.hidden = viewMode !== "deck";
     suite.tableStage.hidden = viewMode !== "table";
 
-    if (viewMode === "sorter") {
+    if (viewMode === "formation" && suite.formationStage) {
+      renderRosterFormationStage(scope, suite.formationStage, q, areaSubVal);
+    } else if (viewMode === "sorter") {
       renderRosterGroupSorter(scope, suite.sorterStage, q, areaSubVal, activeGroupVal);
     } else if (viewMode === "deck") {
       renderRosterGroupDeck(scope, suite.deckStage, q, areaSubVal);
@@ -4929,88 +5297,45 @@
       const isMine = state.myStudent && state.myStudent.area === curSite.shortName;
       const geo = SITE_GEO_COORDS[curSite.id] || {};
 
-      // Highlight active pin & route in SVG
       svg.querySelectorAll("[data-map-site]").forEach((el) => {
         el.classList.toggle("is-focused", el.dataset.mapSite === curSite.shortName);
         el.classList.toggle("is-locked", el.dataset.mapSite === activeAreaVal);
       });
 
       inspector.replaceChildren();
+      inspector.style.padding = "0";
+      inspector.style.border = "0";
+      inspector.style.background = "transparent";
+      inspector.style.boxShadow = "none";
 
-      // Quick 1-9 pill bar at top of inspector for fast hover/tap
-      const miniBar = make("div", null, "th-inspector-pills");
-      sites.forEach((st) => {
-        const p = make(
-          "button",
-          `${st.id}.${st.shortName}`,
-          `th-mini-site-pill area-site-${st.id}${st.shortName === curSite.shortName ? " is-current" : ""}`
-        );
-        p.type = "button";
-        p.addEventListener("mouseenter", () => {
-          state.mapHoverSite = st.shortName;
-          renderMapInspectorContent();
-        });
-        p.addEventListener("click", () => {
+      const members = ROSTER.students
+        .filter((s) => s.area === curSite.shortName)
+        .sort((a, b) => a.disc - b.disc || compareTH(a.id, b.id));
+
+      const tabs = sites.map((st) => ({
+        id: st.shortName,
+        label: `${st.id}.${st.shortName}`,
+        color: SITE_PIN_COLORS[st.id] || "#007aff",
+        active: st.shortName === curSite.shortName,
+        onHover: () => {
+          if (state.mapHoverSite !== st.shortName) {
+            state.mapHoverSite = st.shortName;
+            renderMapInspectorContent();
+          }
+        },
+        onClick: () => {
           const sel = $("fieldAreaSelect");
           if (sel) sel.value = sel.value === st.shortName ? "" : st.shortName;
           state.mapHoverSite = st.shortName;
           state.fieldContext = null;
           renderFieldworkView();
-        });
-        miniBar.appendChild(p);
-      });
-      inspector.appendChild(miniBar);
-
-      const cardBody = make("div", null, "th-inspector-body");
-      const friBadge = curSite.hasFri11Dec
-        ? `<span class="badge cat-HS">ศ. 11 ธ.ค. มีเรียนกลุ่มย่อย 5–6</span>`
-        : `<span class="badge cat-SG">เดินทาง พฤ. 10 / พ. 9 ธ.ค. (ไม่มีเรียน 11 ธ.ค.)</span>`;
-      const lockBadge = isLocked
-        ? `<span class="badge cat-EP">📌 ล็อกกรองรายชื่อด้านล่างอยู่</span>`
-        : `<span class="badge">ชี้หมุดอื่นเพื่อเทียบข้อมูลทันที</span>`;
-      const staffHtml =
-        ROLE === "faculty" && curSite.staffRef
-          ? `<div class="th-meta-row"><strong>เจ้าหน้าที่ประสานงาน:</strong> <span>${escapeHtml(curSite.staffRef)}</span></div>`
-          : "";
-
-      cardBody.innerHTML = `
-        <div class="th-ins-head">
-          <div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-              <span class="area-sub-pill area-site-${curSite.id}"><i class="area-dot"></i>พื้นที่ที่ ${curSite.id} · ${escapeHtml(geo.region || "")}</span>
-              <span class="badge cat-SG">${curSite.count} คน</span>
-              ${isMine ? `<span class="badge cat-HS">★ พื้นที่ของฉัน</span>` : ""}
-              ${lockBadge}
-            </div>
-            <h3>${escapeHtml(curSite.hospital)} (${escapeHtml(curSite.province)})</h3>
-          </div>
-        </div>
-        <div class="th-ins-meta-grid">
-          <div class="th-meta-row"><strong>อาจารย์ที่ปรึกษา:</strong> <span>${escapeHtml(curSite.advisors)}</span></div>
-          <div class="th-meta-row"><strong>ห้องประชุมกลุ่มย่อย:</strong> <span>${escapeHtml(curSite.room)}</span></div>
-          <div class="th-meta-row"><strong>ช่วงฝึกภาคสนาม:</strong> <span>${escapeHtml(curSite.datesTH)}</span></div>
-          <div class="th-meta-row"><strong>การเดินทาง:</strong> <span>${escapeHtml(curSite.travelNote)}</span></div>
-          ${staffHtml}
-        </div>
-        <div style="margin:6px 0 8px">${friBadge}</div>
-      `;
-
-      const members = ROSTER.students
-        .filter((s) => s.area === curSite.shortName)
-        .sort((a, b) => compareTH(a.id, b.id));
-
-      const memTitle = make("p", `สมาชิกในกลุ่ม ${curSite.shortName} (${members.length} คน — คลิกที่ชื่อเพื่อดูข้อมูล & ตารางเรียน):`, "cq-sub-label");
-      cardBody.appendChild(memTitle);
-
-      const mosaic = make("div", null, "gsorter-avatar-mosaic th-ins-mosaic");
-      members.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
-      cardBody.appendChild(mosaic);
+        }
+      }));
 
       const actRow = make("div", null, "header-actions");
-      actRow.style.marginTop = "12px";
       const lockBtn = make(
         "button",
-        isLocked ? `✓ กำลังกรองกลุ่ม ${curSite.shortName} (คลิกแสดงทุกกลุ่ม)` : `👥 กรองเฉพาะสมาชิกกลุ่ม ${curSite.shortName} ด้านล่าง`,
+        isLocked ? `✓ กำลังกรอง ${curSite.shortName}` : `กรองรายชื่อ ${curSite.shortName} ด้านล่าง`,
         "btn sm primary"
       );
       lockBtn.type = "button";
@@ -5039,8 +5364,32 @@
       icsLink.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export .ics`;
 
       actRow.append(lockBtn, pdfSiteLink, printSiteBtn, icsLink);
-      cardBody.appendChild(actRow);
-      inspector.appendChild(cardBody);
+
+      const staffPart = ROLE === "faculty" && curSite.staffRef ? ` · ผู้ประสานงาน: ${curSite.staffRef}` : "";
+      const friNote = curSite.hasFri11Dec ? "ศ. 11 ธ.ค. มีกลุ่มย่อย 5–6" : "เดินทาง พฤ. 10 / พ. 9 ธ.ค.";
+
+      inspector.appendChild(
+        renderBroadcastFormationBoard({
+          mode: "fieldwork",
+          wide: false,
+          tabs,
+          crestKicker: "SITE",
+          crestNum: String(curSite.id).padStart(2, "0"),
+          teamColor: SITE_PIN_COLORS[curSite.id] || "#007aff",
+          eyebrowText: `พื้นที่ที่ ${curSite.id} · ${geo.region || curSite.province}${isMine ? " · ★ พื้นที่ของฉัน" : ""}`,
+          titleText: `${curSite.hospital} (${curSite.province})`,
+          subText: `ห้อง ${curSite.room.split(" ")[0]} · ${curSite.datesTH} · ${friNote}${staffPart}`,
+          mentorLabel: "อาจารย์ที่ปรึกษา",
+          mentorValue: curSite.advisors,
+          members,
+          viewStyle: state.mapInspectorStyle || "formation",
+          onToggleStyle: (nextStyle) => {
+            state.mapInspectorStyle = nextStyle;
+            renderMapInspectorContent();
+          },
+          footerActions: actRow
+        })
+      );
     };
 
     sites.forEach((site) => {
@@ -8933,7 +9282,6 @@
       state.conciergeDateISO = upcoming || allDates[0] || "2026-11-25";
     }
 
-    // Add Teacher quick selector into Faculty masthead .personal-bar for 1-click access anywhere
     if (ROLE === "faculty") {
       const pBar = document.querySelector(".personal-bar");
       if (pBar && !$("personalTeacherSelect")) {
@@ -8949,7 +9297,6 @@
         tWrap.append(tLab, tSel);
         pBar.insertBefore(tWrap, pBar.firstChild);
       }
-      // Also ensure schedTeacherFilter & studioTeacherSelect include ศ. นพ.วิชัย if absent
       ["schedTeacherFilter", "studioTeacherSelect"].forEach((id) => {
         const sel = $(id);
         if (sel && ![...sel.options].some((o) => o.value === "วิชัย")) {
@@ -8958,78 +9305,40 @@
       });
     }
 
-    const shell = make("section", null, `concierge-shell role-${ROLE}`);
+    const shell = make("section", null, `concierge-shell is-compact-tabs role-${ROLE}${state.conciergeOpen ? " is-open" : ""}`);
     shell.id = "roleConciergeShell";
-    shell.setAttribute(
-      "aria-label",
-      ROLE === "faculty"
-        ? "ผู้ช่วยภาระงานอาจารย์: วันนี้สอนคาบไหน ห้องไหน และคุมกลุ่ม Discussion ห้องใด"
-        : "ผู้ช่วยประจำตัวนักศึกษา: วันนี้เรียนเรื่องอะไร ห้องไหน อยู่ห้อง Discussion ไหน และเพื่อนกลุ่มพื้นที่มีใครบ้าง"
-    );
+    shell.setAttribute("aria-label", ROLE === "faculty" ? "แถบเช็กด่วนอาจารย์" : "แถบเช็กด่วนนักศึกษา");
 
-    const headBar = make("div", null, "concierge-head");
-    const headLeft = make("div", null, "concierge-head-left");
-    const titleWrap = make("div", null, "concierge-head-titles");
-    const hTitle = make(
-      "strong",
-      ROLE === "faculty"
-        ? "เช็กด่วนสำหรับอาจารย์ — วันนี้สอน/คุมคาบไหน · ตอน Discussion เดินไปคุมห้องไหน · นักศึกษาในกลุ่มมีใครบ้าง"
-        : "เช็กด่วนประจำตัวนักศึกษา — วันนี้เรียนคาบอะไร ห้องไหน · อยู่ห้อง Discussion ไหน · เพื่อนในกลุ่มพื้นที่มีใครบ้าง",
-      "concierge-title"
-    );
-    const liveSummary = make("span", "", "concierge-live-pill");
-    liveSummary.id = "conciergeLiveSummary";
-    titleWrap.append(hTitle, liveSummary);
-    headLeft.appendChild(titleWrap);
+    const tabBar = make("div", null, "concierge-tabbar");
 
-    const headRight = make("div", null, "concierge-head-right");
-    const spotTriggerBtn = make("button", "🔍 ค้นหาทุกอย่าง (⌘K)", "btn sm");
-    spotTriggerBtn.type = "button";
-    spotTriggerBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      openGlobalSpotlight();
-    });
-
-    const toggleOpenBtn = make("button", state.conciergeOpen ? "ย่อแผงด่วน ▴" : "เปิดดูคำตอบด่วน ▾", "btn sm teal");
-    toggleOpenBtn.id = "conciergeToggleOpenBtn";
-    toggleOpenBtn.type = "button";
-    toggleOpenBtn.setAttribute("aria-expanded", state.conciergeOpen ? "true" : "false");
-    toggleOpenBtn.addEventListener("click", () => {
-      state.conciergeOpen = !state.conciergeOpen;
-      localStorage.setItem("racm303_concierge_open", state.conciergeOpen ? "1" : "0");
-      renderRoleConcierge();
-    });
-
-    headRight.append(spotTriggerBtn, toggleOpenBtn);
-    headBar.append(headLeft, headRight);
-
-    const bodyWrap = make("div", null, "concierge-body");
-    bodyWrap.id = "conciergeBodyWrap";
-    bodyWrap.hidden = !state.conciergeOpen;
-
-    // Persistent Controls Bar inside Concierge (never destroyed on typing!)
-    const ctrlRow = make("div", null, "concierge-ctrl-row");
-    const whoWrap = make("div", null, "concierge-who-wrap");
+    // 1. Compact Identity Picker on Left
+    const whoInline = make("div", null, "concierge-who-inline");
+    whoInline.appendChild(make("span", "เช็กด่วน", "concierge-kicker"));
 
     if (ROLE === "faculty") {
-      const tLab = make("label", "👨‍⚕️ เลือกชื่ออาจารย์:", "concierge-ctrl-label");
-      tLab.setAttribute("for", "conciergeTeacherSelect");
       const tSel = document.createElement("select");
       tSel.id = "conciergeTeacherSelect";
       tSel.className = "concierge-select";
-      tSel.add(new Option("— เลือกชื่ออาจารย์ (แสดงภาระงาน & ห้องคุมกลุ่มทันที) —", ""));
+      tSel.setAttribute("aria-label", "เลือกชื่ออาจารย์");
+      tSel.add(new Option("— เลือกอาจารย์ —", ""));
       getAllCourseTeachers().forEach((t) => tSel.add(new Option(t.label, t.key)));
-      tSel.addEventListener("change", () => selectActiveTeacher(tSel.value, true));
-      whoWrap.append(tLab, tSel);
+      tSel.addEventListener("change", () => {
+        selectActiveTeacher(tSel.value, true);
+        if (tSel.value) {
+          state.conciergeOpen = true;
+          localStorage.setItem("racm303_concierge_tab_open", "1");
+        }
+        renderRoleConcierge();
+      });
+      whoInline.appendChild(tSel);
     } else {
-      const sLab = make("label", "👤 ตัวฉัน:", "concierge-ctrl-label");
-      sLab.setAttribute("for", "conciergeStudentInput");
       const sInput = document.createElement("input");
       sInput.type = "search";
       sInput.id = "conciergeStudentInput";
       sInput.className = "concierge-student-input";
       sInput.setAttribute("list", "studentLookupList");
-      sInput.placeholder = "พิมพ์รหัส 7 หลัก หรือชื่อเล่น/ชื่อจริง (เช่น 6702006)…";
+      sInput.setAttribute("aria-label", "รหัสหรือชื่อนักศึกษา");
+      sInput.placeholder = "รหัส 7 หลัก / ชื่อฉัน…";
       sInput.addEventListener("change", () => {
         const found = findStudentByQuery(sInput.value);
         if (found) {
@@ -9048,12 +9357,79 @@
           }
         }
       });
-      whoWrap.append(sLab, sInput);
+      whoInline.appendChild(sInput);
     }
 
+    // 2. Concise Clickable Tabs (Tab กด ชื่อแบบกระชับ)
+    const tabsWrap = make("div", null, "concierge-tabs");
+    tabsWrap.setAttribute("role", "tablist");
+    const tabDefs =
+      ROLE === "faculty"
+        ? [
+            { id: "today", label: "คาบสอน" },
+            { id: "disc", label: "คุม Discussion" },
+            { id: "field", label: "ที่ปรึกษา รพช." }
+          ]
+        : [
+            { id: "today", label: "คาบเรียน" },
+            { id: "disc", label: "ห้อง Discussion" },
+            { id: "field", label: "กลุ่มพื้นที่" }
+          ];
+
+    tabDefs.forEach((td) => {
+      const btn = make("button", null, "concierge-tab-btn");
+      btn.type = "button";
+      btn.dataset.ctab = td.id;
+      btn.setAttribute("role", "tab");
+      btn.innerHTML = `<span>${escapeHtml(td.label)}</span><span class="ctab-pill" data-ctab-pill="${td.id}"></span>`;
+      btn.addEventListener("click", () => {
+        if (state.conciergeOpen && state.conciergeTab === td.id) {
+          state.conciergeOpen = false;
+        } else {
+          state.conciergeTab = td.id;
+          state.conciergeOpen = true;
+        }
+        localStorage.setItem("racm303_concierge_tab_open", state.conciergeOpen ? "1" : "0");
+        renderRoleConcierge();
+      });
+      tabsWrap.appendChild(btn);
+    });
+
+    // 3. Compact Right Actions
+    const barRight = make("div", null, "concierge-bar-right");
+    const spotTriggerBtn = make("button", "🔍 ⌘K", "btn sm");
+    spotTriggerBtn.type = "button";
+    spotTriggerBtn.title = "ค้นหาด่วนทุกอย่างในรายวิชา (⌘K / Ctrl+K)";
+    spotTriggerBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openGlobalSpotlight();
+    });
+
+    const toggleOpenBtn = make("button", "ซ่อน ▴", "btn sm");
+    toggleOpenBtn.id = "conciergeToggleOpenBtn";
+    toggleOpenBtn.type = "button";
+    toggleOpenBtn.hidden = !state.conciergeOpen;
+    toggleOpenBtn.addEventListener("click", () => {
+      state.conciergeOpen = false;
+      localStorage.setItem("racm303_concierge_tab_open", "0");
+      renderRoleConcierge();
+    });
+
+    barRight.append(spotTriggerBtn, toggleOpenBtn);
+    tabBar.append(whoInline, tabsWrap, barRight);
+
+    // Compact Drawer Body (renders only the 1 active tab when open)
+    const bodyWrap = make("div", null, "concierge-body");
+    bodyWrap.id = "conciergeBodyWrap";
+    bodyWrap.hidden = !state.conciergeOpen;
+
+    // Date bar (shown only inside "today" tab)
+    const dayToolbar = make("div", null, "cq-compact-toolbar");
+    dayToolbar.id = "conciergeDayToolbar";
     const dayWrap = make("div", null, "concierge-day-wrap");
-    const prevDayBtn = make("button", "‹ วันก่อนหน้า", "btn sm");
+    const prevDayBtn = make("button", "‹", "btn sm");
     prevDayBtn.type = "button";
+    prevDayBtn.title = "วันก่อนหน้า";
     prevDayBtn.addEventListener("click", () => {
       const dates = getCourseDistinctDates();
       const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
@@ -9065,15 +9441,16 @@
     const dateSel = document.createElement("select");
     dateSel.id = "conciergeDateSelect";
     dateSel.className = "concierge-date-select";
-    dateSel.setAttribute("aria-label", "เลือกวันที่ต้องการตรวจสอบตารางเรียนหรือตารางสอน");
+    dateSel.setAttribute("aria-label", "เลือกวันที่");
     dateSel.addEventListener("change", () => {
       state.conciergeDateISO = dateSel.value;
       state.conciergeTeacherAllDays = false;
       renderRoleConcierge();
     });
 
-    const nextDayBtn = make("button", "วันถัดไป ›", "btn sm");
+    const nextDayBtn = make("button", "›", "btn sm");
     nextDayBtn.type = "button";
+    nextDayBtn.title = "วันถัดไป";
     nextDayBtn.addEventListener("click", () => {
       const dates = getCourseDistinctDates();
       const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
@@ -9081,11 +9458,10 @@
       state.conciergeTeacherAllDays = false;
       renderRoleConcierge();
     });
-
     dayWrap.append(prevDayBtn, dateSel, nextDayBtn);
 
     if (ROLE === "faculty") {
-      const allDaysBtn = make("button", "📋 ดูรวมทุกวันของอาจารย์", "btn sm");
+      const allDaysBtn = make("button", "รวมทุกวัน", "btn sm");
       allDaysBtn.id = "conciergeToggleAllDaysBtn";
       allDaysBtn.type = "button";
       allDaysBtn.addEventListener("click", () => {
@@ -9097,14 +9473,13 @@
 
     const presetsRow = make("div", null, "concierge-presets-row");
     presetsRow.id = "conciergePresetsRow";
-
-    ctrlRow.append(whoWrap, dayWrap);
+    dayToolbar.append(dayWrap, presetsRow);
 
     const cardsStage = make("div", null, "concierge-cards-stage");
     cardsStage.id = "conciergeCardsStage";
 
-    bodyWrap.append(ctrlRow, presetsRow, cardsStage);
-    shell.append(headBar, bodyWrap);
+    bodyWrap.append(dayToolbar, cardsStage);
+    shell.append(tabBar, bodyWrap);
     mainEl.insertBefore(shell, mainEl.firstChild);
 
     renderRoleConcierge();
@@ -9115,16 +9490,21 @@
     const bodyWrap = $("conciergeBodyWrap");
     const stage = $("conciergeCardsStage");
     const toggleBtn = $("conciergeToggleOpenBtn");
-    const liveSummary = $("conciergeLiveSummary");
     const dateSel = $("conciergeDateSelect");
     const presetsRow = $("conciergePresetsRow");
+    const dayToolbar = $("conciergeDayToolbar");
     if (!shell || !bodyWrap || !stage) return;
 
+    const activeTab = state.conciergeTab || "today";
+    shell.classList.toggle("is-open", Boolean(state.conciergeOpen));
     bodyWrap.hidden = !state.conciergeOpen;
-    if (toggleBtn) {
-      toggleBtn.textContent = state.conciergeOpen ? "ย่อแผงด่วน ▴" : "เปิดดูคำตอบด่วน ▾";
-      toggleBtn.setAttribute("aria-expanded", state.conciergeOpen ? "true" : "false");
-    }
+    if (toggleBtn) toggleBtn.hidden = !state.conciergeOpen;
+    if (dayToolbar) dayToolbar.hidden = activeTab !== "today";
+
+    shell.querySelectorAll(".concierge-tab-btn").forEach((b) => {
+      const sel = Boolean(state.conciergeOpen && b.dataset.ctab === activeTab);
+      b.setAttribute("aria-selected", sel ? "true" : "false");
+    });
 
     const allDates = getCourseDistinctDates();
     if (!state.conciergeDateISO || !allDates.includes(state.conciergeDateISO)) {
@@ -9134,7 +9514,6 @@
     const curDate = state.conciergeDateISO;
     const todayBkk = getBangkokTodayISO();
 
-    // Populate / refresh date select options (showing ★ on days with sessions for active teacher!)
     if (dateSel) {
       const tKey = ROLE === "faculty" ? state.myTeacherKey : "";
       dateSel.replaceChildren();
@@ -9144,7 +9523,7 @@
         const teacherHas =
           tKey &&
           (SCHED.sessions || []).some((s) => sessionOccursOnDate(s, d, {}) && sessionMatchesTeacher(s, tKey, getSessionAssignments(s)));
-        const prefix = d === todayBkk ? "📍 วันนี้ · " : teacherHas ? "★ มีสอน · " : "";
+        const prefix = d === todayBkk ? "📍 วันนี้ · " : teacherHas ? "★ " : "";
         dateSel.add(
           new Option(`${prefix}${formatCourseDateOptionLabel(d)}${shortTopic ? " (" + shortTopic + ")" : ""}`, d, d === curDate, d === curDate)
         );
@@ -9152,16 +9531,21 @@
     }
 
     if (ROLE === "faculty") {
-      renderFacultyConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk);
+      renderFacultyConciergeStage(stage, presetsRow, activeTab, curDate, todayBkk);
     } else {
-      renderStudentConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk);
+      renderStudentConciergeStage(stage, presetsRow, activeTab, curDate, todayBkk);
     }
   }
 
-  function renderStudentConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk) {
+  function setConciergeTabPill(tabId, text) {
+    const el = document.querySelector(`[data-ctab-pill="${tabId}"]`);
+    if (el) el.textContent = text;
+  }
+
+  function renderStudentConciergeStage(stage, presetsRow, activeTab, curDate, todayBkk) {
     const s = state.myStudent;
     const sInput = $("conciergeStudentInput");
-    const expectedVal = s ? `${s.id} — ${s.fullName}` : "";
+    const expectedVal = s ? `${s.id} — ${s.nickname || s.name}` : "";
     if (sInput && document.activeElement !== sInput && sInput.value !== expectedVal) {
       sInput.value = expectedVal;
     }
@@ -9175,56 +9559,44 @@
       teacherVal: "",
       siteObj
     };
-
     const daySessions = (SCHED.sessions || []).filter((sess) => sessionOccursOnDate(sess, curDate, personalCtx));
 
-    if (liveSummary) {
-      if (s) {
-        liveSummary.textContent = `★ ${s.nickname || s.name} (${s.id}) · Discussion กลุ่ม ${s.disc} (ห้อง ${rotObj ? rotObj.room : "-"}) · พื้นที่ ${siteId}.${s.area} · ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} กิจกรรม)`;
-      } else {
-        liveSummary.textContent = `ยังไม่ได้ระบุรหัสนักศึกษา · กำลังแสดงตารางวันที่ ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} กิจกรรม)`;
-      }
-    }
+    // Always update concise tab pills on the 1-line bar
+    setConciergeTabPill("today", `${daySessions.length} คาบ`);
+    setConciergeTabPill("disc", s && rotObj ? `G${s.disc} · ${rotObj.room}` : "6 ห้อง");
+    setConciergeTabPill("field", s ? `${siteId}.${s.area}` : "9 รพช.");
 
-    if (presetsRow) {
-      presetsRow.replaceChildren();
-      const quickDates = [
-        { iso: "2026-11-25", label: "พ. 25 พ.ย. (เปิดวิชา)" },
-        { iso: "2026-11-26", label: "พฤ. 26 พ.ย. (HS1 + ห้อง Discussion)" },
-        { iso: "2026-11-30", label: "จ. 30 พ.ย. (HS2–HS3)" },
-        { iso: "2026-12-01", label: "อ. 1 ธ.ค. (HS4–HS5)" },
-        { iso: "2026-12-04", label: "ศ. 4 ธ.ค. (HS6)" },
-        { iso: "2026-12-08", label: "อ. 8 ธ.ค. (สอบ EP)" },
-        { iso: "2026-12-22", label: "อ. 22 ธ.ค. (สอบ HS)" }
-      ];
-      quickDates.forEach((qd) => {
-        const b = make("button", qd.label, `concierge-preset-chip${curDate === qd.iso ? " is-active" : ""}`);
-        b.type = "button";
-        b.addEventListener("click", () => {
-          state.conciergeDateISO = qd.iso;
-          renderRoleConcierge();
-        });
-        presetsRow.appendChild(b);
-      });
-    }
+    if (!state.conciergeOpen) return;
 
     stage.replaceChildren();
-    const grid = make("div", null, "concierge-q-grid");
 
-    // QUESTION 1: วันนี้เรียนเลคเชอร์ / คาบเรื่องอะไร ห้องไหน?
-    const q1 = make("article", null, "concierge-q-card");
-    const dayTag = curDate === todayBkk ? "วันนี้" : formatCourseDateOptionLabel(curDate);
-    q1.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">คำถามที่ 1</span>
-        <span class="badge cat-EP">${daySessions.length} คาบ</span>
-      </div>
-      <h3 class="cq-title">📚 ${escapeHtml(dayTag)} เรียนคาบเรื่องอะไร · ไปห้องไหน?</h3>
-    `;
-    const sessList = make("div", null, "cq-session-list");
-    if (!daySessions.length) {
-      sessList.appendChild(make("p", "ไม่มีคาบเรียนในวันที่เลือก · ลองกดปุ่มเลือกวันเรียนด้านบน", "cq-empty"));
-    } else {
+    if (activeTab === "today") {
+      if (presetsRow) {
+        presetsRow.replaceChildren();
+        [
+          { iso: "2026-11-25", label: "25 พ.ย." },
+          { iso: "2026-11-26", label: "26 พ.ย. (HS1)" },
+          { iso: "2026-11-30", label: "30 พ.ย. (HS2–3)" },
+          { iso: "2026-12-01", label: "1 ธ.ค. (HS4–5)" },
+          { iso: "2026-12-04", label: "4 ธ.ค. (HS6)" },
+          { iso: "2026-12-08", label: "8 ธ.ค. (สอบ EP)" },
+          { iso: "2026-12-22", label: "22 ธ.ค. (สอบ HS)" }
+        ].forEach((qd) => {
+          const b = make("button", qd.label, `concierge-preset-chip${curDate === qd.iso ? " is-active" : ""}`);
+          b.type = "button";
+          b.addEventListener("click", () => {
+            state.conciergeDateISO = qd.iso;
+            renderRoleConcierge();
+          });
+          presetsRow.appendChild(b);
+        });
+      }
+
+      if (!daySessions.length) {
+        stage.appendChild(make("p", "ไม่มีคาบเรียนในวันที่เลือก", "cq-empty"));
+        return;
+      }
+      const sessGrid = make("div", null, "cq-compact-sess-grid");
       daySessions.forEach((sess) => {
         const eff = resolveEffectiveSessionDetails(sess, personalCtx);
         const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
@@ -9236,23 +9608,15 @@
         item.append(topLine, titleEl, lecEl);
 
         const actRow = make("div", null, "cq-mini-actions");
-        const detailBtn = make("button", "รายละเอียดคาบ", "cq-link-btn");
-        detailBtn.type = "button";
-        detailBtn.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          openEventModal(sess);
-        });
-        actRow.appendChild(detailBtn);
-
         if (sess.zoom && sess.zoom.url) {
-          const zLink = make("a", "เข้า Zoom ↗", "cq-link-btn is-zoom");
+          const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
           zLink.href = sess.zoom.url;
           zLink.target = "_blank";
           zLink.rel = "noopener";
           actRow.appendChild(zLink);
         }
         if (sess.conciseLink || sess.docLink) {
-          const readBtn = make("button", `อ่านสรุป ${sess.code.replace("-DISC", "")} →`, "cq-link-btn");
+          const readBtn = make("button", `สรุป ${sess.code.replace("-DISC", "")} →`, "cq-link-btn");
           readBtn.type = "button";
           readBtn.addEventListener("click", (ev) => {
             ev.stopPropagation();
@@ -9260,160 +9624,99 @@
           });
           actRow.appendChild(readBtn);
         }
-        item.appendChild(actRow);
+        if (actRow.childElementCount) item.appendChild(actRow);
         item.addEventListener("click", () => openEventModal(sess));
-        sessList.appendChild(item);
+        sessGrid.appendChild(item);
       });
+      stage.appendChild(sessGrid);
+      return;
     }
-    q1.appendChild(sessList);
 
-    // QUESTION 2: อยู่กลุ่มห้อง Discussion ห้องไหน ต้องไปห้องไหน?
-    const q2 = make("article", null, "concierge-q-card");
-    q2.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">คำถามที่ 2</span>
-        <span class="badge cat-HS">${s ? `กลุ่มที่ ${s.disc}` : "6 กลุ่มย่อย"}</span>
-      </div>
-      <h3 class="cq-title">🚪 อยู่กลุ่มห้อง Discussion ไหน · ต้องไปห้องไหน?</h3>
-    `;
-    if (s && rotObj) {
-      const roomCallout = make("div", null, "cq-room-hero is-disc");
-      roomCallout.innerHTML = `
-        <div>
-          <span class="cq-hero-kicker">กลุ่มอภิปราย HS1–HS6 ของคุณ</span>
-          <strong>กลุ่มที่ ${s.disc} → ห้องหลัก ${escapeHtml(rotObj.room)}</strong>
-          <small>ชั้น 1 อาคารพรีคลินิก (${rotObj.count} คน)</small>
-        </div>
-      `;
-      q2.appendChild(roomCallout);
-      if (s.disc === 6) {
-        q2.appendChild(
-          make("div", "⚠️ เฉพาะวันอังคารที่ 1 ธ.ค. เช้า (HS4 · 09.40–12.00 น.) กลุ่มที่ 6 ย้ายไปเรียนที่ห้อง 2C2-03 ชั่วคราว!", "cq-alert-note")
-        );
-      }
-
-      const slotList = make("div", null, "cq-slot-mini-table");
-      ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
-        const discSess = (SCHED.sessions || []).find((x) => x.hsModule === mod);
-        const cell = rotObj[mod] || {};
-        const isTodayMod = discSess && discSess.dateISO === curDate;
-        const row = make("div", null, `cq-slot-row${isTodayMod ? " is-today" : ""}`);
-        row.innerHTML = `
-          <span class="cq-slot-mod">${mod}${isTodayMod ? " • วันนี้" : ""}</span>
-          <span class="cq-slot-when">${discSess ? formatCourseDateOptionLabel(discSess.dateISO).replace(" 2569", "") + " · " + discSess.timeLabel.replace(" น.", "") : ""}</span>
-          <strong class="cq-slot-rm${cell.highlightRoom ? " is-changed" : ""}">ห้อง ${escapeHtml(cell.room || rotObj.room)}</strong>
-          <span class="cq-slot-inst">${escapeHtml(cell.instructor || "-")}</span>
-        `;
-        slotList.appendChild(row);
-      });
-      q2.appendChild(slotList);
-
-      const q2Foot = make("div", null, "cq-card-actions");
-      const openDiscRosterBtn = make("button", `👥 ดูเพื่อนในห้อง Discussion ${s.disc} (${rotObj.count} คน) →`, "btn sm primary");
-      openDiscRosterBtn.type = "button";
-      openDiscRosterBtn.addEventListener("click", () => {
-        if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
-        if ($("discAreaSubFilter")) $("discAreaSubFilter").value = "";
-        if (state.discViewMode === "deck") state.discDeckIdx = Math.max(0, Number(s.disc) - 1);
-        switchTab("discussion");
-      });
-      const openDiscSorterBtn = make("button", "⊞ เทียบ 6 กลุ่ม", "btn sm");
-      openDiscSorterBtn.type = "button";
-      openDiscSorterBtn.addEventListener("click", () => {
-        state.discViewMode = "sorter";
-        switchTab("discussion");
-      });
-      q2Foot.append(openDiscRosterBtn, openDiscSorterBtn);
-      q2.appendChild(q2Foot);
-    } else {
-      q2.appendChild(
-        make("p", "พิมพ์รหัส 7 หลักในช่อง “ตัวฉัน” ด้านบนเพื่อดูห้องเรียนประจำตัว หรือคลิกเลือกดูห้องของทั้ง 6 กลุ่มด้านล่าง:", "cq-hint")
-      );
-      const gPills = make("div", null, "cq-quick-pills");
-      (SCHED.hsRotation || []).forEach((r) => {
-        const b = make("button", `กลุ่ม ${r.group} · ห้อง ${r.room} (${r.count} คน)`, "btn sm");
-        b.type = "button";
-        b.addEventListener("click", () => {
-          if ($("discGroupSelect")) $("discGroupSelect").value = String(r.group);
+    if (activeTab === "disc") {
+      if (s && rotObj) {
+        const sumBar = make("div", null, "cq-compact-bar-summary");
+        sumBar.innerHTML = `<div><strong>Discussion กลุ่มที่ ${s.disc} · ห้องหลัก ${escapeHtml(rotObj.room)}</strong> (${rotObj.count} คน)${s.disc === 6 ? " · <span style='color:#b45309'>HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03</span>" : ""}</div>`;
+        const openBtn = make("button", `เปิดผังกลุ่ม G${s.disc} →`, "btn sm primary");
+        openBtn.type = "button";
+        openBtn.addEventListener("click", () => {
+          if ($("discGroupSelect")) $("discGroupSelect").value = String(s.disc);
+          state.discDeckIdx = Math.max(0, Number(s.disc) - 1);
+          state.discViewMode = "formation";
           switchTab("discussion");
         });
-        gPills.appendChild(b);
-      });
-      q2.appendChild(gPills);
+        sumBar.appendChild(openBtn);
+        stage.appendChild(sumBar);
+
+        const slotGrid = make("div", null, "cq-compact-disc-grid");
+        ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
+          const discSess = (SCHED.sessions || []).find((x) => x.hsModule === mod);
+          const cell = rotObj[mod] || {};
+          const row = make("div", null, `cq-slot-row${discSess && discSess.dateISO === curDate ? " is-today" : ""}`);
+          row.innerHTML =
+            `<span class="cq-slot-mod">${mod}</span>` +
+            `<strong class="cq-slot-rm${cell.highlightRoom ? " is-changed" : ""}">ห้อง ${escapeHtml(cell.room || rotObj.room)}</strong>` +
+            `<span class="cq-slot-inst">${escapeHtml(cell.instructor || "-")}</span>`;
+          slotGrid.appendChild(row);
+        });
+        stage.appendChild(slotGrid);
+      } else {
+        const gPills = make("div", null, "cq-quick-pills");
+        (SCHED.hsRotation || []).forEach((r, idx) => {
+          const b = make("button", `G${r.group} · ${r.room} (${r.count})`, "btn sm");
+          b.type = "button";
+          b.addEventListener("click", () => {
+            if ($("discGroupSelect")) $("discGroupSelect").value = String(r.group);
+            state.discDeckIdx = idx;
+            state.discViewMode = "formation";
+            switchTab("discussion");
+          });
+          gPills.appendChild(b);
+        });
+        stage.appendChild(gPills);
+      }
+      return;
     }
 
-    // QUESTION 3: ในกลุ่มพื้นที่เรามีใครด้วยบ้าง · ไป รพช. ไหน?
-    const q3 = make("article", null, "concierge-q-card");
-    q3.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">คำถามที่ 3</span>
-        <span class="badge cat-SG">${s && siteObj ? `${siteObj.count} คน` : "9 พื้นที่ รพช."}</span>
-      </div>
-      <h3 class="cq-title">🏥 ในกลุ่มพื้นที่เรามีใครด้วยบ้าง · ไป รพช. ไหน?</h3>
-    `;
+    // activeTab === "field"
     if (s && siteObj) {
-      const siteHero = make("div", null, "cq-room-hero is-field");
-      siteHero.innerHTML = `
-        <div>
-          <span class="area-sub-pill area-site-${siteId}"><i class="area-dot"></i>${siteId}. ${escapeHtml(s.area)} · ${escapeHtml(siteObj.hospital)} (${escapeHtml(siteObj.province)})</span>
-          <p class="cq-field-meta"><strong>ห้องประชุมกลุ่มย่อยในคณะฯ:</strong> ${escapeHtml(siteObj.room)}<br>
-          <strong>อาจารย์ที่ปรึกษา:</strong> ${escapeHtml(s.advisor || siteObj.advisors)}<br>
-          <strong>ช่วงลงพื้นที่:</strong> ${escapeHtml(siteObj.datesTH)} (${escapeHtml(siteObj.departShortTH || "")})</p>
-        </div>
-      `;
-      q3.appendChild(siteHero);
-
-      const mates = ROSTER.students.filter((st) => st.area === s.area).sort((a, b) => compareTH(a.id, b.id));
-      const matesLabel = make("p", `เพื่อนร่วมทีมพื้นที่ ${s.area} ทั้งหมด ${mates.length} คน (คลิกชื่อเพื่อดูโปรไฟล์):`, "cq-sub-label");
-      q3.appendChild(matesLabel);
-
-      const mosaic = make("div", null, "gsorter-avatar-mosaic cq-teammates-mosaic");
-      mates.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
-      q3.appendChild(mosaic);
-
-      const q3Foot = make("div", null, "cq-card-actions");
-      const openAreaBtn = make("button", `👥 เปิดหน้ากลุ่ม ${s.area} ครบ ${mates.length} คน →`, "btn sm primary");
+      const sumBar = make("div", null, "cq-compact-bar-summary");
+      sumBar.innerHTML =
+        `<div><span class="area-sub-pill area-site-${siteId}"><i class="area-dot"></i>${siteId}.${escapeHtml(s.area)}</span> ` +
+        `<strong>${escapeHtml(siteObj.hospital)} (${escapeHtml(siteObj.province)})</strong> · ห้อง ${escapeHtml(siteObj.room)} · อ.${escapeHtml(s.advisor || siteObj.advisors)}</div>`;
+      const openAreaBtn = make("button", `ดูผังทีม ${s.area} →`, "btn sm primary");
       openAreaBtn.type = "button";
       openAreaBtn.addEventListener("click", () => {
         if ($("fieldAreaSelect")) $("fieldAreaSelect").value = s.area;
-        if (state.fieldViewMode === "deck") {
-          const fIdx = (SCHED.fieldworkSites || []).findIndex((x) => x.shortName === s.area);
-          if (fIdx >= 0) state.fieldDeckIdx = fIdx;
-        }
+        state.mapHoverSite = s.area;
         switchTab("fieldwork");
       });
-      const printAreaBtn = make("button", "🖨 พิมพ์ A4 กลุ่มเรา", "btn sm");
-      printAreaBtn.type = "button";
-      printAreaBtn.addEventListener("click", () => {
-        switchTab("fieldwork");
-        printSingleGroupHelper("fieldwork", s.area);
-      });
-      q3Foot.append(openAreaBtn, printAreaBtn);
-      q3.appendChild(q3Foot);
+      sumBar.appendChild(openAreaBtn);
+      stage.appendChild(sumBar);
+
+      const mates = ROSTER.students.filter((st) => st.area === s.area).sort((a, b) => compareTH(a.id, b.id));
+      const mosaic = make("div", null, "gsorter-avatar-mosaic cq-teammates-mosaic");
+      mates.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+      stage.appendChild(mosaic);
     } else {
-      q3.appendChild(make("p", "ระบุรหัสนักศึกษาด้านบนเพื่อดูรูปถ่ายเพื่อนร่วมพื้นที่ของคุณทันที หรือคลิกสำรวจทั้ง 9 โรงพยาบาลชุมชน:", "cq-hint"));
       const sPills = make("div", null, "cq-quick-pills");
       (SCHED.fieldworkSites || []).forEach((st) => {
         const b = make("button", null, `area-sub-pill area-site-${st.id} is-btn`);
         b.type = "button";
-        b.innerHTML = `<i class="area-dot"></i>${st.id}. ${escapeHtml(st.shortName)} (${st.count})`;
+        b.innerHTML = `<i class="area-dot"></i>${st.id}.${escapeHtml(st.shortName)} (${st.count})`;
         b.addEventListener("click", () => {
           if ($("fieldAreaSelect")) $("fieldAreaSelect").value = st.shortName;
+          state.mapHoverSite = st.shortName;
           switchTab("fieldwork");
         });
         sPills.appendChild(b);
       });
-      q3.appendChild(sPills);
+      stage.appendChild(sPills);
     }
-
-    grid.append(q1, q2, q3);
-    stage.appendChild(grid);
   }
 
-  function renderFacultyConciergeStage(stage, presetsRow, liveSummary, curDate, todayBkk) {
+  function renderFacultyConciergeStage(stage, presetsRow, activeTab, curDate, todayBkk) {
     const tKey = state.myTeacherKey || "";
     const allTeachers = getAllCourseTeachers();
-    const tObj = allTeachers.find((t) => t.key === tKey) || null;
 
     if ($("conciergeTeacherSelect") && $("conciergeTeacherSelect").value !== tKey) {
       $("conciergeTeacherSelect").value = tKey;
@@ -9422,9 +9725,7 @@
       $("personalTeacherSelect").value = tKey;
     }
     if ($("conciergeToggleAllDaysBtn")) {
-      $("conciergeToggleAllDaysBtn").textContent = state.conciergeTeacherAllDays
-        ? "📅 สลับดูรายวัน"
-        : "📋 ดูรวมทุกวันของอาจารย์";
+      $("conciergeToggleAllDaysBtn").textContent = state.conciergeTeacherAllDays ? "รายวัน" : "รวมทุกวัน";
       $("conciergeToggleAllDaysBtn").classList.toggle("primary", state.conciergeTeacherAllDays);
     }
 
@@ -9435,98 +9736,67 @@
       if (!sessionOccursOnDate(s, curDate, {})) return false;
       return tKey ? sessionMatchesTeacher(s, tKey, getSessionAssignments(s)) : true;
     });
+    const advisedSites = tKey
+      ? (SCHED.fieldworkSites || []).filter((st) => String(st.advisors || "").includes(tKey))
+      : [];
 
-    if (liveSummary) {
-      if (tObj) {
-        liveSummary.textContent = `👨‍⚕️ ${tObj.label} · ภาระงานรวม ${teacherAllSessions.length} คาบ · ${formatCourseDateOptionLabel(curDate)} (${daySessions.length} คาบ)`;
-      } else {
-        liveSummary.textContent = `เลือกชื่ออาจารย์ด้านล่างเพื่อดูคาบสอน ห้องคุม Discussion HS1–HS6 และรายชื่อนักศึกษาในกลุ่มที่ปรึกษา`;
-      }
-    }
+    setConciergeTabPill(
+      "today",
+      `${state.conciergeTeacherAllDays && tKey ? teacherAllSessions.length : daySessions.length} คาบ`
+    );
+    setConciergeTabPill("disc", "HS1–HS6");
+    setConciergeTabPill("field", advisedSites.length ? advisedSites.map((x) => x.shortName).join(",") : "9 รพช.");
 
-    if (presetsRow) {
-      presetsRow.replaceChildren();
-      if (!tKey) {
-        const lbl = make("span", "แตะเลือกอาจารย์ด่วน:", "cq-preset-prefix");
-        presetsRow.appendChild(lbl);
-        allTeachers.slice(0, 13).forEach((t) => {
-          const shortLbl = t.label.replace(/\s*\([^)]*\)/g, "");
-          const chip = make("button", shortLbl, "concierge-preset-chip");
-          chip.type = "button";
-          chip.addEventListener("click", () => selectActiveTeacher(t.key, true));
-          presetsRow.appendChild(chip);
-        });
-      } else {
-        const teachingDates = [...new Set(teacherAllSessions.map((s) => s.dateISO))].sort();
-        const lbl = make("span", `วันที่มีภาระงานของ ${tKey} (${teachingDates.length} วัน):`, "cq-preset-prefix");
-        presetsRow.appendChild(lbl);
-        teachingDates.forEach((d) => {
-          const chip = make(
-            "button",
-            formatCourseDateOptionLabel(d).replace(" 2569", ""),
-            `concierge-preset-chip${!state.conciergeTeacherAllDays && curDate === d ? " is-active" : ""}`
-          );
-          chip.type = "button";
-          chip.addEventListener("click", () => {
-            state.conciergeTeacherAllDays = false;
-            state.conciergeDateISO = d;
-            renderRoleConcierge();
-          });
-          presetsRow.appendChild(chip);
-        });
-        const clearTBtn = make("button", "✕ ล้างชื่ออาจารย์", "concierge-preset-chip is-clear");
-        clearTBtn.type = "button";
-        clearTBtn.addEventListener("click", () => selectActiveTeacher("", false));
-        presetsRow.appendChild(clearTBtn);
-      }
-    }
+    if (!state.conciergeOpen) return;
 
     stage.replaceChildren();
-    const grid = make("div", null, "concierge-q-grid");
 
-    // FACULTY Q1: วันนี้ต้องสอน / คุมคาบ / คุมสอบไหนบ้าง?
-    const q1 = make("article", null, "concierge-q-card");
-    const shownSessions = state.conciergeTeacherAllDays && tKey ? teacherAllSessions : daySessions;
-    const modeLabel =
-      state.conciergeTeacherAllDays && tKey
-        ? `ครบทุกคาบตลอดรายวิชา (${shownSessions.length} คาบ)`
-        : `${curDate === todayBkk ? "วันนี้" : formatCourseDateOptionLabel(curDate)} (${shownSessions.length} คาบ)`;
-
-    q1.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">ภาระงานที่ 1</span>
-        <span class="badge cat-EP">${escapeHtml(modeLabel)}</span>
-      </div>
-      <h3 class="cq-title">📋 ${tKey ? `อ.${escapeHtml(tKey)} ต้องสอน / คุมคาบไหนบ้าง?` : "ตารางสอน & คุมคาบประจำวันที่เลือก"}</h3>
-    `;
-
-    const sessList = make("div", null, "cq-session-list");
-    if (!shownSessions.length) {
-      const emptyBox = make("div", null, "cq-empty");
-      emptyBox.textContent = tKey
-        ? `ไม่มีคาบสอนของ อ.${tKey} ในวันที่ ${formatCourseDateOptionLabel(curDate)}`
-        : "ไม่มีคาบเรียนในวันที่เลือก";
-      sessList.appendChild(emptyBox);
-
-      if (tKey && teacherAllSessions.length) {
-        const nextSess =
-          teacherAllSessions.find((x) => x.dateISO > curDate) || teacherAllSessions[0];
-        if (nextSess) {
-          const jumpNextBtn = make(
-            "button",
-            `ไปที่คาบถัดไปของอาจารย์: ${formatCourseDateOptionLabel(nextSess.dateISO)} (${nextSess.code}) →`,
-            "btn sm primary"
-          );
-          jumpNextBtn.type = "button";
-          jumpNextBtn.style.marginTop = "8px";
-          jumpNextBtn.addEventListener("click", () => {
-            state.conciergeDateISO = nextSess.dateISO;
-            renderRoleConcierge();
+    if (activeTab === "today") {
+      if (presetsRow) {
+        presetsRow.replaceChildren();
+        if (!tKey) {
+          allTeachers.slice(0, 10).forEach((t) => {
+            const chip = make("button", `อ.${t.key}`, "concierge-preset-chip");
+            chip.type = "button";
+            chip.addEventListener("click", () => selectActiveTeacher(t.key, true));
+            presetsRow.appendChild(chip);
           });
-          sessList.appendChild(jumpNextBtn);
+        } else {
+          const teachingDates = [...new Set(teacherAllSessions.map((s) => s.dateISO))].sort();
+          teachingDates.forEach((d) => {
+            const chip = make(
+              "button",
+              formatCourseDateOptionLabel(d).replace(" 2569", ""),
+              `concierge-preset-chip${!state.conciergeTeacherAllDays && curDate === d ? " is-active" : ""}`
+            );
+            chip.type = "button";
+            chip.addEventListener("click", () => {
+              state.conciergeTeacherAllDays = false;
+              state.conciergeDateISO = d;
+              renderRoleConcierge();
+            });
+            presetsRow.appendChild(chip);
+          });
+          const clearTBtn = make("button", "✕ ล้าง", "concierge-preset-chip is-clear");
+          clearTBtn.type = "button";
+          clearTBtn.addEventListener("click", () => selectActiveTeacher("", false));
+          presetsRow.appendChild(clearTBtn);
         }
       }
-    } else {
+
+      const shownSessions = state.conciergeTeacherAllDays && tKey ? teacherAllSessions : daySessions;
+      if (!shownSessions.length) {
+        stage.appendChild(
+          make(
+            "p",
+            tKey ? `ไม่มีคาบสอนของ อ.${tKey} ในวันที่ ${formatCourseDateOptionLabel(curDate)}` : "ไม่มีคาบในวันที่เลือก",
+            "cq-empty"
+          )
+        );
+        return;
+      }
+
+      const sessGrid = make("div", null, "cq-compact-sess-grid");
       shownSessions.forEach((sess) => {
         const roleInfo = tKey
           ? describeTeacherRoleForSession(sess, tKey)
@@ -9540,16 +9810,8 @@
         item.append(topLine, roomLine, titleEl);
 
         const actRow = make("div", null, "cq-mini-actions");
-        const detailBtn = make("button", "รายละเอียดคาบ", "cq-link-btn");
-        detailBtn.type = "button";
-        detailBtn.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          openEventModal(sess);
-        });
-        actRow.appendChild(detailBtn);
-
         if (roleInfo.assignment) {
-          const rosterBtn = make("button", "👥 ใบรายชื่อรูป นศ. ห้องนี้ ↗", "cq-link-btn is-primary");
+          const rosterBtn = make("button", "👥 ผังรูป นศ. ↗", "cq-link-btn is-primary");
           rosterBtn.type = "button";
           rosterBtn.addEventListener("click", (ev) => {
             ev.stopPropagation();
@@ -9558,217 +9820,76 @@
           actRow.appendChild(rosterBtn);
         }
         if (sess.zoom && sess.zoom.url) {
-          const zLink = make("a", "เข้า Zoom ↗", "cq-link-btn is-zoom");
+          const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
           zLink.href = sess.zoom.url;
           zLink.target = "_blank";
           zLink.rel = "noopener";
           actRow.appendChild(zLink);
         }
-        item.appendChild(actRow);
+        if (actRow.childElementCount) item.appendChild(actRow);
         item.addEventListener("click", () => openEventModal(sess));
-        sessList.appendChild(item);
+        sessGrid.appendChild(item);
       });
+      stage.appendChild(sessGrid);
+      return;
     }
-    q1.appendChild(sessList);
 
-    // FACULTY Q2: ตอน Discussion (HS1–HS6) ต้องไปคุมกลุ่มไหน ห้องไหน?
-    const q2 = make("article", null, "concierge-q-card");
-    q2.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">ภาระงานที่ 2</span>
-        <span class="badge cat-HS">HS1–HS6 · 6 คาบ</span>
-      </div>
-      <h3 class="cq-title">🚪 ตอน Discussion ต้องเดินไปคุมกลุ่มไหน · ห้องไหน?</h3>
-    `;
-    if (tKey) {
-      const slotList = make("div", null, "cq-slot-mini-table");
-      let assignedCount = 0;
-      ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
-        const discSess = (SCHED.sessions || []).find((x) => x.hsModule === mod);
-        const matchedRot = (SCHED.hsRotation || []).find(
-          (r) => r[mod] && String(r[mod].instructor || "").includes(tKey)
-        );
-        const isTodayMod = discSess && discSess.dateISO === curDate;
-        const row = make("div", null, `cq-slot-row is-faculty${isTodayMod ? " is-today" : ""}${!matchedRot ? " is-off" : ""}`);
-        const whenTxt = discSess
-          ? `${formatCourseDateOptionLabel(discSess.dateISO).replace(" 2569", "")} (${discSess.timeLabel.replace(" น.", "")})`
-          : mod;
-
-        if (matchedRot) {
-          assignedCount++;
-          const cell = matchedRot[mod] || {};
-          const rm = cell.room || matchedRot.room;
-          const infoSpan = make("div", null, "cq-fac-slot-main");
-          infoSpan.innerHTML = `
-            <span class="cq-slot-mod">${mod}</span>
-            <span class="cq-slot-when">${escapeHtml(whenTxt)}</span>
-            <strong class="cq-slot-rm${cell.highlightRoom ? " is-changed" : ""}">กลุ่ม ${matchedRot.group} · ห้อง ${escapeHtml(rm)}</strong>
-          `;
-          const btnWrap = make("div", null, "cq-fac-slot-btns");
-          const openGroupBtn = make("button", "👥 รูป นศ.", "cq-link-btn is-primary");
-          openGroupBtn.type = "button";
-          openGroupBtn.title = `เปิดใบรายชื่อรูปถ่ายนักศึกษากลุ่ม Discussion ที่ ${matchedRot.group}`;
-          openGroupBtn.addEventListener("click", () => {
-            if (discSess) {
-              jumpToClassRoster(discSess, {
-                type: "discussion",
-                groupId: String(matchedRot.group),
-                label: `Discussion กลุ่มที่ ${matchedRot.group} (${matchedRot.count} คน)`,
-                lecturer: cell.instructor,
-                room: rm
-              });
-            } else {
+    if (activeTab === "disc") {
+      if (tKey) {
+        const slotGrid = make("div", null, "cq-compact-disc-grid");
+        ["HS1", "HS2", "HS3", "HS4", "HS5", "HS6"].forEach((mod) => {
+          const matchedRot = (SCHED.hsRotation || []).find((r) => r[mod] && String(r[mod].instructor || "").includes(tKey));
+          const row = make("div", null, `cq-slot-row is-faculty${!matchedRot ? " is-off" : ""}`);
+          if (matchedRot) {
+            const cell = matchedRot[mod] || {};
+            const rm = cell.room || matchedRot.room;
+            row.innerHTML = `<span class="cq-slot-mod">${mod}</span><strong class="cq-slot-rm">G${matchedRot.group} · ${escapeHtml(rm)}</strong>`;
+            row.style.cursor = "pointer";
+            row.addEventListener("click", () => {
               if ($("discGroupSelect")) $("discGroupSelect").value = String(matchedRot.group);
+              state.discDeckIdx = matchedRot.group - 1;
+              state.discViewMode = "formation";
               switchTab("discussion");
-            }
-          });
-          btnWrap.appendChild(openGroupBtn);
-
-          if (typeof FACULTY !== "undefined" && FACULTY && Array.isArray(FACULTY.docs)) {
-            const tgDoc = FACULTY.docs.find((d) => d.id.toLowerCase().startsWith(mod.toLowerCase()));
-            if (tgDoc) {
-              const tgBtn = make("button", "📖 คู่มือผู้สอน", "cq-link-btn");
-              tgBtn.type = "button";
-              tgBtn.addEventListener("click", () => {
-                state.facultySub = "guides";
-                state.activeFacultyDocId = tgDoc.id;
-                switchTab("faculty-docs");
-              });
-              btnWrap.appendChild(tgBtn);
-            }
+            });
+          } else {
+            row.innerHTML = `<span class="cq-slot-mod">${mod}</span><span class="cq-slot-off-txt">—</span>`;
           }
-          row.append(infoSpan, btnWrap);
-        } else {
-          row.innerHTML = `
-            <div class="cq-fac-slot-main">
-              <span class="cq-slot-mod">${mod}</span>
-              <span class="cq-slot-when">${escapeHtml(whenTxt)}</span>
-              <span class="cq-slot-off-txt">— ไม่มีคุมกลุ่มย่อยในคาบนี้ —</span>
-            </div>
-          `;
-        }
-        slotList.appendChild(row);
-      });
-      q2.appendChild(slotList);
-      if (assignedCount === 0) {
-        q2.appendChild(make("p", "อาจารย์ไม่ได้อยู่ในสายหมุนเวียนคุมห้องย่อย HS1–HS6 (ดูตารางหมุนเวียนรวมทั้ง 6 ห้องได้ด้านล่าง)", "cq-hint"));
+          slotGrid.appendChild(row);
+        });
+        stage.appendChild(slotGrid);
+      } else {
+        const gPills = make("div", null, "cq-quick-pills");
+        (SCHED.hsRotation || []).forEach((r, idx) => {
+          const b = make("button", `G${r.group} · ${r.room}`, "btn sm");
+          b.type = "button";
+          b.addEventListener("click", () => {
+            if ($("discGroupSelect")) $("discGroupSelect").value = String(r.group);
+            state.discDeckIdx = idx;
+            state.discViewMode = "formation";
+            switchTab("discussion");
+          });
+          gPills.appendChild(b);
+        });
+        stage.appendChild(gPills);
       }
-      const rotFullBtn = make("button", "ดูตารางหมุนเวียน HS1–HS6 ครบทั้ง 6 ห้อง →", "btn sm");
-      rotFullBtn.type = "button";
-      rotFullBtn.style.marginTop = "8px";
-      rotFullBtn.addEventListener("click", () => {
-        state.schedSub = "spec";
-        syncSegButtons();
-        switchTab("schedule");
-      });
-      q2.appendChild(rotFullBtn);
-    } else {
-      q2.appendChild(
-        make("p", "เลือกชื่ออาจารย์ด้านบนเพื่อดูตารางห้องคุม Discussion HS1–HS6 เฉพาะตัวท่านทันที (ระบุเลขกลุ่มและเลขห้อง 1C1-02..07 / 2C2-03 รายคาบ)", "cq-hint")
-      );
-      const specBtn = make("button", "เปิดตารางหมุนเวียนอาจารย์ HS1–HS6 ทั้งหมด →", "btn sm primary");
-      specBtn.type = "button";
-      specBtn.addEventListener("click", () => {
-        state.schedSub = "spec";
-        syncSegButtons();
-        switchTab("schedule");
-      });
-      q2.appendChild(specBtn);
+      return;
     }
 
-    // FACULTY Q3: กลุ่มพื้นที่ภาคสนามที่ดูแล & รายชื่อนักศึกษาในทีม
-    const q3 = make("article", null, "concierge-q-card");
-    const advisedSites = tKey
-      ? (SCHED.fieldworkSites || []).filter((st) => String(st.advisors || "").includes(tKey))
-      : [];
-    q3.innerHTML = `
-      <div class="cq-head">
-        <span class="cq-step">ภาระงานที่ 3</span>
-        <span class="badge cat-SG">${advisedSites.length ? `ที่ปรึกษา ${advisedSites.length} พื้นที่` : "บริหารรายชื่อ 169 คน"}</span>
-      </div>
-      <h3 class="cq-title">🏥 กลุ่มพื้นที่ภาคสนามที่ดูแล · ห้องกลุ่มย่อย &amp; นศ.</h3>
-    `;
-
-    if (advisedSites.length) {
-      advisedSites.forEach((site) => {
-        const box = make("div", null, "cq-room-hero is-field");
-        box.innerHTML = `
-          <div>
-            <span class="area-sub-pill area-site-${site.id}"><i class="area-dot"></i>${site.id}. ${escapeHtml(site.shortName)} · ${escapeHtml(site.hospital)} (${escapeHtml(site.province)})</span>
-            <p class="cq-field-meta"><strong>ห้องประชุมกลุ่มย่อย:</strong> ${escapeHtml(site.room)}<br>
-            <strong>กำหนดลงพื้นที่:</strong> ${escapeHtml(site.datesTH)}<br>
-            ${site.staffRef ? `<strong>ผู้ประสานงานพื้นที่:</strong> ${escapeHtml(site.staffRef)}` : ""}</p>
-          </div>
-        `;
-        q3.appendChild(box);
-
-        const members = ROSTER.students.filter((s) => s.area === site.shortName).sort((a, b) => compareTH(a.id, b.id));
-        const mosaic = make("div", null, "gsorter-avatar-mosaic cq-teammates-mosaic");
-        members.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
-        q3.appendChild(mosaic);
-
-        const actRow = make("div", null, "cq-card-actions");
-        const viewBtn = make("button", `👥 ดูใบรายชื่อ ${site.shortName} (${members.length} คน)`, "btn sm primary");
-        viewBtn.type = "button";
-        viewBtn.addEventListener("click", () => {
-          if ($("fieldAreaSelect")) $("fieldAreaSelect").value = site.shortName;
-          switchTab("fieldwork");
-        });
-        const printBtn = make("button", "🖨 พิมพ์ A4 1 หน้า", "btn sm");
-        printBtn.type = "button";
-        printBtn.addEventListener("click", () => {
-          switchTab("fieldwork");
-          printSingleGroupHelper("fieldwork", site.shortName);
-        });
-        actRow.append(viewBtn, printBtn);
-        q3.appendChild(actRow);
-      });
-    } else {
-      q3.appendChild(
-        make(
-          "p",
-          tKey
-            ? `อ.${tKey} ไม่ได้เป็นที่ปรึกษาประจำกลุ่มพื้นที่ รพช. โดยตรง · สามารถเปิดกระดาน Group Sorter หรือตาราง Admin รวมนักศึกษา 169 คนได้ทันที:`
-            : "ผู้ประสานงานและอาจารย์สามารถเปิดดู Group Sorter เทียบทั้ง 6 กลุ่ม / 9 พื้นที่ หรือเปิดตาราง Admin ส่งออก CSV ได้ทันที:",
-          "cq-hint"
-        )
-      );
-      const adminBtns = make("div", null, "cq-card-actions");
-      const b1 = make("button", "⊞ Group Sorter (6 กลุ่ม Discussion)", "btn sm primary");
-      b1.type = "button";
-      b1.addEventListener("click", () => {
-        state.discViewMode = "sorter";
-        switchTab("discussion");
-      });
-      const b2 = make("button", "⊞ Group Sorter (9 พื้นที่ รพช.)", "btn sm teal");
-      b2.type = "button";
-      b2.addEventListener("click", () => {
-        state.fieldViewMode = "sorter";
+    // activeTab === "field"
+    const sPills = make("div", null, "cq-quick-pills");
+    const targetSites = advisedSites.length ? advisedSites : SCHED.fieldworkSites || [];
+    targetSites.forEach((st) => {
+      const b = make("button", null, `area-sub-pill area-site-${st.id} is-btn`);
+      b.type = "button";
+      b.innerHTML = `<i class="area-dot"></i>${st.id}.${escapeHtml(st.shortName)} (${st.count})`;
+      b.addEventListener("click", () => {
+        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = st.shortName;
+        state.mapHoverSite = st.shortName;
         switchTab("fieldwork");
       });
-      const b3 = make("button", "≡ ตาราง Admin 169 คน", "btn sm");
-      b3.type = "button";
-      b3.addEventListener("click", () => {
-        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = "";
-        state.fieldViewMode = "table";
-        switchTab("fieldwork");
-      });
-      adminBtns.append(b1, b2, b3);
-      q3.appendChild(adminBtns);
-    }
-
-    if (tKey) {
-      const icsRow = make("div", null, "cq-card-actions");
-      icsRow.style.marginTop = "8px";
-      const dlTeacherIcs = make("button", `📅 ดาวน์โหลดปฏิทินภาระงาน อ.${tKey} (.ics)`, "btn sm teal");
-      dlTeacherIcs.type = "button";
-      dlTeacherIcs.addEventListener("click", downloadScheduleIcs);
-      icsRow.appendChild(dlTeacherIcs);
-      q3.appendChild(icsRow);
-    }
-
-    grid.append(q1, q2, q3);
-    stage.appendChild(grid);
+      sPills.appendChild(b);
+    });
+    stage.appendChild(sPills);
   }
 
   /* ---------- Global Quick-Search & Navigation Spotlight (⌘K / Ctrl+K) + Floating Dock ---------- */
@@ -10225,7 +10346,7 @@
       myDayFabBtn.type = "button";
       myDayFabBtn.addEventListener("click", () => {
         state.conciergeOpen = true;
-        localStorage.setItem("racm303_concierge_open", "1");
+        localStorage.setItem("racm303_concierge_tab_open", "1");
         renderRoleConcierge();
         const shell = $("roleConciergeShell");
         if (shell && shell.scrollIntoView) shell.scrollIntoView({ behavior: "smooth", block: "start" });
