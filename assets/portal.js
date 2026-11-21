@@ -736,8 +736,19 @@
 
     const bindStudentInput = (el) => {
       if (!el) return;
+      const onClearCheck = () => {
+        if (!el.value.trim() && state.myStudent) {
+          clearAllPersonalization();
+        }
+      };
+      el.addEventListener("search", onClearCheck);
       el.addEventListener("change", () => {
-        const found = findStudentByQuery(el.value);
+        const val = el.value.trim();
+        if (!val) {
+          if (state.myStudent) clearAllPersonalization();
+          return;
+        }
+        const found = findStudentByQuery(val);
         if (found) {
           state.calScope = "student";
           applyMyStudent(found, true);
@@ -745,6 +756,10 @@
       });
       el.addEventListener("input", () => {
         const val = el.value.trim();
+        if (!val) {
+          if (state.myStudent) clearAllPersonalization();
+          return;
+        }
         const m = val.match(/^(\d{7})\b/);
         if (m) {
           const found = ROSTER.students.find((s) => s.id === m[1]);
@@ -766,6 +781,16 @@
     });
   }
 
+  function clearSelectedStudentOnly() {
+    state.myStudent = null;
+    localStorage.removeItem("racm303_my_sid");
+    ["personalStudentInput", "studioStudentInput", "subStudentQuickInput", "conciergeStudentInput"].forEach((id) => {
+      if ($(id)) $(id).value = "";
+    });
+    updatePersonalBanner();
+    if (typeof syncRamedPerUserIdentityUI === "function") syncRamedPerUserIdentityUI();
+  }
+
   function applyMyStudent(student, syncFilters) {
     state.myStudent = student;
     state.ramedLoginId = student.id;
@@ -779,6 +804,7 @@
     if ($("personalStudentInput")) $("personalStudentInput").value = formatted;
     if ($("studioStudentInput")) $("studioStudentInput").value = formatted;
     if ($("subStudentQuickInput")) $("subStudentQuickInput").value = formatted;
+    if ($("conciergeStudentInput")) $("conciergeStudentInput").value = formatted;
 
     if (syncFilters) {
       if ($("schedDiscFilter")) $("schedDiscFilter").value = String(student.disc);
@@ -806,17 +832,12 @@
   }
 
   function selectFieldworkGroupOnly(shortName) {
-    state.myStudent = null;
-    localStorage.removeItem("racm303_my_sid");
-    if ($("personalStudentInput")) $("personalStudentInput").value = "";
-    if ($("studioStudentInput")) $("studioStudentInput").value = "";
-    if ($("subStudentQuickInput")) $("subStudentQuickInput").value = "";
+    clearSelectedStudentOnly();
     if ($("schedDiscFilter")) $("schedDiscFilter").value = "";
     if ($("schedTeacherFilter")) $("schedTeacherFilter").value = "";
     if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
     if ($("schedAreaFilter")) $("schedAreaFilter").value = shortName || "";
     state.calScope = shortName ? "group" : "all";
-    updatePersonalBanner();
     refreshCalendarStudioUI();
     renderScheduleCurrent();
   }
@@ -1104,11 +1125,18 @@
   }
 
   function getActivePersonalContext() {
-    const discVal = ($("schedDiscFilter") && $("schedDiscFilter").value) || (state.myStudent ? String(state.myStudent.disc) : "");
-    const areaVal = ($("schedAreaFilter") && $("schedAreaFilter").value) || (state.myStudent ? state.myStudent.area : "");
+    const rawSchedSearch = (($("schedSearchInput") && $("schedSearchInput").value) || "").trim();
+    const searchStudent = rawSchedSearch ? findStudentByQuery(rawSchedSearch) : null;
+    const effectiveStudent = state.myStudent || searchStudent || null;
+    const discVal =
+      ($("schedDiscFilter") && $("schedDiscFilter").value) ||
+      (effectiveStudent ? String(effectiveStudent.disc) : "");
+    const areaVal =
+      ($("schedAreaFilter") && $("schedAreaFilter").value) ||
+      (effectiveStudent ? effectiveStudent.area : "");
     const teacherVal = ($("schedTeacherFilter") && $("schedTeacherFilter").value) || "";
     const siteObj = areaVal ? (SCHED.fieldworkSites || []).find((x) => x.shortName === areaVal) : null;
-    return { discVal, areaVal, teacherVal, siteObj };
+    return { discVal, areaVal, teacherVal, siteObj, effectiveStudent, searchStudent };
   }
 
   function resolveEffectiveSessionDetails(session, ctx) {
@@ -1181,7 +1209,7 @@
         if (!s.allowedSites.includes(ctx.siteObj.id)) return false;
       }
 
-      if (q) {
+      if (q && !ctx.searchStudent) {
         const zoomHay = s.zoom ? `zoom ${s.zoom.id} ${s.zoom.pass} ${s.zoom.url}` : "";
         const hay = [
           s.code,
@@ -1210,10 +1238,7 @@
         return `calendars/teacher_${String(idx + 1).padStart(2, "0")}.ics`;
       }
     }
-    if (ctx.discVal && ctx.siteObj && ROLE === "student") {
-      return `calendars/d${ctx.discVal}_g${ctx.siteObj.id}.ics`;
-    }
-    if (ctx.discVal && ctx.siteObj && state.myStudent) {
+    if (ctx.discVal && ctx.siteObj && (ROLE === "student" || ctx.effectiveStudent)) {
       return `calendars/d${ctx.discVal}_g${ctx.siteObj.id}.ics`;
     }
     if (ctx.siteObj) {
@@ -1225,6 +1250,7 @@
   function refreshCalendarStudioUI() {
     const ctx = getActivePersonalContext();
     const sessionsToExport = getSessionsForExport();
+    const activeStu = ctx.effectiveStudent;
 
     // Update scope tabs visual state
     document.querySelectorAll("[data-cal-scope]").forEach((btn) => {
@@ -1237,7 +1263,7 @@
     if ($("calScopeAllPane")) $("calScopeAllPane").hidden = state.calScope !== "all";
 
     if ($("studioClearSelectionBtn")) {
-      $("studioClearSelectionBtn").hidden = !(state.myStudent || ctx.areaVal || ctx.discVal);
+      $("studioClearSelectionBtn").hidden = !(activeStu || ctx.areaVal || ctx.discVal);
     }
     if ($("studioClearTeacherBtn")) {
       $("studioClearTeacherBtn").hidden = !ctx.teacherVal;
@@ -1248,7 +1274,7 @@
       pill.classList.toggle("is-selected", pill.dataset.areaName === ctx.areaVal);
     });
 
-    // Update summary box & dynamic CTA button labels
+    // Update summary box & tooltips (keeping button face labels clean without embedded IDs)
     const sumBox = $("calTargetSummaryBox");
     const dlIcsBtn = $("studioDownloadIcsBtn");
     const dlCsvBtn = $("studioDownloadCsvBtn");
@@ -1256,10 +1282,10 @@
     const topCsvBtn = $("exportGcalCsvBtn");
 
     let shortTarget = "ตารางรวมทั้งรายวิชา";
-    if (state.myStudent && ctx.siteObj) {
-      const s = state.myStudent;
+    if (activeStu && ctx.siteObj) {
+      const s = activeStu;
       const site = ctx.siteObj;
-      shortTarget = `${s.id} (${site.shortName})`;
+      shortTarget = `${s.id} · ${site.shortName}`;
       if (sumBox) {
         sumBox.innerHTML =
           `<strong>ตารางเฉพาะตัวนักศึกษา:</strong> ${escapeHtml(s.fullName)} (<code>${escapeHtml(s.id)}</code>) · Discussion ${s.disc} · กลุ่ม <strong>${escapeHtml(site.hospital)} ${escapeHtml(site.province)}</strong><br>` +
@@ -1295,12 +1321,17 @@
       }
     }
 
-    setBtnLabel(dlIcsBtn, `Export .ics (${shortTarget})`);
-    setBtnLabel(dlCsvBtn, `Export .csv (${shortTarget})`);
-    setBtnLabel(topIcsBtn, `Export iCal .ics (${shortTarget})`);
-    setBtnLabel(topCsvBtn, `Google .csv (${shortTarget})`);
-    setBtnLabel($("sideDlIcsQuickBtn"), `Export .ics (${shortTarget})`);
-    setBtnLabel($("sideDlCsvQuickBtn"), `Export .csv (${shortTarget})`);
+    setBtnLabel(dlIcsBtn, "Export .ics (Google / Apple iCal)");
+    setBtnLabel(dlCsvBtn, "Export .csv (Google Calendar)");
+    setBtnLabel(topIcsBtn, "Export iCal (.ics)");
+    setBtnLabel(topCsvBtn, "Google (.csv)");
+    setBtnLabel($("sideDlIcsQuickBtn"), "Export .ics");
+    setBtnLabel($("sideDlCsvQuickBtn"), "Google (.csv)");
+    const syncTip = `ส่งออกตามตัวกรองปัจจุบัน: ${shortTarget} (${sessionsToExport.length} รายการ)`;
+    if (topIcsBtn) topIcsBtn.title = syncTip;
+    if (topCsvBtn) topCsvBtn.title = syncTip;
+    if (dlIcsBtn) dlIcsBtn.title = syncTip;
+    if (dlCsvBtn) dlCsvBtn.title = syncTip;
     if ($("calSideSyncTargetLabel")) {
       $("calSideSyncTargetLabel").textContent = `กำลังซิงค์: ${shortTarget} (${sessionsToExport.length} คาบ · พร้อมลิงก์ Zoom)`;
     }
@@ -1591,6 +1622,7 @@
       $("schedWeekFilter").addEventListener("change", () => {
         const w = Number($("schedWeekFilter").value);
         if (w >= 1 && w <= 6) state.calWeek = w;
+        refreshCalendarStudioUI();
         renderScheduleCurrent();
       });
     }
@@ -1599,14 +1631,22 @@
       $("schedAreaFilter").addEventListener("change", () => {
         const val = $("schedAreaFilter").value;
         if (state.myStudent && val !== state.myStudent.area) {
-          state.myStudent = null;
-          localStorage.removeItem("racm303_my_sid");
-          if ($("personalStudentInput")) $("personalStudentInput").value = "";
-          if ($("studioStudentInput")) $("studioStudentInput").value = "";
+          clearSelectedStudentOnly();
           state.calScope = val ? "group" : "all";
-          updatePersonalBanner();
         } else if (!state.myStudent && val) {
           state.calScope = "group";
+        }
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      });
+    }
+
+    if ($("schedDiscFilter")) {
+      $("schedDiscFilter").addEventListener("change", () => {
+        const val = $("schedDiscFilter").value;
+        if (state.myStudent && val !== String(state.myStudent.disc)) {
+          clearSelectedStudentOnly();
+          state.calScope = ($("schedAreaFilter") && $("schedAreaFilter").value) ? "group" : "all";
         }
         refreshCalendarStudioUI();
         renderScheduleCurrent();
@@ -1616,6 +1656,9 @@
     if ($("schedTeacherFilter")) {
       $("schedTeacherFilter").addEventListener("change", () => {
         const val = $("schedTeacherFilter").value;
+        if (val && state.myStudent) {
+          clearSelectedStudentOnly();
+        }
         if ($("studioTeacherSelect")) $("studioTeacherSelect").value = val;
         if (val && ROLE === "faculty") state.calScope = "teacher";
         refreshCalendarStudioUI();
@@ -1623,18 +1666,20 @@
       });
     }
 
-    ["schedCatFilter", "schedDiscFilter"].forEach((id) => {
-      const el = $(id);
-      if (el) {
-        el.addEventListener("change", () => {
-          refreshCalendarStudioUI();
-          renderScheduleCurrent();
-        });
-      }
-    });
+    if ($("schedCatFilter")) {
+      $("schedCatFilter").addEventListener("change", () => {
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      });
+    }
 
     if ($("schedSearchInput")) {
-      $("schedSearchInput").addEventListener("input", renderScheduleCurrent);
+      const onSchedSearch = () => {
+        refreshCalendarStudioUI();
+        renderScheduleCurrent();
+      };
+      $("schedSearchInput").addEventListener("input", onSchedSearch);
+      $("schedSearchInput").addEventListener("search", onSchedSearch);
     }
     if ($("resetSchedFiltersBtn")) {
       $("resetSchedFiltersBtn").addEventListener("click", () => {
@@ -1642,13 +1687,9 @@
           if ($(id)) $(id).value = "";
         });
         if ($("studioTeacherSelect")) $("studioTeacherSelect").value = "";
-        if (state.myStudent) {
-          if ($("schedDiscFilter")) $("schedDiscFilter").value = String(state.myStudent.disc);
-          if ($("schedAreaFilter")) $("schedAreaFilter").value = state.myStudent.area;
-        }
         state.calWeek = 1;
-        refreshCalendarStudioUI();
-        renderScheduleCurrent();
+        state.calScope = ROLE === "faculty" ? "teacher" : "all";
+        clearAllPersonalization();
       });
     }
 
@@ -1666,6 +1707,7 @@
         state.calWeek = Math.max(1, state.calWeek - 1);
         if ($("schedWeekFilter") && $("schedWeekFilter").value) $("schedWeekFilter").value = String(state.calWeek);
         syncSegButtons();
+        refreshCalendarStudioUI();
         renderScheduleCurrent();
       });
     }
@@ -1675,6 +1717,7 @@
         state.calWeek = Math.min(6, state.calWeek + 1);
         if ($("schedWeekFilter") && $("schedWeekFilter").value) $("schedWeekFilter").value = String(state.calWeek);
         syncSegButtons();
+        refreshCalendarStudioUI();
         renderScheduleCurrent();
       });
     }
@@ -1682,6 +1725,7 @@
       $("calStartWeekBtn").addEventListener("click", () => {
         state.calWeek = 1;
         if ($("schedWeekFilter")) $("schedWeekFilter").value = "";
+        refreshCalendarStudioUI();
         renderScheduleCurrent();
       });
     }
@@ -1708,7 +1752,7 @@
         if (!hasActiveScheduleFilter()) return; // allow native download of pre-built PDF
         ev.preventDefault();
         const ctx = getActivePersonalContext();
-        const tag = ctx.teacherVal || (state.myStudent && state.myStudent.id) || ctx.areaVal || "เฉพาะเงื่อนไขที่กรอง";
+        const tag = ctx.teacherVal || (ctx.effectiveStudent && ctx.effectiveStudent.id) || ctx.areaVal || ctx.discVal || "เฉพาะเงื่อนไขที่กรอง";
         printWithCleanTitle(`ตารางสอน_RACM303_2569_${sanitizeFilenamePart(tag)}`);
       });
     }
@@ -1724,7 +1768,7 @@
             return `<tr><td>สัปดาห์ ${s.week} · ${escapeHtml(s.dateTH)} (${escapeHtml(eff.startTime || s.startTime)}–${escapeHtml(eff.endTime || s.endTime)})</td><td>${escapeHtml(eff.title || s.title)}</td><td>${escapeHtml(eff.lecturers || s.lecturers || "-")}</td><td>${escapeHtml(eff.room || s.room || "-")}</td></tr>`;
           })
           .join("");
-        const tag = ctx.teacherVal || (state.myStudent && `${state.myStudent.id}_${state.myStudent.fullName}`) || ctx.areaVal || "Filtered";
+        const tag = ctx.teacherVal || (ctx.effectiveStudent && `${ctx.effectiveStudent.id}_${ctx.effectiveStudent.fullName}`) || ctx.areaVal || (ctx.discVal ? `Discussion_${ctx.discVal}` : "Filtered");
         downloadHtmlAsGenuineDocx(
           "ตารางกิจกรรมการเรียนการสอน รายวิชา RACM 303 ปีการศึกษา 2569",
           `เงื่อนไขที่กรอง: ${tag} · รวม ${sessions.length} คาบกิจกรรม`,
@@ -2577,17 +2621,37 @@
   }
 
   function getSessionsForExport() {
+    const weekVal = ($("schedWeekFilter") && $("schedWeekFilter").value) || "";
+    const catVal = ($("schedCatFilter") && $("schedCatFilter").value) || "";
     const ctx = getActivePersonalContext();
+    const q = (($("schedSearchInput") && $("schedSearchInput").value) || "").trim().toLocaleLowerCase("th");
+
     return (SCHED.sessions || []).filter((s) => {
       if (ROLE === "student" && s.studentVisible === false) return false;
       if (!s.dateISO) return false;
+      if (weekVal && String(s.week) !== weekVal) return false;
+      if (catVal && s.category !== catVal) return false;
       const assignments = getSessionAssignments(s);
       if (!sessionMatchesTeacher(s, ctx.teacherVal, assignments)) return false;
       if (ctx.areaVal && s.allowedSites && ctx.siteObj) {
         if (!s.allowedSites.includes(ctx.siteObj.id)) return false;
-      } else if (!ctx.areaVal && !ctx.teacherVal && (s.code === "TRAVEL" || s.code === "RETURN")) {
-        // In unfiltered whole-class mode, keep w4-fieldwork and avoid duplicating all 9 travel batches unless filtering
-        return true;
+      }
+      if (q && !ctx.searchStudent) {
+        const zoomHay = s.zoom ? `zoom ${s.zoom.id} ${s.zoom.pass} ${s.zoom.url}` : "";
+        const hay = [
+          s.code,
+          s.title,
+          s.objectives,
+          s.lecturers,
+          s.room,
+          s.dateTH,
+          zoomHay,
+          ROLE === "faculty" ? (s.facultyNote || "") : "",
+          ...assignments.map((a) => `${a.label} ${a.lecturer} ${a.room}`)
+        ]
+          .join(" ")
+          .toLocaleLowerCase("th");
+        if (!hay.includes(q)) return false;
       }
       return true;
     });
@@ -2670,23 +2734,35 @@
 
   function getExportFilenameSuffix() {
     const ctx = getActivePersonalContext();
-    if (state.myStudent) return `_${state.myStudent.id}_${state.myStudent.area.replace(/\s+/g, "")}`;
-    if (ctx.teacherVal) return `_${ctx.teacherVal.replace(/\s+/g, "_")}`;
-    if (ctx.siteObj) return `_กลุ่ม${ctx.siteObj.shortName.replace(/\s+/g, "")}`;
-    if (ctx.discVal) return `_Disc${ctx.discVal}`;
-    return "";
+    const weekVal = ($("schedWeekFilter") && $("schedWeekFilter").value) || "";
+    const catVal = ($("schedCatFilter") && $("schedCatFilter").value) || "";
+    const parts = [];
+    if (ctx.effectiveStudent) {
+      parts.push(`${ctx.effectiveStudent.id}_${ctx.effectiveStudent.area.replace(/\s+/g, "")}`);
+    } else if (ctx.teacherVal) {
+      parts.push(ctx.teacherVal.replace(/\s+/g, "_"));
+    } else {
+      if (ctx.siteObj) parts.push(`กลุ่ม${ctx.siteObj.shortName.replace(/\s+/g, "")}`);
+      if (ctx.discVal) parts.push(`Disc${ctx.discVal}`);
+    }
+    if (weekVal) parts.push(`W${weekVal}`);
+    if (catVal) parts.push(catVal);
+    return parts.length ? `_${parts.join("_")}` : "";
   }
 
   function getActiveCalendarDisplayName() {
     const ctx = getActivePersonalContext();
-    if (state.myStudent) {
-      return `RACM 303 (2569) · ${state.myStudent.fullName} (${state.myStudent.area})`;
+    if (ctx.effectiveStudent) {
+      return `RACM 303 (2569) · ${ctx.effectiveStudent.fullName} (${ctx.effectiveStudent.area})`;
     }
     if (ctx.teacherVal) {
       return `RACM 303 (2569) · อาจารย์ ${ctx.teacherVal}`;
     }
     if (ctx.siteObj) {
       return `RACM 303 (2569) · กลุ่ม ${ctx.siteObj.hospital}`;
+    }
+    if (ctx.discVal) {
+      return `RACM 303 (2569) · Discussion กลุ่มที่ ${ctx.discVal}`;
     }
     return "RACM 303 (ปีการศึกษา 2569)";
   }
@@ -6937,8 +7013,10 @@
     const finalName = `${round}_${area}_${sid}_${sname}.pdf`;
     const preview = $("srnFilenamePreview");
     if (preview) preview.textContent = finalName;
-    if ($("downloadRenamedPdfBtn") && state.inspectedPdfBytes) {
-      setBtnLabel($("downloadRenamedPdfBtn"), `Export "${finalName}"`);
+    const dlBtn = $("downloadRenamedPdfBtn");
+    if (dlBtn && state.inspectedPdfBytes) {
+      setBtnLabel(dlBtn, "Export PDF ที่เปลี่ยนชื่อแล้ว");
+      dlBtn.title = `ดาวน์โหลดไฟล์ชื่อ ${finalName}`;
     }
     return finalName;
   }
@@ -6979,7 +7057,8 @@
       state.inspectedPdfOrigName = file.name;
       if (dlBtn) {
         dlBtn.hidden = false;
-        setBtnLabel(dlBtn, `Export "${targetName}"`);
+        setBtnLabel(dlBtn, "Export PDF ที่เปลี่ยนชื่อแล้ว");
+        dlBtn.title = `ดาวน์โหลดไฟล์ชื่อ ${targetName}`;
       }
 
       resBox.hidden = false;
@@ -7519,15 +7598,16 @@
 
     if (launchBtn) {
       if (phase === "connected") {
-        launchBtn.textContent = activeUid ? `✓ เชื่อมรหัส ${activeUid} แล้ว (เปิดซ้ำ ↗)` : "✓ เชื่อมต่อแล้ว (เปิดหน้า Login ↗)";
+        launchBtn.textContent = "✓ เชื่อมต่อแล้ว (เปิดหน้า Login ↗)";
+        launchBtn.title = activeUid ? `เชื่อมต่อรหัส ${activeUid} แล้ว` : "เชื่อมต่อแล้ว";
         launchBtn.classList.remove("primary");
         launchBtn.classList.add("teal");
       } else {
-        launchBtn.textContent = activeUid
-          ? `🔐 1. เปิดหน้าต่างใหม่ไป Login (รหัส ${activeUid}) ↗`
-          : ROLE === "faculty"
+        launchBtn.textContent =
+          ROLE === "faculty"
             ? "🔐 1. เปิดหน้าต่างใหม่ไป Login อาจารย์ ↗"
             : "🔐 1. เปิดหน้าต่างใหม่ไป Login E-learning ↗";
+        launchBtn.title = activeUid ? `เปิดหน้าต่าง Login (รหัส ${activeUid})` : "เปิดหน้าต่างใหม่ไป Login E-learning";
         launchBtn.classList.add("primary");
         launchBtn.classList.remove("teal");
       }
@@ -7670,7 +7750,7 @@
           <div class="rpu-input-col">
             <label for="ramedMyLoginIdInput">🔑 เข้าห้องเรียนออนไลน์ด้วยรหัสนักศึกษาของฉัน (รหัสใคร รหัสมัน):</label>
             <div class="rpu-input-row">
-              <input id="ramedMyLoginIdInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลักของตัวเอง (เช่น 6702006)…">
+              <input id="ramedMyLoginIdInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลักของตัวเอง (เช่น 6702xxx)…">
               <button class="btn primary sm" id="ramedLaunchWithMyIdBtn" type="button">🔐 1. เปิดหน้าต่างใหม่ไป Login E-learning ↗</button>
               <button class="btn sm" id="ramedSwitchAccountBtn" type="button" title="กดเพื่อออกจากบัญชีเดิมหากเครื่องนี้ค้างรหัสอาจารย์หรือเพื่อนคนอื่นอยู่">🔄 สลับบัญชีผู้ใช้งาน</button>
             </div>
@@ -7729,6 +7809,16 @@
     if (uidInp) {
       const handleUidChange = () => {
         const raw = uidInp.value.trim();
+        if (!raw) {
+          state.ramedLoginId = "";
+          localStorage.removeItem("racm303_login_uid");
+          if (ROLE === "student" && state.myStudent) {
+            clearAllPersonalization();
+            return;
+          }
+          syncRamedPerUserIdentityUI();
+          return;
+        }
         const m7 = raw.match(/^(\d{7})\b/);
         if (m7) {
           const stu = ROSTER.students.find((s) => s.id === m7[1]);
@@ -7752,6 +7842,7 @@
       };
       uidInp.addEventListener("input", handleUidChange);
       uidInp.addEventListener("change", handleUidChange);
+      uidInp.addEventListener("search", handleUidChange);
     }
 
     const launchBtn = $("ramedLaunchWithMyIdBtn");
@@ -7817,6 +7908,7 @@
       loginCardLink.href = loginUrl;
     }
 
+    const topNavText = tr("ห้องเรียน E-learning ↗", "E-learning ↗");
     if (ROLE === "student") {
       if (activeStudent) {
         if (statusBox) {
@@ -7824,15 +7916,27 @@
             `<strong>✓ กำลังเข้าใช้งานฝั่งนักศึกษา รหัส <code>${escapeHtml(activeStudent.id)}</code> (${escapeHtml(activeStudent.fullName)})</strong> · ` +
             `กลุ่มพื้นที่ ${escapeHtml(activeStudent.area)} · Discussion ${activeStudent.disc} — กดปุ่มเปิดหน้าต่าง Login ด้านบนเพื่อเชื่อมเซสชันส่วนตัวของคุณ`;
         }
-        if (primaryCourseBtn) primaryCourseBtn.textContent = `เข้าห้องเรียน RACM 303 (รหัส ${activeStudent.id}) ↗`;
-        if (topNavRamedLink) topNavRamedLink.textContent = `ห้องเรียน E-learning (${activeStudent.id}) ↗`;
+        if (primaryCourseBtn) {
+          primaryCourseBtn.textContent = "เข้าห้องเรียน RACM 303 ↗";
+          primaryCourseBtn.title = `เข้าห้องเรียน RACM 303 (รหัส ${activeStudent.id})`;
+        }
+        if (topNavRamedLink) {
+          topNavRamedLink.textContent = topNavText;
+          topNavRamedLink.title = `ห้องเรียน E-learning (รหัส ${activeStudent.id})`;
+        }
       } else {
         if (statusBox) {
           statusBox.textContent =
             "ยังไม่ได้ระบุรหัสนักศึกษา · พิมพ์รหัส 7 หลักของตัวเองด้านซ้าย เพื่อเข้าห้องเรียนแบบรหัสใครรหัสมัน (ไม่ปะปนกับบัญชีผู้อื่น)";
         }
-        if (primaryCourseBtn) primaryCourseBtn.textContent = "เข้าห้องเรียน RACM 303 ↗";
-        if (topNavRamedLink) topNavRamedLink.textContent = "ห้องเรียน E-learning ↗";
+        if (primaryCourseBtn) {
+          primaryCourseBtn.textContent = "เข้าห้องเรียน RACM 303 ↗";
+          primaryCourseBtn.title = "";
+        }
+        if (topNavRamedLink) {
+          topNavRamedLink.textContent = topNavText;
+          topNavRamedLink.title = "";
+        }
       }
     } else {
       const tObj = getAllCourseTeachers().find((t) => t.key === state.myTeacherKey);
@@ -7843,18 +7947,26 @@
           statusBox.innerHTML = `<strong>✓ กำลังเข้าใช้งานฝั่งอาจารย์/บุคลากร (${whoParts})</strong> — กดปุ่มเปิดหน้าต่าง Login เพื่อเชื่อมเซสชันอาจารย์รายบุคคล`;
         }
         if (primaryCourseBtn) {
-          primaryCourseBtn.textContent = `เข้าจัดการห้องเรียน (${rawUid || state.myTeacherKey}) ↗`;
+          primaryCourseBtn.textContent = "เข้าจัดการห้องวิชา RACM 303 ↗";
+          primaryCourseBtn.title = `เข้าจัดการห้องเรียน (${rawUid || state.myTeacherKey})`;
         }
         if (topNavRamedLink) {
-          topNavRamedLink.textContent = `ห้องเรียน E-learning (${rawUid || state.myTeacherKey}) ↗`;
+          topNavRamedLink.textContent = topNavText;
+          topNavRamedLink.title = `ห้องเรียน E-learning (${rawUid || state.myTeacherKey})`;
         }
       } else {
         if (statusBox) {
           statusBox.textContent =
             "กรอกรหัสบุคลากร 6 หลัก / C-life ของอาจารย์แต่ละท่าน (ไม่ใช่รหัสใดรหัสหนึ่งตายตัว) เพื่อเข้าจัดการห้องวิชาตามสิทธิ์ของท่านเอง";
         }
-        if (primaryCourseBtn) primaryCourseBtn.textContent = "เข้าจัดการห้องวิชา RACM 303 ↗";
-        if (topNavRamedLink) topNavRamedLink.textContent = "ห้องเรียน E-learning ↗";
+        if (primaryCourseBtn) {
+          primaryCourseBtn.textContent = "เข้าจัดการห้องวิชา RACM 303 ↗";
+          primaryCourseBtn.title = "";
+        }
+        if (topNavRamedLink) {
+          topNavRamedLink.textContent = topNavText;
+          topNavRamedLink.title = "";
+        }
       }
     }
     syncRamedAuthStatusUI();
@@ -11645,8 +11757,18 @@
       sInput.setAttribute("list", "studentLookupList");
       sInput.setAttribute("aria-label", "รหัสหรือชื่อนักศึกษา");
       sInput.placeholder = "รหัส 7 หลัก / ชื่อฉัน…";
+      sInput.addEventListener("search", () => {
+        if (!sInput.value.trim() && state.myStudent) {
+          clearAllPersonalization();
+        }
+      });
       sInput.addEventListener("change", () => {
-        const found = findStudentByQuery(sInput.value);
+        const val = sInput.value.trim();
+        if (!val) {
+          if (state.myStudent) clearAllPersonalization();
+          return;
+        }
+        const found = findStudentByQuery(val);
         if (found) {
           state.calScope = "student";
           applyMyStudent(found, true);
@@ -11654,6 +11776,10 @@
       });
       sInput.addEventListener("input", () => {
         const val = sInput.value.trim();
+        if (!val) {
+          if (state.myStudent) clearAllPersonalization();
+          return;
+        }
         const m = val.match(/^(\d{7})\b/);
         if (m) {
           const found = ROSTER.students.find((st) => st.id === m[1]);
@@ -15047,7 +15173,7 @@
           <div class="srn-form-grid">
             <div class="filter-field span-2">
               <label for="leaveStuLookupInput">ค้นหารหัสนักศึกษา 7 หลัก หรือชื่อ-นามสกุล (ดึงกลุ่มและอาจารย์ประจำกลุ่มอัตโนมัติ)</label>
-              <input id="leaveStuLookupInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัส 7 หลัก เช่น 6702006…" value="${defStu ? escapeHtml(`${defStu.id} — ${defStu.fullName}`) : ""}">
+              <input id="leaveStuLookupInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัส 7 หลัก เช่น 6702xxx…" value="${defStu ? escapeHtml(`${defStu.id} — ${defStu.fullName}`) : ""}">
             </div>
             <div class="filter-field">
               <label for="leaveStudentIdInput">รหัสนักศึกษา</label>
