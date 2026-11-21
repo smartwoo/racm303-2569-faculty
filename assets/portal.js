@@ -4531,6 +4531,11 @@
           mentorValue: "ครบ 6 คาบ HS1–HS6 (แสดงรายคาบด้านล่าง)",
           coachesRot: rot,
           members: shownM,
+          viewStyle: state.discFormationSubStyle || "formation",
+          onToggleStyle: (nextStyle) => {
+            state.discFormationSubStyle = nextStyle;
+            renderRosterFormationStage(scope, stageEl, q, areaSubVal);
+          },
           footerActions: footActs
         })
       );
@@ -4570,6 +4575,11 @@
           mentorLabel: "อาจารย์ที่ปรึกษาประจำพื้นที่",
           mentorValue: site.advisors,
           members: shownM,
+          viewStyle: state.fieldFormationSubStyle || "formation",
+          onToggleStyle: (nextStyle) => {
+            state.fieldFormationSubStyle = nextStyle;
+            renderRosterFormationStage(scope, stageEl, q, areaSubVal);
+          },
           footerActions: footActs
         })
       );

@@ -6654,8 +6654,19 @@ a:hover {
 }
 
 .th-ins-mosaic {
-  max-height: 190px;
+  flex: 1 1 auto;
+  max-height: 430px;
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  padding: 9px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 45, 114, 0.30) transparent;
+}
+
+.fm-board.is-wide .th-ins-mosaic {
+  max-height: 520px;
 }
 
 @media (max-width: 920px) {
@@ -9811,16 +9822,20 @@ details.bulk-key-archive {
 .gsorter-avatar-mosaic.is-site-grouped {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  flex-wrap: nowrap;
+  gap: 8px;
   align-items: stretch;
 }
 
 .gsorter-site-subgroup {
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
   background: linear-gradient(115deg, var(--site-bg, #eef5ff) 0%, var(--site-tint, #f8fafc) 54%, #ffffff 100%);
   border: 1px solid var(--site-border, #dbe4f0);
   border-left: 4px solid var(--site-dot, #007aff);
   border-radius: 10px;
-  padding: 6px 8px 7px;
+  padding: 7px 10px 8px;
 }
 
 .gsorter-site-subgroup.is-grad-step {
@@ -10695,7 +10710,29 @@ details.bulk-key-archive {
 }
 
 .th-inspector-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--paper);
+}
+
+.th-ins-mosaic .gsorter-subgroup-pills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+  gap: 6px;
+}
+
+.th-ins-mosaic .gsorter-member-chip {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+html[data-theme="dark"] .th-inspector-body,
+html[data-theme="dark"] .gsorter-avatar-mosaic {
+  background: #0f1a2c;
+  border-color: rgba(148, 163, 184, 0.22);
 }
 
 .fm-coaches-strip {
