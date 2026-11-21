@@ -15660,3 +15660,614 @@ html[data-theme="dark"] .ppt-launch-win-btn {
     display: none !important;
   }
 }
+
+/* ==========================================================================
+   CENTERED CONTROL PANELS & INTERACTIVE ON-SLIDE COUNTDOWN TIMER
+   ========================================================================== */
+
+/* Center All Control Panels in Both Normal PPT Ribbon & Full-Screen Slide Show */
+.ppt-ribbon {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 7px 12px !important;
+}
+
+.ppt-ribbon-clickers,
+.ppt-ribbon-tools,
+.ppt-fs-right-tools {
+  justify-content: center !important;
+  align-items: center;
+  width: 100%;
+}
+
+.ppt-ribbon-clickers {
+  align-items: stretch !important;
+}
+
+.ppt-fs-control-bar {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 8px 16px !important;
+}
+
+.ppt-presentation-overlay.is-hud-autohide .ppt-fs-control-bar {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+}
+
+.ppt-presentation-overlay.is-hud-autohide.is-hud-idle .ppt-fs-control-bar {
+  transform: translate(-50%, 12px) !important;
+}
+
+.ppt-audience-corner-hud {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+}
+
+/* Dark Theme Polish for Unified Controls Inside Full-Screen Control Bar */
+.ppt-fs-control-bar .ppt-mini-pin-btn {
+  background: #1e293b;
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.42);
+}
+
+.ppt-fs-control-bar .ppt-mini-pin-btn[aria-pressed="true"] {
+  background: #b45309;
+  color: #ffffff;
+  border-color: #fbbf24;
+}
+
+.ppt-fs-control-bar .ppt-remote-target-pill {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.ppt-fs-control-bar .ppt-remote-target-pill.is-key-mode {
+  background: rgba(245, 158, 11, 0.24);
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.ppt-fs-control-bar .hsd-layout-seg {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.ppt-fs-control-bar .hsd-layout-btn {
+  color: #cbd5e1;
+}
+
+.ppt-fs-control-bar .hsd-layout-btn:hover {
+  color: #ffffff;
+}
+
+.ppt-fs-control-bar .hsd-layout-btn[aria-pressed="true"] {
+  background: linear-gradient(135deg, #1d4ed8 0%, #0b46a6 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.ppt-fs-control-bar .btn.sm:not(.teal) {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
+.ppt-fs-control-bar .btn.sm:not(.teal):hover {
+  background: #334155;
+}
+
+.ppt-fs-control-bar .hsd-snap-popover {
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+}
+
+.ppt-fs-control-bar .hsd-snap-pop-item {
+  background: #1f2937;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #f1f5f9;
+}
+
+.ppt-fs-control-bar .hsd-snap-pop-item:hover {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+/* Drop-Up Popover Support When Anchored at Bottom Full-Screen Bar */
+.hsd-snap-menu-wrap.is-drop-up .hsd-snap-popover {
+  top: auto !important;
+  bottom: calc(100% + 10px) !important;
+}
+
+.ppt-timer-pop-anchor.is-drop-up .ppt-slide-timer-popover {
+  top: auto !important;
+  bottom: calc(100% + 26px) !important;
+}
+
+.ppt-slide-master-head {
+  position: relative;
+  z-index: 60;
+}
+
+.ppt-ribbon .ppt-q-select {
+  max-width: 192px !important;
+}
+
+.ppt-ribbon .ppt-big-btn {
+  padding: 5px 9px;
+}
+
+/* Timer Dock in Centered Control Panel */
+.ppt-big-clicker-dock.is-timer-dock {
+  border-color: rgba(13, 148, 136, 0.42);
+  background: linear-gradient(180deg, #f3fcfb 0%, #e6f7f5 100%);
+}
+
+.ppt-big-clicker-dock.is-timer-dock .ppt-dock-tag {
+  color: #0f766e;
+}
+
+.ppt-fs-control-bar .ppt-big-clicker-dock.is-timer-dock {
+  border-color: rgba(45, 212, 191, 0.45);
+  background: rgba(13, 48, 48, 0.85);
+}
+
+.ppt-fs-control-bar .ppt-big-clicker-dock.is-timer-dock .ppt-dock-tag {
+  color: #5eead4;
+}
+
+.ppt-fs-control-bar .ppt-big-clicker-dock.is-timer-dock .ppt-big-btn,
+html[data-theme="dark"] .ppt-big-clicker-dock.is-timer-dock .ppt-big-btn {
+  background: #113537;
+  color: #ccfbf1;
+  border-color: rgba(45, 212, 191, 0.42);
+}
+
+.ppt-fs-control-bar .ppt-big-clicker-dock.is-timer-dock .ppt-big-btn:hover,
+html[data-theme="dark"] .ppt-big-clicker-dock.is-timer-dock .ppt-big-btn:hover {
+  background: #0f5252;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .ppt-big-clicker-dock.is-timer-dock {
+  background: linear-gradient(180deg, #102a2e 0%, #0d2024 100%) !important;
+  border-color: rgba(45, 212, 191, 0.38) !important;
+}
+
+html[data-theme="dark"] .ppt-big-clicker-dock.is-timer-dock .ppt-dock-tag {
+  color: #5eead4 !important;
+}
+
+.ppt-timer-dock-clock-btn {
+  min-height: 36px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(13, 148, 136, 0.42);
+  background: #ffffff;
+  color: #0f5c54;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ppt-timer-dock-clock-btn.is-running {
+  background: #0d9488;
+  border-color: #0f766e;
+  color: #ffffff;
+}
+
+.ppt-timer-dock-clock-btn.is-warning {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+}
+
+.ppt-timer-dock-clock-btn.is-urgent,
+.ppt-timer-dock-clock-btn.is-timeup {
+  background: #dc2626;
+  border-color: #991b1b;
+  color: #ffffff;
+}
+
+.ppt-fs-control-bar .ppt-timer-dock-clock-btn:not(.is-running):not(.is-warning):not(.is-urgent):not(.is-timeup),
+html[data-theme="dark"] .ppt-timer-dock-clock-btn:not(.is-running):not(.is-warning):not(.is-urgent):not(.is-timeup) {
+  background: #0f172a;
+  color: #5eead4;
+  border-color: rgba(45, 212, 191, 0.4);
+}
+
+/* Interactive On-Slide Countdown Timer Cluster (Inside 16:9 Slide Header) */
+.ppt-timer-pop-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ppt-sm-timer-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(7, 16, 36, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.ppt-sm-tbtn {
+  border: 0;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.ppt-sm-tbtn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.ppt-sm-tbtn.is-play-active {
+  background: #10b981;
+  color: #042f2e;
+}
+
+.ppt-sm-timer-btn {
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 12.6px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.ppt-sm-timer-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.ppt-sm-timer-btn.is-running {
+  background: #0d9488;
+  color: #ffffff;
+}
+
+.ppt-sm-timer-btn.is-warning {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.ppt-sm-timer-btn.is-urgent,
+.ppt-sm-timer-btn.is-timeup {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+/* Interactive Countdown Setter Popover Inside Slide / Control Bar */
+.ppt-slide-timer-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 85;
+  width: 312px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+}
+
+.ppt-slide-timer-popover[hidden] {
+  display: none !important;
+}
+
+.ppt-stp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 12.6px;
+  font-weight: 800;
+  color: #002d72;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ppt-stp-close {
+  border: 0;
+  background: #f1f5f9;
+  color: #475569;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.ppt-stp-custom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 7px 8px;
+}
+
+.ppt-stp-num-input {
+  width: 54px;
+  height: 34px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  border: 1.5px solid #94a3b8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.ppt-stp-colon {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.ppt-stp-step-btn {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ppt-stp-step-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.ppt-stp-apply-row {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 6px;
+}
+
+.ppt-stp-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.ppt-stp-preset-btn {
+  padding: 6px 6px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-display);
+  font-size: 11.8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ppt-stp-preset-btn:hover {
+  background: #e6f7f5;
+  border-color: #0d9488;
+  color: #0f5c54;
+}
+
+.ppt-stp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding-top: 5px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Expandable Big Floating Countdown Clock Card Directly On the 16:9 Slide */
+.ppt-big-slide-timer-card {
+  position: absolute;
+  top: 50px;
+  right: 16px;
+  z-index: 55;
+  min-width: 228px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  border: 1.5px solid rgba(45, 212, 191, 0.55);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.ppt-big-slide-timer-card.is-warning {
+  border-color: #fbbf24;
+  background: rgba(69, 26, 3, 0.93);
+}
+
+.ppt-big-slide-timer-card.is-urgent,
+.ppt-big-slide-timer-card.is-timeup {
+  border-color: #f87171;
+  background: rgba(127, 29, 29, 0.94);
+}
+
+.ppt-bst-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: #99f6e4;
+  cursor: grab;
+}
+
+.ppt-bst-clock-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 6px;
+}
+
+.ppt-bst-digits {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+}
+
+.ppt-bst-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  margin-bottom: 7px;
+}
+
+.ppt-bst-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6 0%, #38bdf8 100%);
+  transition: width 0.25s linear;
+}
+
+.ppt-big-slide-timer-card.is-warning .ppt-bst-fill {
+  background: #fbbf24;
+}
+
+.ppt-big-slide-timer-card.is-urgent .ppt-bst-fill,
+.ppt-big-slide-timer-card.is-timeup .ppt-bst-fill {
+  background: #ef4444;
+}
+
+.ppt-bst-ctrls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ppt-bst-btn {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ppt-bst-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.ppt-bst-btn.is-primary {
+  background: #0d9488;
+  border-color: #2dd4bf;
+}
+
+/* Dark Mode for Slide Timer Popover */
+html[data-theme="dark"] .ppt-slide-timer-popover,
+.ppt-fs-control-bar .ppt-slide-timer-popover {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+html[data-theme="dark"] .ppt-stp-head,
+.ppt-fs-control-bar .ppt-stp-head {
+  color: #93c5fd !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+html[data-theme="dark"] .ppt-stp-custom-row,
+.ppt-fs-control-bar .ppt-stp-custom-row {
+  background: #0b1220 !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+html[data-theme="dark"] .ppt-stp-num-input,
+.ppt-fs-control-bar .ppt-stp-num-input {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+}
+
+html[data-theme="dark"] .ppt-stp-colon,
+.ppt-fs-control-bar .ppt-stp-colon {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .ppt-stp-step-btn,
+html[data-theme="dark"] .ppt-stp-preset-btn,
+html[data-theme="dark"] .ppt-stp-close,
+.ppt-fs-control-bar .ppt-stp-step-btn,
+.ppt-fs-control-bar .ppt-stp-preset-btn,
+.ppt-fs-control-bar .ppt-stp-close {
+  background: #1f2937 !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+html[data-theme="dark"] .ppt-stp-preset-btn:hover,
+.ppt-fs-control-bar .ppt-stp-preset-btn:hover {
+  background: #0f766e !important;
+  color: #ffffff !important;
+  border-color: #2dd4bf !important;
+}
+
+html[data-theme="dark"] .ppt-stp-actions,
+.ppt-fs-control-bar .ppt-stp-actions {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
