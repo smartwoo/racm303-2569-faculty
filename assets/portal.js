@@ -67,6 +67,8 @@
     hsdSheetStageTab: "blank", // blank | live
     hsdFocusedConceptStep: 0,
     hsdShowConceptLines: true,
+    hsdScrollLinkedQByCase: {},
+    hsdScrollCollapseLiveByQ: {},
     hsdLastSplitLayout: "split-sheet",
     hsdSplitOrient: localStorage.getItem("racm303_hsd_split_orient") === "horizontal" ? "horizontal" : "vertical",
     hsdSplitPct: Math.min(78, Math.max(22, Number(localStorage.getItem("racm303_hsd_split_pct")) || 46)),
@@ -16907,6 +16909,13 @@
         });
 
         split.append(scenSticky, qCol);
+        if (
+          ROLE === "faculty" &&
+          state.hsdFacultyMode !== "student" &&
+          typeof attachFacultyScrollCaseConceptEngine === "function"
+        ) {
+          attachFacultyScrollCaseConceptEngine(card, split, scenSticky, qCol, c, mod, hRight);
+        }
         body.appendChild(split);
         card.appendChild(body);
         modSec.appendChild(card);
@@ -16919,6 +16928,10 @@
   function renderHsDiscussionView() {
     const container = $("hsdCasesContainer");
     if (!container) return;
+
+    if (typeof cleanupFacultyScrollConceptListeners === "function") {
+      cleanupFacultyScrollConceptListeners();
+    }
 
     if (LIVE) {
       LIVE.startEngine();
@@ -16968,6 +16981,9 @@
     if (!matchedCases.length) {
       if (panelEl) panelEl.classList.remove("is-ppt-slide-mode");
       container.appendChild(make("div", "ไม่พบกรณีศึกษาที่ตรงกับตัวกรองหรือคำค้นหา", "empty-state"));
+      if (ROLE === "faculty" && typeof syncFacultyScrollGlobalLinkBar === "function") {
+        syncFacultyScrollGlobalLinkBar(matchedCases);
+      }
       syncLiveBarQuestionPickerDOM(matchedCases);
       renderPptPresentationOverlay();
       return;
@@ -16977,6 +16993,9 @@
       renderHsSlideDeckMode(container, matchedCases);
     } else {
       renderHsScrollMode(container, matchedCases);
+    }
+    if (ROLE === "faculty" && typeof syncFacultyScrollGlobalLinkBar === "function") {
+      syncFacultyScrollGlobalLinkBar(matchedCases);
     }
     syncLiveBarQuestionPickerDOM(matchedCases);
     renderPptPresentationOverlay();
@@ -22619,8 +22638,8 @@
               const stepBadge = make(
                 "div",
                 isConceptStage
-                  ? `🔗 ประเด็นที่ #${rowStep}`
-                  : `💬 หลักฐานสนับสนุน #${rowStep}`,
+                  ? `🔗 ประเด็น #${rowStep}`
+                  : `💬 หลักฐาน #${rowStep}`,
                 `hsd-concept-step-pill${isConceptStage ? "" : " is-evidence-pill"} is-c${colorIdx}`
               );
               td.appendChild(stepBadge);
@@ -22978,6 +22997,20 @@
           openHsTextbookRefPopover(qDocChip, primaryLink, modObj, true, rows[0] || [qObj.title || ""]);
         });
         topRow.appendChild(qDocChip);
+      }
+      const inSlideMode = Boolean(opts && opts.inSlide);
+      if (!inSlideMode && topRow && !topRow.querySelector(".hsd-scroll-link-toggle-btn")) {
+        const qLinkBtn = make(
+          "button",
+          "🔗 กดดูเส้นเชื่อมความโยง",
+          "hsd-scroll-link-toggle-btn is-qhead-btn hsd-no-print"
+        );
+        qLinkBtn.type = "button";
+        qLinkBtn.dataset.scrollLinkQid = qObj.id;
+        qLinkBtn.setAttribute("aria-pressed", "false");
+        qLinkBtn.title =
+          "คลิกเพื่อแสดง/ซ่อนเส้นเชื่อมความโยง 3 ทิศทาง (เนื้อหาโจทย์ ↔ สิ่งที่โจทย์ถาม ↔ แต่ละ Highlight ในคำตอบ)";
+        topRow.appendChild(qLinkBtn);
       }
     }
 
@@ -23751,16 +23784,137 @@
     };
   }
 
+  let facultyScrollConceptAbort = null;
+  let facultyScrollResizeObservers = [];
+  const facultyScrollCaseControllers = new Map();
+
+  function cleanupFacultyScrollConceptListeners() {
+    if (facultyScrollConceptAbort) {
+      try {
+        facultyScrollConceptAbort.abort();
+      } catch (_) {}
+      facultyScrollConceptAbort = null;
+    }
+    if (facultyScrollResizeObservers.length) {
+      facultyScrollResizeObservers.forEach((ro) => {
+        try {
+          ro.disconnect();
+        } catch (_) {}
+      });
+      facultyScrollResizeObservers = [];
+    }
+    facultyScrollCaseControllers.clear();
+  }
+
+  function syncFacultyScrollGlobalLinkBar(matchedCases) {
+    const bar = $("hsdFacultyModeBar");
+    if (!bar) return;
+    let wrap = $("hsdScrollGlobalLinkWrap");
+    if (!wrap) {
+      wrap = make("div", null, "hsd-scroll-global-link-wrap hsd-no-print");
+      wrap.id = "hsdScrollGlobalLinkWrap";
+      const btn = make(
+        "button",
+        "🔗 กดเปิดเส้นเชื่อมความโยงทุกกรณีศึกษา (โจทย์ ↔ คำถาม ↔ คำตอบ)",
+        "hsd-scroll-link-toggle-btn is-global-bar-btn"
+      );
+      btn.type = "button";
+      btn.id = "hsdScrollGlobalLinkBtn";
+      btn.addEventListener("click", () => {
+        const casesNow = getFilteredHsDiscussionCases();
+        if (!casesNow.length) return;
+        state.hsdScrollLinkedQByCase = state.hsdScrollLinkedQByCase || {};
+        const curLinkedCount = casesNow.filter((c) => Boolean(state.hsdScrollLinkedQByCase[c.id])).length;
+        const turnOff = curLinkedCount > 0 && curLinkedCount >= casesNow.length;
+        casesNow.forEach((c) => {
+          const ctrl = facultyScrollCaseControllers.get(c.id);
+          if (turnOff) {
+            state.hsdScrollLinkedQByCase[c.id] = "";
+            if (ctrl) ctrl.setLinkedQuestion("", false);
+          } else {
+            const existingQ = state.hsdScrollLinkedQByCase[c.id];
+            const firstQ = (c.questions && c.questions[0] && c.questions[0].id) || "";
+            const nextQ = existingQ || firstQ;
+            state.hsdScrollLinkedQByCase[c.id] = nextQ;
+            if (ctrl) ctrl.setLinkedQuestion(nextQ, false);
+          }
+        });
+        syncFacultyScrollGlobalLinkBar(casesNow);
+      });
+      wrap.appendChild(btn);
+      bar.appendChild(wrap);
+    }
+
+    const cases = Array.isArray(matchedCases) ? matchedCases : getFilteredHsDiscussionCases();
+    const showWrap =
+      state.hsdViewMode !== "slide" &&
+      state.hsdFacultyMode !== "student" &&
+      !state.isPptSlideSharePopup &&
+      cases.length > 0;
+    wrap.hidden = !showWrap;
+    if (!showWrap) return;
+
+    const map = state.hsdScrollLinkedQByCase || {};
+    const linkedCount = cases.filter((c) => Boolean(map[c.id])).length;
+    const allLinked = linkedCount > 0 && linkedCount >= cases.length;
+    const gBtn = $("hsdScrollGlobalLinkBtn");
+    if (gBtn) {
+      gBtn.classList.toggle("is-active", allLinked || linkedCount > 0);
+      gBtn.setAttribute("aria-pressed", allLinked ? "true" : "false");
+      gBtn.textContent = allLinked
+        ? `🔗 ปิดเส้นเชื่อมความโยงทั้งหมด (${linkedCount} กรณี)`
+        : linkedCount > 0
+        ? `🔗 เปิดเส้นเชื่อมความโยงครบทุกกรณี (${linkedCount}/${cases.length} เปิดอยู่)`
+        : "🔗 กดเปิดเส้นเชื่อมความโยงทุกกรณีศึกษา (โจทย์ ↔ คำถาม ↔ คำตอบ)";
+    }
+  }
+
   function appendFacultyTeacherKey(qBlock, qObj, caseObj, modObj) {
     const tk = (HSD_KEY.keys || {})[qObj.id];
     if (!tk) return;
 
+    const hasConceptLinks = Array.isArray(tk.conceptLinks) && tk.conceptLinks.length > 0;
     const isProjector = state.hsdFacultyMode === "projector";
     const isRevealed = !isProjector || state.hsdRevealedKeys.has(qObj.id);
     const panel = buildFacultyTeacherKeyPanelDOM(qObj, modObj);
     panel.hidden = !isRevealed;
 
-    const clearQLabel = getClearQuestionHeadingLabel(qObj, 0);
+    const liveWallEl = qBlock.querySelector(".hsd-live-wall");
+    if (liveWallEl) {
+      const collapsedInit = Boolean((state.hsdScrollCollapseLiveByQ || {})[qObj.id]);
+      liveWallEl.hidden = collapsedInit;
+    }
+
+    const tkHeadActions = panel.querySelector(".hsd-tk-head-actions");
+    if (tkHeadActions && !state.isPptSlideSharePopup) {
+      if (liveWallEl) {
+        const collapsedInit = Boolean((state.hsdScrollCollapseLiveByQ || {})[qObj.id]);
+        const collapseLiveBtn = make(
+          "button",
+          collapsedInit ? "↕ เปิดช่องคำตอบ นศพ." : "↕ ย่อช่องคำตอบ นศพ.",
+          `hsd-scroll-collapse-live-btn hsd-no-print${collapsedInit ? " is-active" : ""}`
+        );
+        collapseLiveBtn.type = "button";
+        collapseLiveBtn.dataset.collapseLiveQid = qObj.id;
+        collapseLiveBtn.title = "ย่อ/ขยายตาราง Live กระดาษคำตอบนักศึกษา เพื่อให้ส่วนสิ่งที่โจทย์ถามชิดกับแนวคำตอบอาจารย์";
+        tkHeadActions.prepend(collapseLiveBtn);
+      }
+
+      if (hasConceptLinks) {
+        const tkLinkBtn = make(
+          "button",
+          "🔗 กดดูเส้นเชื่อมความโยง (โจทย์ ↔ คำถาม ↔ คำตอบ)",
+          "hsd-scroll-link-toggle-btn is-tkhead-btn hsd-no-print"
+        );
+        tkLinkBtn.type = "button";
+        tkLinkBtn.dataset.scrollLinkQid = qObj.id;
+        tkLinkBtn.setAttribute("aria-pressed", "false");
+        tkLinkBtn.title =
+          "คลิกเพื่อลากเส้นเชื่อม 3 ทิศทางระหว่าง เนื้อหาโจทย์ ──▶ สิ่งที่โจทย์ถาม ──▶ แต่ละ Highlight ในคำตอบ";
+        tkHeadActions.prepend(tkLinkBtn);
+      }
+    }
+
     if (isProjector) {
       const toggleRow = make("div", null, "hsd-projector-toggle-row hsd-no-print");
       const revBtn = make(
@@ -23771,6 +23925,7 @@
         isRevealed ? "btn sm" : "btn sm primary"
       );
       revBtn.type = "button";
+      revBtn.dataset.projectorKeyToggleQid = qObj.id;
       revBtn.addEventListener("click", () => {
         if (state.hsdRevealedKeys.has(qObj.id)) state.hsdRevealedKeys.delete(qObj.id);
         else state.hsdRevealedKeys.add(qObj.id);
@@ -23780,12 +23935,881 @@
           ? `ซ่อนเฉลยอาจารย์ ▴`
           : `เปิดเฉลยอาจารย์และเกณฑ์คะแนน ▾`;
         revBtn.className = openNow ? "btn sm" : "btn sm primary";
+        if (!openNow && caseObj && (state.hsdScrollLinkedQByCase || {})[caseObj.id] === qObj.id) {
+          const ctrl = facultyScrollCaseControllers.get(caseObj.id);
+          if (ctrl) ctrl.setLinkedQuestion("", false);
+        }
       });
       toggleRow.appendChild(revBtn);
+
+      if (hasConceptLinks && !state.isPptSlideSharePopup) {
+        const projLinkBtn = make(
+          "button",
+          "🔗 เปิดเฉลยพร้อมเส้นเชื่อมความโยง",
+          "hsd-scroll-link-toggle-btn is-proj-btn hsd-no-print"
+        );
+        projLinkBtn.type = "button";
+        projLinkBtn.dataset.scrollLinkQid = qObj.id;
+        projLinkBtn.setAttribute("aria-pressed", "false");
+        toggleRow.appendChild(projLinkBtn);
+      }
+
       qBlock.appendChild(toggleRow);
     }
 
     qBlock.appendChild(panel);
+  }
+
+  function attachFacultyScrollCaseConceptEngine(
+    card,
+    split,
+    scenSticky,
+    qCol,
+    caseObj,
+    modObj,
+    caseHeaderActions
+  ) {
+    if (!card || !split || !scenSticky || !qCol || !caseObj) return;
+    const questions = Array.isArray(caseObj.questions) ? caseObj.questions : [];
+    const hasAnyConcept = questions.some((q) => {
+      const tk = (HSD_KEY.keys || {})[q.id];
+      return Boolean(tk && Array.isArray(tk.conceptLinks) && tk.conceptLinks.length);
+    });
+    if (!hasAnyConcept) return;
+
+    if (!facultyScrollConceptAbort) {
+      facultyScrollConceptAbort = new AbortController();
+    }
+    const lifecycleSignal = facultyScrollConceptAbort.signal;
+
+    const CONCEPT_HEX = ["#2563eb", "#0d9488", "#d97706", "#7c3aed", "#e11d48", "#059669"];
+    const svgNS = "http://www.w3.org/2000/svg";
+    const markerPrefix = `hsdScrArr_${String(caseObj.id || "case").replace(/[^a-zA-Z0-9_-]/g, "_")}_C`;
+
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "hsd-concept-svg-layer is-scroll-concept-svg hsd-no-print");
+    svg.setAttribute("aria-hidden", "true");
+    const setSvgHidden = (hide) => {
+      const h = Boolean(hide);
+      svg.hidden = h;
+      if (h) {
+        svg.setAttribute("hidden", "");
+        svg.style.display = "none";
+      } else {
+        svg.removeAttribute("hidden");
+        svg.style.display = "";
+      }
+    };
+    setSvgHidden(true);
+
+    const defs = document.createElementNS(svgNS, "defs");
+    CONCEPT_HEX.forEach((hex, i) => {
+      const marker = document.createElementNS(svgNS, "marker");
+      marker.setAttribute("id", `${markerPrefix}${i + 1}`);
+      marker.setAttribute("viewBox", "0 0 10 10");
+      marker.setAttribute("refX", "8.5");
+      marker.setAttribute("refY", "5");
+      marker.setAttribute("markerWidth", "5.5");
+      marker.setAttribute("markerHeight", "5.5");
+      marker.setAttribute("orient", "auto-start-reverse");
+      const poly = document.createElementNS(svgNS, "path");
+      poly.setAttribute("d", "M 0 1.2 L 9 5 L 0 8.8 z");
+      poly.setAttribute("fill", hex);
+      marker.appendChild(poly);
+      defs.appendChild(marker);
+    });
+    svg.appendChild(defs);
+
+    const halosGroup = document.createElementNS(svgNS, "g");
+    const pathsGroup = document.createElementNS(svgNS, "g");
+    svg.append(halosGroup, pathsGroup);
+    split.appendChild(svg);
+
+    let caseLinkBtn = null;
+    if (caseHeaderActions && !state.isPptSlideSharePopup) {
+      caseLinkBtn = make(
+        "button",
+        "🔗 เส้นเชื่อมความโยงกรณีนี้",
+        "btn sm hsd-scroll-case-link-btn"
+      );
+      caseLinkBtn.type = "button";
+      caseLinkBtn.title = "คลิกเพื่อเปิด/ปิดเส้นเชื่อมความโยง 3 ทิศทางของกรณีศึกษานี้ในโหมดเลื่อนอ่านยาว";
+      caseHeaderActions.prepend(caseLinkBtn);
+    }
+
+    let activeQObj = null;
+    let activeQBlock = null;
+    let activeLinks = [];
+    let activeStep = 0;
+    let qInteractAbort = null;
+    let rafPending = false;
+
+    const getScreenFragmentRect = (el, preferMode) => {
+      let r = el.getBoundingClientRect();
+      if (preferMode) {
+        const rawRects = Array.from(el.getClientRects()).filter((rc) => rc.width > 1 && rc.height > 1);
+        if (rawRects.length > 1) {
+          if (preferMode === "bottom") {
+            r = rawRects[rawRects.length - 1];
+          } else if (preferMode === "leftmost" || preferMode === "first") {
+            r = rawRects[0];
+          } else {
+            r = rawRects.reduce((best, c) => (c.right > best.right ? c : best), rawRects[0]);
+          }
+        } else if (rawRects.length === 1) {
+          r = rawRects[0];
+        }
+      }
+      return {
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+        right: r.right,
+        bottom: r.bottom,
+        cx: r.left + r.width / 2,
+        cy: r.top + r.height / 2
+      };
+    };
+
+    const scoreClueToAnsTarget = (clueText, ansEl, mIdx, totalMarks, aIdx, totalAns) => {
+      const cLower = String(clueText || "")
+        .replace(/^💬?\s*#\d+\s*/, "")
+        .toLowerCase();
+      const aPhrase = String(ansEl.dataset.ansPhrase || ansEl.textContent || "").toLowerCase();
+      const tdEl = ansEl.closest("td");
+      const cellLower = tdEl ? (tdEl.textContent || "").toLowerCase() : aPhrase;
+      let score = 0;
+
+      const nums = cLower.match(/\d+(?:[.,–-]\d+)?/g) || [];
+      nums.forEach((n) => {
+        if (aPhrase.includes(n)) score += 14;
+        else if (cellLower.includes(n)) score += 9;
+      });
+
+      const tokens = cLower
+        .split(/[\s,.;:()«»"“”/]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 4);
+      tokens.forEach((tkWord) => {
+        if (aPhrase.includes(tkWord)) score += 10;
+        else if (cellLower.includes(tkWord)) score += 6;
+      });
+
+      const relM = totalMarks > 1 ? mIdx / (totalMarks - 1) : 0.5;
+      const relA = totalAns > 1 ? aIdx / (totalAns - 1) : 0.5;
+      score += Math.max(0, 4 - Math.abs(relM - relA) * 4);
+      return score;
+    };
+
+    const appendStyledScrollCurve = (dStr, hex, colorIdx, isFocused, isDimmed, extraClass, dashArr, baseW) => {
+      if (!isDimmed) {
+        const halo = document.createElementNS(svgNS, "path");
+        halo.setAttribute("d", dStr);
+        halo.setAttribute("fill", "none");
+        halo.setAttribute(
+          "stroke",
+          document.documentElement.getAttribute("data-theme") === "dark"
+            ? "rgba(15,23,42,0.78)"
+            : "rgba(255,255,255,0.82)"
+        );
+        halo.setAttribute("stroke-width", isFocused ? "4.5" : "3.2");
+        halo.setAttribute("class", "hsd-concept-halo");
+        halosGroup.appendChild(halo);
+      }
+
+      const path = document.createElementNS(svgNS, "path");
+      path.setAttribute("d", dStr);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", hex);
+      path.setAttribute("stroke-width", isFocused ? String((baseW || 1.9) + 0.9) : String(baseW || 1.9));
+      if (dashArr) path.setAttribute("stroke-dasharray", dashArr);
+      path.setAttribute("marker-end", `url(#${markerPrefix}${colorIdx})`);
+      path.setAttribute(
+        "class",
+        `hsd-concept-path ${extraClass} is-c${colorIdx}${isFocused ? " is-focused" : ""}${isDimmed ? " is-dimmed" : ""}`
+      );
+      pathsGroup.appendChild(path);
+    };
+
+    const redrawScrollLinesNow = () => {
+      rafPending = false;
+      halosGroup.replaceChildren();
+      pathsGroup.replaceChildren();
+      if (!activeQObj || !activeQBlock || !split.isConnected || svg.hidden) return;
+
+      const splitRect = split.getBoundingClientRect();
+      if (splitRect.width < 80 || splitRect.height < 60) return;
+      if (splitRect.bottom < -120 || splitRect.top > window.innerHeight + 120) return;
+
+      svg.setAttribute("viewBox", `0 0 ${splitRect.width.toFixed(1)} ${splitRect.height.toFixed(1)}`);
+
+      const scenRect = scenSticky.getBoundingClientRect();
+      const qColRect = qCol.getBoundingClientRect();
+      const isStacked = qColRect.left < scenRect.right - 20;
+      const bannerEl = scenSticky.querySelector(".hsd-scroll-link-banner");
+      const topSafeScen = bannerEl ? bannerEl.getBoundingClientRect().bottom + 4 : scenRect.top + 8;
+
+      activeLinks.forEach((_, idx) => {
+        const step = idx + 1;
+        const colorIdx = (idx % 6) + 1;
+        const hex = CONCEPT_HEX[colorIdx - 1];
+        const rowEl = activeQBlock.querySelector(`tr[data-concept-row-step="${step}"]`);
+        if (!rowEl) return;
+        const marks = Array.from(scenSticky.querySelectorAll(`mark[data-concept-step="${step}"]`));
+        if (!marks.length) return;
+
+        const rawAnsMarks = Array.from(rowEl.querySelectorAll("mark.hsd-ans-hl"));
+        const fallbackPill = rowEl.querySelector(".hsd-concept-step-pill") || rowEl;
+        const ansNodes = rawAnsMarks.length ? rawAnsMarks : [fallbackPill];
+        const ansTargets = ansNodes.map((aEl) => ({
+          aEl,
+          aRect: getScreenFragmentRect(aEl, "leftmost")
+        }));
+
+        const qStepNode =
+          activeQBlock.querySelector(`.hsd-q-step-node[data-q-target-step="${step}"]`) ||
+          activeQBlock.querySelector(`mark.hsd-qprompt-hl[data-qprompt-step="${step}"]`) ||
+          activeQBlock.querySelector("mark.hsd-qprompt-hl") ||
+          activeQBlock.querySelector(".hsd-q-head");
+        const qRect = qStepNode ? getScreenFragmentRect(qStepNode, null) : null;
+
+        const isFocused = activeStep === step;
+        const isDimmed = activeStep > 0 && activeStep !== step;
+
+        const sortedMarks = marks
+          .map((mEl) => ({
+            mEl,
+            mRect: getScreenFragmentRect(mEl, isStacked ? "bottom" : "rightmost")
+          }))
+          .sort((a, b) => (isStacked ? a.mRect.cx - b.mRect.cx : a.mRect.cy - b.mRect.cy));
+
+        const pairs = [];
+        const hitAnsIdx = new Set();
+
+        sortedMarks.forEach((mObj, mIdx) => {
+          let bestAIdx = 0;
+          let bestSc = -1;
+          ansTargets.forEach((aObj, aIdx) => {
+            const sc = scoreClueToAnsTarget(
+              mObj.mEl.textContent || "",
+              aObj.aEl,
+              mIdx,
+              sortedMarks.length,
+              aIdx,
+              ansTargets.length
+            );
+            if (sc > bestSc) {
+              bestSc = sc;
+              bestAIdx = aIdx;
+            }
+          });
+          pairs.push({ mIdx, aIdx: bestAIdx });
+          hitAnsIdx.add(bestAIdx);
+        });
+
+        ansTargets.forEach((aObj, aIdx) => {
+          if (hitAnsIdx.has(aIdx)) return;
+          let bestMIdx = 0;
+          let bestSc = -1;
+          sortedMarks.forEach((mObj, mIdx) => {
+            const sc = scoreClueToAnsTarget(
+              mObj.mEl.textContent || "",
+              aObj.aEl,
+              mIdx,
+              sortedMarks.length,
+              aIdx,
+              ansTargets.length
+            );
+            if (sc > bestSc) {
+              bestSc = sc;
+              bestMIdx = mIdx;
+            }
+          });
+          pairs.push({ mIdx: bestMIdx, aIdx });
+        });
+
+        const drawnStartDots = new Set();
+        pairs.forEach(({ mIdx, aIdx }, pIdx) => {
+          const mRect = sortedMarks[mIdx].mRect;
+          const targetRect = ansTargets[aIdx].aRect;
+          const fanOffset = ((pIdx % 3) - 1) * 2.2;
+          let x1;
+          let y1;
+          let x2;
+          let y2;
+          let dStr;
+
+          if (!isStacked) {
+            x1 = Math.min(scenRect.right - 2, Math.max(scenRect.left + 8, mRect.right + 2)) - splitRect.left;
+            y1 = Math.min(scenRect.bottom - 8, Math.max(topSafeScen, mRect.cy)) - splitRect.top;
+            x2 = Math.max(qColRect.left + 2, Math.min(qColRect.right - 10, targetRect.left - 2)) - splitRect.left;
+            y2 = targetRect.cy + fanOffset - splitRect.top;
+            const dx = Math.max(44, Math.abs(x2 - x1) * 0.42);
+            dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + dx).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - dx).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+          } else {
+            x1 = Math.min(scenRect.right - 14, Math.max(scenRect.left + 14, mRect.cx)) - splitRect.left;
+            y1 = Math.min(scenRect.bottom - 2, Math.max(topSafeScen, mRect.bottom + 1)) - splitRect.top;
+            x2 =
+              Math.min(
+                qColRect.right - 18,
+                Math.max(qColRect.left + 18, targetRect.left + Math.min(28, targetRect.width * 0.35))
+              ) - splitRect.left;
+            y2 = targetRect.top - 2 - splitRect.top;
+            const dy = Math.max(28, Math.abs(y2 - y1) * 0.45);
+            dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${(y1 + dy).toFixed(1)}, ${x2.toFixed(1)} ${(y2 - dy).toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+          }
+
+          if (!drawnStartDots.has(mIdx)) {
+            drawnStartDots.add(mIdx);
+            const startDot = document.createElementNS(svgNS, "circle");
+            startDot.setAttribute("cx", x1.toFixed(1));
+            startDot.setAttribute("cy", y1.toFixed(1));
+            startDot.setAttribute("r", isFocused ? "4.3" : "3.2");
+            startDot.setAttribute("fill", hex);
+            startDot.setAttribute("opacity", isDimmed ? "0.18" : "0.96");
+            pathsGroup.appendChild(startDot);
+          }
+
+          appendStyledScrollCurve(dStr, hex, colorIdx, isFocused, isDimmed, "is-scen-to-ans", "", 1.9);
+        });
+
+        // Leg 2 & Leg 3: Scenario ──▶ สิ่งที่โจทย์ถาม ──▶ EACH Answer Key Highlight
+        if (qRect) {
+          const leadMarkRect = sortedMarks[0].mRect;
+          let sx;
+          let sy;
+          let qx;
+          let qy;
+          let dScenToQ;
+
+          if (!isStacked) {
+            sx = Math.min(scenRect.right - 2, Math.max(scenRect.left + 8, leadMarkRect.right + 2)) - splitRect.left;
+            sy = Math.min(scenRect.bottom - 8, Math.max(topSafeScen, leadMarkRect.cy - 2)) - splitRect.top;
+            qx = Math.max(qColRect.left + 2, Math.min(qColRect.right - 14, qRect.left - 2)) - splitRect.left;
+            qy = qRect.cy - splitRect.top;
+            const dxQ = Math.max(38, Math.abs(qx - sx) * 0.42);
+            dScenToQ = `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${(sx + dxQ).toFixed(1)} ${sy.toFixed(1)}, ${(qx - dxQ).toFixed(1)} ${qy.toFixed(1)}, ${qx.toFixed(1)} ${qy.toFixed(1)}`;
+          } else {
+            sx = Math.min(scenRect.right - 14, Math.max(scenRect.left + 14, leadMarkRect.cx)) - splitRect.left;
+            sy = Math.min(scenRect.bottom - 2, Math.max(topSafeScen, leadMarkRect.bottom + 1)) - splitRect.top;
+            qx = Math.min(qColRect.right - 18, Math.max(qColRect.left + 18, qRect.cx)) - splitRect.left;
+            qy = qRect.top - 2 - splitRect.top;
+            const dyQ = Math.max(24, Math.abs(qy - sy) * 0.45);
+            dScenToQ = `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${sx.toFixed(1)} ${(sy + dyQ).toFixed(1)}, ${qx.toFixed(1)} ${(qy - dyQ).toFixed(1)}, ${qx.toFixed(1)} ${qy.toFixed(1)}`;
+          }
+          appendStyledScrollCurve(dScenToQ, hex, colorIdx, isFocused, isDimmed, "is-scen-to-qprompt", "5 3.2", 1.55);
+
+          ansTargets.forEach(({ aRect }, aIdx) => {
+            const qOutX =
+              Math.max(
+                qColRect.left + 8,
+                Math.min(qColRect.right - 14, qRect.left + Math.min(qRect.width - 6, 12 + aIdx * 16))
+              ) - splitRect.left;
+            const qOutY = qRect.bottom + 2 - splitRect.top;
+            const aInX =
+              Math.max(
+                qColRect.left + 6,
+                Math.min(qColRect.right - 12, aRect.left + Math.min(22, aRect.width * 0.25))
+              ) - splitRect.left;
+            const aInY = aRect.top - 2 - splitRect.top;
+            const dyQA = Math.max(26, Math.abs(aInY - qOutY) * 0.38);
+            const dQToAns = `M ${qOutX.toFixed(1)} ${qOutY.toFixed(1)} C ${qOutX.toFixed(1)} ${(qOutY + dyQA).toFixed(1)}, ${aInX.toFixed(1)} ${(aInY - dyQA).toFixed(1)}, ${aInX.toFixed(1)} ${aInY.toFixed(1)}`;
+            appendStyledScrollCurve(dQToAns, hex, colorIdx, isFocused, isDimmed, "is-qprompt-to-ans", "3.2 2.4", 1.6);
+          });
+        }
+      });
+    };
+
+    const scheduleRedraw = () => {
+      if (!activeQObj || svg.hidden || rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(redrawScrollLinesNow);
+    };
+
+    const applyScrollFocusState = (nextStep) => {
+      activeStep = nextStep || 0;
+      scenSticky.querySelectorAll("mark.hsd-clue-hl").forEach((m) => {
+        const s = Number(m.dataset.conceptStep) || 0;
+        m.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
+        m.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
+      });
+      if (activeQBlock) {
+        activeQBlock.querySelectorAll("tr[data-concept-row-step]").forEach((tr) => {
+          const s = Number(tr.dataset.conceptRowStep) || 0;
+          tr.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
+          tr.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
+        });
+        activeQBlock.querySelectorAll("mark.hsd-ans-hl").forEach((am) => {
+          const s = Number(am.dataset.ansStep) || 0;
+          am.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
+          am.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
+        });
+        activeQBlock.querySelectorAll(".hsd-q-step-node[data-q-target-step]").forEach((nd) => {
+          const s = Number(nd.dataset.qTargetStep) || 0;
+          nd.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
+          nd.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
+        });
+        activeQBlock.querySelectorAll("mark.hsd-qprompt-hl").forEach((qm) => {
+          const s = Number(qm.dataset.qpromptStep) || 0;
+          const match = activeStep > 0 && (s === activeStep || activeLinks.length === 1);
+          qm.classList.toggle("is-focused", match);
+          qm.classList.toggle("is-dimmed", activeStep > 0 && !match);
+        });
+      }
+      redrawScrollLinesNow();
+    };
+
+    const setLinkedQuestion = (nextQId, autoScrollFocus) => {
+      if (qInteractAbort) {
+        try {
+          qInteractAbort.abort();
+        } catch (_) {}
+        qInteractAbort = null;
+      }
+
+      state.hsdScrollLinkedQByCase = state.hsdScrollLinkedQByCase || {};
+      const resolvedQObj = nextQId ? questions.find((q) => q.id === nextQId) || null : null;
+      const tk = resolvedQObj ? (HSD_KEY.keys || {})[resolvedQObj.id] : null;
+      const links = tk && Array.isArray(tk.conceptLinks) ? tk.conceptLinks : [];
+
+      if (!resolvedQObj || !links.length) {
+        state.hsdScrollLinkedQByCase[caseObj.id] = "";
+        activeQObj = null;
+        activeQBlock = null;
+        activeLinks = [];
+        activeStep = 0;
+      } else {
+        state.hsdScrollLinkedQByCase[caseObj.id] = resolvedQObj.id;
+        activeQObj = resolvedQObj;
+        activeQBlock =
+          qCol.querySelector(`#hsd-qblock-${CSS.escape(resolvedQObj.id)}`) ||
+          document.getElementById(`hsd-qblock-${resolvedQObj.id}`);
+        activeLinks = links;
+        activeStep = 0;
+      }
+
+      // Clean temporary decorations across all questions in this case
+      qCol.querySelectorAll(".hsd-q-concept-hub.is-scroll-qhub, .hsd-concept-bridge-bar.is-scroll-bridge").forEach((el) =>
+        el.remove()
+      );
+      qCol.querySelectorAll(".is-focused, .is-dimmed, .is-scroll-concept-active-q").forEach((el) => {
+        el.classList.remove("is-focused", "is-dimmed", "is-scroll-concept-active-q");
+      });
+
+      // Update button labels & pressed states across this case
+      questions.forEach((q, qIdx) => {
+        const isAct = Boolean(activeQObj && activeQObj.id === q.id);
+        const shortNum = getShortQuestionNumLabel(q, qIdx);
+        qCol.querySelectorAll(`[data-scroll-link-qid="${q.id}"]`).forEach((btn) => {
+          btn.classList.toggle("is-active", isAct);
+          btn.setAttribute("aria-pressed", isAct ? "true" : "false");
+          if (btn.classList.contains("is-qhead-btn")) {
+            btn.textContent = isAct ? `🔗 ซ่อนเส้นเชื่อม (ข้อ ${shortNum})` : "🔗 กดดูเส้นเชื่อมความโยง";
+          } else if (btn.classList.contains("is-proj-btn")) {
+            btn.textContent = isAct
+              ? `🔗 ซ่อนเส้นเชื่อมความโยง (ข้อ ${shortNum})`
+              : "🔗 เปิดเฉลยพร้อมเส้นเชื่อมความโยง";
+          } else {
+            btn.textContent = isAct
+              ? `🔗 ซ่อนเส้นเชื่อมความโยง (กำลังเชื่อมข้อ ${shortNum})`
+              : "🔗 กดดูเส้นเชื่อมความโยง (โจทย์ ↔ คำถาม ↔ คำตอบ)";
+          }
+        });
+      });
+
+      if (caseLinkBtn) {
+        const activeIdx = activeQObj ? Math.max(0, questions.findIndex((q) => q.id === activeQObj.id)) : 0;
+        const activeShort = activeQObj ? getShortQuestionNumLabel(activeQObj, activeIdx) : "";
+        caseLinkBtn.classList.toggle("is-active", Boolean(activeQObj));
+        caseLinkBtn.setAttribute("aria-pressed", activeQObj ? "true" : "false");
+        caseLinkBtn.textContent = activeQObj
+          ? `🔗 ซ่อนเส้นเชื่อม (ข้อ ${activeShort})`
+          : "🔗 เส้นเชื่อมความโยงกรณีนี้";
+      }
+
+      // Rebuild Scenario sticky column cleanly
+      scenSticky.replaceChildren();
+      if (!activeQObj || !activeQBlock) {
+        split.classList.toggle("is-scen-collapsed", Boolean(state.hsdHideScenario));
+        scenSticky.appendChild(buildScenarioPaneContent(caseObj));
+        setSvgHidden(true);
+        halosGroup.replaceChildren();
+        pathsGroup.replaceChildren();
+        syncFacultyScrollGlobalLinkBar(getFilteredHsDiscussionCases());
+        return;
+      }
+
+      // Ensure scenario pane & Teacher Key panel are visible
+      split.classList.remove("is-scen-collapsed");
+      activeQBlock.classList.add("is-scroll-concept-active-q");
+      const keyPanel = activeQBlock.querySelector(".hsd-teacher-key-panel");
+      if (keyPanel && keyPanel.hidden) {
+        state.hsdRevealedKeys.add(activeQObj.id);
+        keyPanel.hidden = false;
+        const projToggleBtn = activeQBlock.querySelector(
+          `[data-projector-key-toggle-qid="${activeQObj.id}"]`
+        );
+        if (projToggleBtn) {
+          projToggleBtn.textContent = "ซ่อนเฉลยอาจารย์ ▴";
+          projToggleBtn.className = "btn sm";
+        }
+      }
+
+      const activeIdx = Math.max(0, questions.findIndex((q) => q.id === activeQObj.id));
+      const activeShortNum = getShortQuestionNumLabel(activeQObj, activeIdx);
+
+      // Sticky Scenario Banner with Sub-Question Switcher + Close Button
+      const banner = make("div", null, "hsd-scroll-link-banner hsd-no-print");
+      const bLeft = make("div", null, "hsd-slb-left");
+      bLeft.appendChild(make("span", `🔗 กำลังเชื่อมกับ ข้อ ${activeShortNum}`, "hsd-slb-badge"));
+      if (questions.length > 1) {
+        const swWrap = make("div", null, "hsd-slb-qswitcher");
+        questions.forEach((sib, sIdx) => {
+          const sibShort = getShortQuestionNumLabel(sib, sIdx);
+          const pBtn = make(
+            "button",
+            sibShort,
+            `hsd-slb-qpill${sib.id === activeQObj.id ? " is-active" : ""}`
+          );
+          pBtn.type = "button";
+          pBtn.title = `สลับเส้นเชื่อมความโยงไปยัง ข้อ ${sibShort}`;
+          pBtn.addEventListener("click", () => setLinkedQuestion(sib.id, true));
+          swWrap.appendChild(pBtn);
+        });
+        bLeft.appendChild(swWrap);
+      }
+      const closeBannerBtn = make("button", "✕ ปิดเส้นเชื่อม", "hsd-slb-close");
+      closeBannerBtn.type = "button";
+      closeBannerBtn.addEventListener("click", () => setLinkedQuestion("", false));
+      banner.append(bLeft, closeBannerBtn);
+      scenSticky.appendChild(banner);
+
+      const scenContent = buildScenarioPaneContent(caseObj);
+      scenSticky.appendChild(scenContent);
+
+      // Highlight verbatim scenario clues for activeQObj inside scenContent
+      const clueEntries = [];
+      activeLinks.forEach((lk, idx) => {
+        const step = idx + 1;
+        const colorIdx = (idx % 6) + 1;
+        (lk.clues || []).forEach((rawClue, cIdx) => {
+          const phrase = String(rawClue || "").trim();
+          if (phrase.length >= 2) {
+            clueEntries.push({ step, colorIdx, phrase, isPrimary: cIdx === 0, linkInfo: lk });
+          }
+        });
+      });
+      clueEntries.sort((a, b) => b.phrase.length - a.phrase.length);
+
+      const scenRoot = scenContent.querySelector(".hsd-scenario-box") || scenContent;
+      const textNodes = [];
+      const walker = document.createTreeWalker(scenRoot, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          const p = node.parentElement;
+          if (!p) return NodeFilter.FILTER_REJECT;
+          if (p.closest(".hsd-scenario-label, .hsd-scen-question-inline, script, style, mark")) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+      const matchedOnce = new Set();
+      clueEntries.forEach((ce) => {
+        const keySig = `${ce.step}::${ce.phrase}`;
+        if (matchedOnce.has(keySig)) return;
+        for (let i = 0; i < textNodes.length; i += 1) {
+          const tNode = textNodes[i];
+          if (!tNode.parentNode) continue;
+          const val = tNode.nodeValue || "";
+          const pos = val.indexOf(ce.phrase);
+          if (pos === -1) continue;
+
+          const before = val.slice(0, pos);
+          const matchStr = val.slice(pos, pos + ce.phrase.length);
+          const after = val.slice(pos + ce.phrase.length);
+
+          const mark = document.createElement("mark");
+          mark.className = `hsd-clue-hl is-c${ce.colorIdx}`;
+          mark.dataset.conceptStep = String(ce.step);
+          mark.dataset.cluePrimary = ce.isPrimary ? "1" : "0";
+          mark.title = `Supporting Evidence / Verbatim Quotation #${ce.step} → ${ce.linkInfo.logic || ""}`;
+
+          const tag = make("span", `#${ce.step}`, "hsd-clue-tag");
+          mark.append(tag, document.createTextNode(matchStr));
+
+          const frag = document.createDocumentFragment();
+          const replaceList = [];
+          if (before) {
+            const bN = document.createTextNode(before);
+            frag.appendChild(bN);
+            replaceList.push(bN);
+          }
+          frag.appendChild(mark);
+          if (after) {
+            const aN = document.createTextNode(after);
+            frag.appendChild(aN);
+            replaceList.push(aN);
+          }
+          tNode.parentNode.replaceChild(frag, tNode);
+          textNodes.splice(i, 1, ...replaceList);
+          matchedOnce.add(keySig);
+          break;
+        }
+      });
+
+      // Populate .hsd-q-concept-hub inside activeQBlock's .hsd-q-head + .hsd-concept-bridge-bar in Answer Key rows
+      const rows = (tk.keyTable && tk.keyTable.rows) || [];
+      const qHeadEl = activeQBlock.querySelector(".hsd-q-head");
+      if (qHeadEl) {
+        const qHub = make("div", null, "hsd-q-concept-hub is-scroll-qhub hsd-no-print");
+        qHub.appendChild(
+          make(
+            "span",
+            "🎯 สิ่งที่โจทย์ถาม (เชื่อมจากโจทย์ ──▶ สู่แต่ละ Highlight ในคำตอบ · Hover ดูคำสอน):",
+            "hsd-qhub-label"
+          )
+        );
+        const qNodesWrap = make("div", null, "hsd-qhub-pills");
+        activeLinks.forEach((lk, idx) => {
+          const step = idx + 1;
+          const colorIdx = (idx % 6) + 1;
+          const rowTuple = rows[idx] || [];
+          const rawLabel = String(rowTuple[0] || `ประเด็น #${step}`)
+            .split("\n")[0]
+            .replace(/\[[^\]]*คะแนน[^\]]*\]/g, "")
+            .replace(/^\s*\d+(?:\.\d+)*[\.\)]?\s*/, "")
+            .trim();
+          const shortLabel = rawLabel.length > 28 ? `${rawLabel.slice(0, 26)}…` : rawLabel;
+          const qNodeBtn = make(
+            "button",
+            `🎯 โจทย์ถาม #${step}: ${shortLabel} 📚`,
+            `hsd-q-step-node is-c${colorIdx}`
+          );
+          qNodeBtn.type = "button";
+          qNodeBtn.dataset.qTargetStep = String(step);
+          qNodeBtn.dataset.qFocusLabel = rawLabel;
+          qNodeBtn.title = `สิ่งที่โจทย์ถาม #${step} → วางเมาส์เพื่อเน้นเส้นเชื่อมทั้ง 3 จุด และเปิด Preview แนวคิดในเอกสารประกอบคำสอน (${lk.docTitle || lk.docId})`;
+          qNodesWrap.appendChild(qNodeBtn);
+        });
+        qHub.appendChild(qNodesWrap);
+        qHeadEl.appendChild(qHub);
+      }
+
+      activeLinks.forEach((lk, idx) => {
+        if (!lk || !lk.logic) return;
+        const step = idx + 1;
+        const colorIdx = (idx % 6) + 1;
+        const tr = activeQBlock.querySelector(`tr[data-concept-row-step="${step}"]`);
+        if (!tr) return;
+        const tds = tr.querySelectorAll("td");
+        const lastTd = tds[tds.length - 1];
+        if (!lastTd || lastTd.querySelector(".hsd-concept-bridge-bar")) return;
+        const bridgeBox = make("div", null, `hsd-concept-bridge-bar is-scroll-bridge is-c${colorIdx}`);
+        bridgeBox.innerHTML = `<strong>💡 Conceptualize จากโจทย์:</strong> ${escapeHtml(lk.logic)}`;
+        const ctrlRow = lastTd.querySelector(".ppt-key-row-ctrl-row");
+        if (ctrlRow) lastTd.insertBefore(bridgeBox, ctrlRow);
+        else lastTd.appendChild(bridgeBox);
+      });
+
+      // Wire interactive hover/click spotlight + Teaching Doc popover with clean AbortController
+      qInteractAbort = new AbortController();
+      const qSig = qInteractAbort.signal;
+
+      scenSticky.querySelectorAll("mark.hsd-clue-hl").forEach((m) => {
+        const s = Number(m.dataset.conceptStep) || 0;
+        m.addEventListener("mouseenter", () => applyScrollFocusState(s), { signal: qSig });
+        m.addEventListener("mouseleave", () => applyScrollFocusState(0), { signal: qSig });
+        m.addEventListener(
+          "click",
+          (ev) => {
+            ev.stopPropagation();
+            applyScrollFocusState(activeStep === s ? 0 : s);
+          },
+          { signal: qSig }
+        );
+      });
+
+      activeQBlock.querySelectorAll("tr[data-concept-row-step]").forEach((tr) => {
+        const s = Number(tr.dataset.conceptRowStep) || 0;
+        tr.addEventListener("mouseenter", () => applyScrollFocusState(s), { signal: qSig });
+        tr.addEventListener("mouseleave", () => applyScrollFocusState(0), { signal: qSig });
+      });
+
+      activeQBlock.querySelectorAll("mark.hsd-ans-hl").forEach((am) => {
+        const s = Number(am.dataset.ansStep) || 0;
+        am.addEventListener("mouseenter", () => applyScrollFocusState(s), { signal: qSig });
+        am.addEventListener("mouseleave", () => applyScrollFocusState(0), { signal: qSig });
+      });
+
+      activeQBlock.querySelectorAll(".hsd-vq-chip[data-focus-clue-step]").forEach((btn) => {
+        const s = Number(btn.dataset.focusClueStep) || 0;
+        btn.addEventListener("mouseenter", () => applyScrollFocusState(s), { signal: qSig });
+        btn.addEventListener("mouseleave", () => applyScrollFocusState(0), { signal: qSig });
+        btn.addEventListener(
+          "click",
+          (ev) => {
+            ev.stopPropagation();
+            applyScrollFocusState(activeStep === s ? 0 : s);
+          },
+          { signal: qSig }
+        );
+      });
+
+      activeQBlock.querySelectorAll(".hsd-q-step-node[data-q-target-step]").forEach((nd) => {
+        const s = Number(nd.dataset.qTargetStep) || 0;
+        const lk = activeLinks[s - 1] || activeLinks[0];
+        const rowTuple = rows[s - 1] || rows[0] || [];
+        const focusLabel = nd.dataset.qFocusLabel || "";
+        nd.addEventListener(
+          "mouseenter",
+          () => {
+            applyScrollFocusState(s);
+            if (!state.isPptSlideSharePopup && lk) {
+              openHsTextbookRefPopover(nd, lk, modObj, false, rowTuple, focusLabel);
+            }
+          },
+          { signal: qSig }
+        );
+        nd.addEventListener(
+          "mouseleave",
+          () => {
+            applyScrollFocusState(0);
+            scheduleCloseHsTextbookRefPopover();
+          },
+          { signal: qSig }
+        );
+        nd.addEventListener(
+          "click",
+          (ev) => {
+            ev.stopPropagation();
+            applyScrollFocusState(activeStep === s ? 0 : s);
+            if (!state.isPptSlideSharePopup && lk) {
+              openHsTextbookRefPopover(nd, lk, modObj, true, rowTuple, focusLabel);
+            }
+          },
+          { signal: qSig }
+        );
+      });
+
+      activeQBlock.querySelectorAll("mark.hsd-qprompt-hl").forEach((qm) => {
+        const s = Number(qm.dataset.qpromptStep) || 1;
+        qm.addEventListener("mouseenter", () => applyScrollFocusState(s), { signal: qSig });
+        qm.addEventListener("mouseleave", () => applyScrollFocusState(0), { signal: qSig });
+      });
+
+      setSvgHidden(false);
+
+      if (autoScrollFocus) {
+        const firstClue = scenSticky.querySelector("mark.hsd-clue-hl");
+        if (firstClue && scenSticky.scrollHeight > scenSticky.clientHeight + 16) {
+          const sRect = scenSticky.getBoundingClientRect();
+          const cRect = firstClue.getBoundingClientRect();
+          const targetScrollTop = Math.max(0, scenSticky.scrollTop + (cRect.top - sRect.top) - 72);
+          scenSticky.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+        }
+      }
+
+      redrawScrollLinesNow();
+      requestAnimationFrame(redrawScrollLinesNow);
+      syncFacultyScrollGlobalLinkBar(getFilteredHsDiscussionCases());
+    };
+
+    // Wire per-question link buttons & Live Wall collapse buttons
+    qCol.querySelectorAll("[data-scroll-link-qid]").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        (ev) => {
+          ev.stopPropagation();
+          const qId = btn.dataset.scrollLinkQid || "";
+          const curId = (state.hsdScrollLinkedQByCase || {})[caseObj.id] || "";
+          setLinkedQuestion(curId === qId ? "" : qId, true);
+        },
+        { signal: lifecycleSignal }
+      );
+    });
+
+    qCol.querySelectorAll("[data-collapse-live-qid]").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        (ev) => {
+          ev.stopPropagation();
+          const qId = btn.dataset.collapseLiveQid || "";
+          if (!qId) return;
+          state.hsdScrollCollapseLiveByQ = state.hsdScrollCollapseLiveByQ || {};
+          const nextCollapsed = !state.hsdScrollCollapseLiveByQ[qId];
+          state.hsdScrollCollapseLiveByQ[qId] = nextCollapsed;
+          const qb = qCol.querySelector(`#hsd-qblock-${CSS.escape(qId)}`);
+          const lw = qb ? qb.querySelector(".hsd-live-wall") : null;
+          if (lw) lw.hidden = nextCollapsed;
+          btn.classList.toggle("is-active", nextCollapsed);
+          btn.textContent = nextCollapsed ? "↕ เปิดช่องคำตอบ นศพ." : "↕ ย่อช่องคำตอบ นศพ.";
+          scheduleRedraw();
+        },
+        { signal: lifecycleSignal }
+      );
+    });
+
+    if (caseLinkBtn) {
+      caseLinkBtn.addEventListener(
+        "click",
+        () => {
+          const curId = (state.hsdScrollLinkedQByCase || {})[caseObj.id] || "";
+          if (curId) {
+            setLinkedQuestion("", false);
+            return;
+          }
+          // Pick sub-question closest to current viewport center
+          const vpCenter = window.innerHeight * 0.45;
+          let bestQId = questions[0] ? questions[0].id : "";
+          let bestDist = Infinity;
+          questions.forEach((q) => {
+            const qb = qCol.querySelector(`#hsd-qblock-${CSS.escape(q.id)}`);
+            if (!qb) return;
+            const r = qb.getBoundingClientRect();
+            const dist =
+              vpCenter >= r.top && vpCenter <= r.bottom
+                ? 0
+                : Math.min(Math.abs(r.top - vpCenter), Math.abs(r.bottom - vpCenter));
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestQId = q.id;
+            }
+          });
+          setLinkedQuestion(bestQId, true);
+        },
+        { signal: lifecycleSignal }
+      );
+    }
+
+    window.addEventListener("scroll", scheduleRedraw, { passive: true, signal: lifecycleSignal });
+    window.addEventListener("resize", scheduleRedraw, { passive: true, signal: lifecycleSignal });
+    scenSticky.addEventListener("scroll", scheduleRedraw, { passive: true, signal: lifecycleSignal });
+
+    if (typeof ResizeObserver === "function") {
+      let lastW = 0;
+      let lastH = 0;
+      const ro = new ResizeObserver(() => {
+        const w = split.offsetWidth;
+        const h = split.offsetHeight;
+        if (Math.abs(w - lastW) <= 1 && Math.abs(h - lastH) <= 1) return;
+        lastW = w;
+        lastH = h;
+        scheduleRedraw();
+      });
+      ro.observe(split);
+      facultyScrollResizeObservers.push(ro);
+    }
+
+    facultyScrollCaseControllers.set(caseObj.id, { setLinkedQuestion, scheduleRedraw });
+
+    const persistedQId = (state.hsdScrollLinkedQByCase || {})[caseObj.id] || "";
+    if (persistedQId && questions.some((q) => q.id === persistedQId)) {
+      setLinkedQuestion(persistedQId, false);
+    }
   }
 
   function renderFacultyKeySlideStage(qObj, caseObj, modObj) {
