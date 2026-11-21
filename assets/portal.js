@@ -80,8 +80,12 @@
     hsdRemoteClickerTarget: "question", // question | key
     hsdLaserActive: false,
     hsdFsAutoHideHud: false,
+    hsdFsHudCollapsed: false,
     hsdFsGridOpen: false,
     hsdBigSlideTimer: false,
+    hsdPptWindowMax: false,
+    hsdLeftFontPct: Math.min(150, Math.max(75, Number(localStorage.getItem("racm303_hsd_lfont")) || 100)),
+    hsdRightFontPct: Math.min(150, Math.max(75, Number(localStorage.getItem("racm303_hsd_rfont")) || 100)),
     pptPopupConnected: false,
     isPptSlideSharePopup: new URLSearchParams(window.location.search).get("ppt_slideshare") === "1",
     hsdPersonalNotes: JSON.parse(localStorage.getItem("racm303_hsd_ppt_notes_v1") || "{}"),
@@ -9906,6 +9910,7 @@
     running: false,
     hasStarted: false,
     hasConfigured: false,
+    timedOutInCurrentRun: false,
     durationSec: 300,
     baseRemainingMs: 300000,
     anchorPerfNow: 0,
@@ -9948,6 +9953,7 @@
       if (rem <= 0) {
         stuLocalTimer.running = false;
         stuLocalTimer.baseRemainingMs = 0;
+        stuLocalTimer.timedOutInCurrentRun = true;
         if (!stuLocalTimer.chimePlayed) {
           stuLocalTimer.chimePlayed = true;
           playLocalTimerChime();
@@ -9970,9 +9976,9 @@
         durationSec: stuLocalTimer.durationSec || 300,
         formatted: `${mm}:${ss}`,
         pct: Math.max(0, Math.min(100, (remMs / durMs) * 100)),
-        isWarning: Boolean(stuLocalTimer.hasStarted) && totalSec > 15 && totalSec <= 60,
-        isUrgent: Boolean(stuLocalTimer.hasStarted) && totalSec > 0 && totalSec <= 15,
-        isTimeUp: Boolean(stuLocalTimer.hasStarted) && !stuLocalTimer.running && remMs === 0,
+        isWarning: Boolean(stuLocalTimer.running) && totalSec > 15 && totalSec <= 60,
+        isUrgent: Boolean(stuLocalTimer.running) && totalSec > 0 && totalSec <= 15,
+        isTimeUp: Boolean(stuLocalTimer.timedOutInCurrentRun) && !stuLocalTimer.running && remMs === 0,
         hasStarted: Boolean(stuLocalTimer.hasStarted),
         hasConfigured: Boolean(stuLocalTimer.hasConfigured)
       };
@@ -9985,6 +9991,18 @@
 
   const slideTimerCtrl = {
     getSnapshot: () => getEffectiveSlideTimerSnapshot(),
+    clearTimeUp() {
+      if (ROLE === "faculty" && LIVE && typeof LIVE.clearTimeUpAlert === "function") {
+        LIVE.clearTimeUpAlert();
+      }
+      if (stuLocalTimer.timedOutInCurrentRun) {
+        stuLocalTimer.timedOutInCurrentRun = false;
+        stuLocalTimer.hasStarted = false;
+        stuLocalTimer.hasConfigured = false;
+        stuLocalTimer.baseRemainingMs = (stuLocalTimer.durationSec || 300) * 1000;
+      }
+      syncTimerWidgetDOM();
+    },
     start(durationSec) {
       const sec = Math.max(5, Math.min(5400, Math.round(Number(durationSec) || 300)));
       if (ROLE === "faculty" && LIVE) {
@@ -9997,6 +10015,7 @@
         stuLocalTimer.running = true;
         stuLocalTimer.hasStarted = true;
         stuLocalTimer.hasConfigured = true;
+        stuLocalTimer.timedOutInCurrentRun = false;
         stuLocalTimer.chimePlayed = false;
         ensureStuLocalTimerTicker();
       }
@@ -10011,6 +10030,7 @@
         stuLocalTimer.running = false;
         stuLocalTimer.hasStarted = false;
         stuLocalTimer.hasConfigured = true;
+        stuLocalTimer.timedOutInCurrentRun = false;
         stuLocalTimer.durationSec = sec;
         stuLocalTimer.baseRemainingMs = sec * 1000;
         stuLocalTimer.chimePlayed = false;
@@ -10038,6 +10058,7 @@
           stuLocalTimer.running = true;
           stuLocalTimer.hasStarted = true;
           stuLocalTimer.hasConfigured = true;
+          stuLocalTimer.timedOutInCurrentRun = false;
           stuLocalTimer.chimePlayed = false;
           ensureStuLocalTimerTicker();
         }
@@ -10063,6 +10084,7 @@
         if (nextMs > 0) {
           stuLocalTimer.chimePlayed = false;
           stuLocalTimer.hasConfigured = true;
+          stuLocalTimer.timedOutInCurrentRun = false;
         }
       }
       syncTimerWidgetDOM();
@@ -10077,6 +10099,7 @@
         stuLocalTimer.running = false;
         stuLocalTimer.hasStarted = false;
         stuLocalTimer.hasConfigured = false;
+        stuLocalTimer.timedOutInCurrentRun = false;
         stuLocalTimer.durationSec = dur;
         stuLocalTimer.baseRemainingMs = dur * 1000;
         stuLocalTimer.chimePlayed = false;
@@ -10088,6 +10111,7 @@
       stuLocalTimer.running = false;
       stuLocalTimer.hasStarted = false;
       stuLocalTimer.hasConfigured = false;
+      stuLocalTimer.timedOutInCurrentRun = false;
       syncTimerWidgetDOM();
     }
   };
@@ -10749,6 +10773,8 @@
         state.hsdFsGridOpen = false;
         syncViewModeButtonsUI();
         renderPptPresentationOverlay();
+      } else if (!fsActive && state.hsdPptWindowMax) {
+        togglePptStudioWindowMax(false);
       } else if (state.isPptSlideSharePopup) {
         renderPptPresentationOverlay();
       }
@@ -10777,6 +10803,10 @@
         }
         if (state.hsdTheater && !state.isPptSlideSharePopup) {
           exitPptFullscreenShow();
+          return;
+        }
+        if (state.hsdPptWindowMax) {
+          togglePptStudioWindowMax(false);
           return;
         }
       }
@@ -11618,6 +11648,8 @@
         lastQId: state.hsdLastSelectedQId || "",
         hsdSlideLayout: state.hsdSlideLayout,
         hsdSplitPct: state.hsdSplitPct,
+        hsdLeftFontPct: state.hsdLeftFontPct,
+        hsdRightFontPct: state.hsdRightFontPct,
         hsdFacultyMode: state.hsdFacultyMode,
         hsdLiveWallMode: state.hsdLiveWallMode,
         hsdKeyStepByQ: state.hsdKeyStepByQ,
@@ -11673,6 +11705,8 @@
         if (p.lastQId) state.hsdLastSelectedQId = p.lastQId;
         if (p.hsdSlideLayout) state.hsdSlideLayout = p.hsdSlideLayout;
         if (typeof p.hsdSplitPct === "number") state.hsdSplitPct = p.hsdSplitPct;
+        if (typeof p.hsdLeftFontPct === "number") state.hsdLeftFontPct = p.hsdLeftFontPct;
+        if (typeof p.hsdRightFontPct === "number") state.hsdRightFontPct = p.hsdRightFontPct;
         if (p.hsdFacultyMode) state.hsdFacultyMode = p.hsdFacultyMode;
         if (p.hsdLiveWallMode) state.hsdLiveWallMode = p.hsdLiveWallMode;
         if (p.hsdKeyStepByQ && typeof p.hsdKeyStepByQ === "object") {
@@ -11787,8 +11821,44 @@
     }
   }
 
+  function togglePptStudioWindowMax(forceBool) {
+    const nextMax = typeof forceBool === "boolean" ? forceBool : !state.hsdPptWindowMax;
+    if (nextMax && state.hsdTheater) {
+      state.hsdTheater = false;
+      state.hsdFsGridOpen = false;
+    }
+    state.hsdPptWindowMax = nextMax;
+    document.body.classList.toggle("is-ppt-window-max-open", nextMax);
+    if (nextMax) {
+      ensureStudentRoomReadyForPresentation();
+      state.hsdViewMode = "slide";
+      const docEl = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          try {
+            docEl.webkitRequestFullscreen();
+          } catch (_) {}
+        }
+      }
+    } else if (document.fullscreenElement && document.exitFullscreen && !state.hsdTheater) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen && !state.hsdTheater) {
+      try {
+        document.webkitExitFullscreen();
+      } catch (_) {}
+    }
+    syncViewModeButtonsUI();
+    renderHsDiscussionView();
+  }
+
   function enterPptFullscreenShow(targetCaseOrQId) {
     ensureStudentRoomReadyForPresentation();
+    if (state.hsdPptWindowMax) {
+      state.hsdPptWindowMax = false;
+      document.body.classList.remove("is-ppt-window-max-open");
+    }
     state.hsdViewMode = "slide";
     try {
       localStorage.setItem("racm303_hsd_vmode", "slide");
@@ -12518,7 +12588,13 @@
     });
 
     const pop = buildSlideTimerPopoverDOM(false);
-    clockBtn.addEventListener("click", attachOutsideCloseForPopover(anchor, pop, pop._syncInputs));
+    clockBtn.addEventListener(
+      "click",
+      attachOutsideCloseForPopover(anchor, pop, () => {
+        slideTimerCtrl.clearTimeUp();
+        pop._syncInputs();
+      })
+    );
 
     cluster.append(playBtn, clockBtn, add1mBtn, expandBtn);
     anchor.append(cluster, pop);
@@ -12646,7 +12722,13 @@
     clockBtn.dataset.pptHasCaret = "1";
     clockBtn.title = "คลิกเพื่อกำหนดเวลา Countdown เอง (นาที:วินาที) หรือเลือกเวลาด่วน";
     const pop = buildSlideTimerPopoverDOM(isDropUp);
-    clockBtn.addEventListener("click", attachOutsideCloseForPopover(anchor, pop, pop._syncInputs));
+    clockBtn.addEventListener(
+      "click",
+      attachOutsideCloseForPopover(anchor, pop, () => {
+        slideTimerCtrl.clearTimeUp();
+        pop._syncInputs();
+      })
+    );
     anchor.append(clockBtn, pop);
 
     const plusBtn = make("button", "+1m", "ppt-big-btn");
@@ -12708,8 +12790,8 @@
       { label: "▣ โจทย์เต็มสไลด์ 16:9", layout: "scenario" },
       { label: ROLE === "faculty" ? "★ เฉลยเต็มสไลด์ 16:9" : "▦ ใบงานเต็มสไลด์ 16:9", layout: ROLE === "faculty" ? "key-only" : "sheet" },
       { label: "◫ แบ่งครึ่ง 50 : 50", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 50 },
-      { label: "◧ โจทย์กว้าง 62% : ขวา 38%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 62 },
-      { label: "◨ โจทย์ 36% : ขวากว้าง 64%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 36 }
+      { label: "◧ สถานการณ์กว้าง 62% : ขวา 38%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 62 },
+      { label: "◨ สถานการณ์ 36% : ขวากว้าง 64%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 36 }
     ].forEach((p) => {
       const pb = make("button", p.label, "hsd-snap-pop-item");
       pb.type = "button";
@@ -12795,16 +12877,11 @@
         popWinBtn.title = "แยกออกเป็นอีกหน้าต่างสำหรับแชร์จอ Zoom หรือลากขึ้นโปรเจกเตอร์";
         popWinBtn.addEventListener("click", () => openPptSlideShareWindow());
 
-        const autoHideBtn = make(
-          "button",
-          state.hsdFsAutoHideHud ? "📌 แสดงแถบค้าง" : "▾ ซ่อนแถบอัตโนมัติ",
-          "ppt-fs-tool-btn"
-        );
-        autoHideBtn.type = "button";
-        autoHideBtn.addEventListener("click", () => {
-          state.hsdFsAutoHideHud = !state.hsdFsAutoHideHud;
-          const ov = $("pptPresentationOverlay");
-          if (ov) ov.classList.remove("is-hud-idle");
+        const collapseDockBtn = make("button", "▾ ซ่อนแถบล่าง", "ppt-fs-tool-btn");
+        collapseDockBtn.type = "button";
+        collapseDockBtn.title = "พับเก็บแถบควบคุมด้านล่าง เพื่อให้สไลด์ 16:9 ด้านบนขยายเต็มสัดส่วนโดยไม่บังเนื้อหาสไลด์";
+        collapseDockBtn.addEventListener("click", () => {
+          state.hsdFsHudCollapsed = true;
           renderPptPresentationOverlay();
         });
 
@@ -12812,11 +12889,68 @@
         exitBtn.type = "button";
         exitBtn.addEventListener("click", () => exitPptFullscreenShow());
 
-        row.append(popWinBtn, autoHideBtn, exitBtn);
+        row.append(popWinBtn, collapseDockBtn, exitBtn);
       }
     }
 
     return row;
+  }
+
+  function buildBoxFontSizeCtrlDOM(side) {
+    const isLeft = side === "left";
+    const getPct = () => (isLeft ? state.hsdLeftFontPct : state.hsdRightFontPct) || 100;
+    const applyPct = (nextVal) => {
+      const clamped = Math.max(75, Math.min(150, Math.round(nextVal)));
+      if (isLeft) {
+        state.hsdLeftFontPct = clamped;
+        try {
+          localStorage.setItem("racm303_hsd_lfont", String(clamped));
+        } catch (_) {}
+      } else {
+        state.hsdRightFontPct = clamped;
+        try {
+          localStorage.setItem("racm303_hsd_rfont", String(clamped));
+        } catch (_) {}
+      }
+      document.querySelectorAll(`.hsd-box-zoom-body[data-box-side="${side}"]`).forEach((el) => {
+        el.style.zoom = `${clamped / 100}`;
+      });
+      document.querySelectorAll(`[data-box-pct="${side}"]`).forEach((el) => {
+        el.textContent = `${clamped}%`;
+      });
+      broadcastPptPresentationState();
+    };
+
+    const ctrl = make("div", null, "hsd-box-font-ctrl hsd-no-print");
+    ctrl.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+
+    const minusBtn = make("button", "ก−", "hsd-box-font-btn");
+    minusBtn.type = "button";
+    minusBtn.title = "ลดขนาดตัวอักษรเฉพาะในกล่องนี้";
+    minusBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      applyPct(getPct() - 8);
+    });
+
+    const pctBtn = make("button", `${getPct()}%`, "hsd-box-font-btn is-pct");
+    pctBtn.type = "button";
+    pctBtn.setAttribute("data-box-pct", side);
+    pctBtn.title = "คลิกเพื่อรีเซ็ตขนาดตัวอักษรของกล่องนี้กลับเป็น 100%";
+    pctBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      applyPct(100);
+    });
+
+    const plusBtn = make("button", "ก+", "hsd-box-font-btn");
+    plusBtn.type = "button";
+    plusBtn.title = "เพิ่มขนาดตัวอักษรเฉพาะในกล่องนี้";
+    plusBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      applyPct(getPct() + 8);
+    });
+
+    ctrl.append(minusBtn, pctBtn, plusBtn);
+    return ctrl;
   }
 
   function buildPptSlideSheetDOM(cur, slides, isProjected) {
@@ -12865,9 +12999,21 @@
       sheet.appendChild(buildBigSlideFloatingTimerDOM(sheet));
     }
 
-    // 2. Slide Content Body (5 PowerPoint Layouts)
+    // 2. Slide Content Body (5 PowerPoint Layouts with Per-Box Font Controls)
     if (layout === "key-only" && ROLE === "faculty" && typeof buildFacultyTeacherKeyPanelDOM === "function") {
       const keyStage = make("div", null, "hsd-key-slide-stage is-16x9-canvas");
+      if (!state.isPptSlideSharePopup) {
+        const keyBar = make("div", null, "hsd-pane-snap-bar hsd-no-print");
+        const keyBarTitle = make("span", null, "hsd-pane-snap-title");
+        keyBarTitle.innerHTML = `<span>★ โจทย์คำถาม + เฉลยอาจารย์เต็มจอ 16:9 (ขั้น ${getEffectiveHsKeyStep(cur.qObj.id)}/${getHsQuestionKeyTotalSteps(cur.qObj.id)})</span>`;
+        keyBar.append(keyBarTitle, buildBoxFontSizeCtrlDOM("right"));
+        keyStage.appendChild(keyBar);
+      }
+
+      const keyZoomBody = make("div", null, "hsd-box-zoom-body");
+      keyZoomBody.setAttribute("data-box-side", "right");
+      keyZoomBody.style.zoom = `${(state.hsdRightFontPct || 100) / 100}`;
+
       const recap = make("div", null, "hsd-key-question-recap");
       const topBadges = make("div", null, "hsd-q-head-top");
       topBadges.append(
@@ -12877,8 +13023,8 @@
       recap.appendChild(topBadges);
       recap.appendChild(make("h5", cur.qObj.title, "hsd-q-title"));
       recap.appendChild(make("p", cur.qObj.prompt, "hsd-q-prompt"));
-      keyStage.appendChild(recap);
-      keyStage.appendChild(
+      keyZoomBody.appendChild(recap);
+      keyZoomBody.appendChild(
         buildFacultyTeacherKeyPanelDOM(cur.qObj, cur.mod, {
           step: getEffectiveHsKeyStep(cur.qObj.id),
           justRevealed:
@@ -12886,6 +13032,7 @@
           interactiveReveal: !state.isPptSlideSharePopup
         })
       );
+      keyStage.appendChild(keyZoomBody);
       attachPptRemoteScrollBroadcast(keyStage, "key");
       sheet.appendChild(keyStage);
     } else {
@@ -12902,15 +13049,22 @@
       if (!state.isPptSlideSharePopup) {
         const leftDragBar = make("div", null, "hsd-pane-snap-bar hsd-no-print");
         leftDragBar.setAttribute("data-pane-snap-drag", "left");
-        leftDragBar.innerHTML = `<span class="hsd-drag-dots">⠿</span><span>📖 สถานการณ์กรณีศึกษา (ลากแถบนี้ไปขอบสไลด์เพื่อ Snap Layout)</span>`;
+        const leftTitle = make("span", null, "hsd-pane-snap-title");
+        leftTitle.innerHTML = `<span class="hsd-drag-dots">⠿</span><span>📖 สถานการณ์กรณีศึกษา (ลากแถบนี้เพื่อ Snap)</span>`;
+        leftDragBar.append(leftTitle, buildBoxFontSizeCtrlDOM("left"));
         leftPane.appendChild(leftDragBar);
       }
-      leftPane.appendChild(buildScenarioPaneContent(cur.caseObj));
-      if (layout === "scenario" || layout === "split-key") {
+
+      const leftZoomBody = make("div", null, "hsd-box-zoom-body");
+      leftZoomBody.setAttribute("data-box-side", "left");
+      leftZoomBody.style.zoom = `${(state.hsdLeftFontPct || 100) / 100}`;
+      leftZoomBody.appendChild(buildScenarioPaneContent(cur.caseObj));
+      if (layout === "scenario") {
         const qRecapWrap = make("div", null, "hsd-scen-question-inline");
         qRecapWrap.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
-        leftPane.appendChild(qRecapWrap);
+        leftZoomBody.appendChild(qRecapWrap);
       }
+      leftPane.appendChild(leftZoomBody);
 
       const resizer = make("div", null, "hsd-split-resizer hsd-no-print");
       resizer.title = "ลากซ้าย-ขวาเพื่อปรับสัดส่วน หรือลากชิดขอบเพื่อขยายเต็มสไลด์ 16:9";
@@ -12921,23 +13075,28 @@
       if (!state.isPptSlideSharePopup) {
         const rightDragBar = make("div", null, "hsd-pane-snap-bar hsd-no-print");
         rightDragBar.setAttribute("data-pane-snap-drag", "right");
-        rightDragBar.innerHTML =
+        const rightTitle = make("span", null, "hsd-pane-snap-title");
+        rightTitle.innerHTML =
           layout === "split-key" && ROLE === "faculty"
-            ? `<span class="hsd-drag-dots">⠿</span><span>★ แนวคำตอบอาจารย์ทีละขั้น (${getEffectiveHsKeyStep(cur.qObj.id)}/${getHsQuestionKeyTotalSteps(cur.qObj.id)}) · ลากเพื่อ Snap</span>`
-            : `<span class="hsd-drag-dots">⠿</span><span>▦ กระดาษคำตอบ / คำตอบสด (ลากเพื่อ Snap)</span>`;
+            ? `<span class="hsd-drag-dots">⠿</span><span>★ โจทย์คำถาม + แนวคำตอบอาจารย์ (${getEffectiveHsKeyStep(cur.qObj.id)}/${getHsQuestionKeyTotalSteps(cur.qObj.id)})</span>`
+            : `<span class="hsd-drag-dots">⠿</span><span>▦ โจทย์คำถาม + กระดาษคำตอบ / คำตอบสด</span>`;
+        rightDragBar.append(rightTitle, buildBoxFontSizeCtrlDOM("right"));
         rightPane.appendChild(rightDragBar);
       }
 
-      if (layout !== "split-key") {
-        rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
-      }
+      const rightZoomBody = make("div", null, "hsd-box-zoom-body");
+      rightZoomBody.setAttribute("data-box-side", "right");
+      rightZoomBody.style.zoom = `${(state.hsdRightFontPct || 100) / 100}`;
+
+      // Place Question Header directly on the right pane (same pane as Answer Key / Worksheet!)
+      rightZoomBody.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
 
       if (
         layout === "split-key" &&
         ROLE === "faculty" &&
         typeof buildFacultyTeacherKeyPanelDOM === "function"
       ) {
-        rightPane.appendChild(
+        rightZoomBody.appendChild(
           buildFacultyTeacherKeyPanelDOM(cur.qObj, cur.mod, {
             step: getEffectiveHsKeyStep(cur.qObj.id),
             justRevealed:
@@ -12950,10 +13109,11 @@
         state.hsdFacultyMode !== "student" &&
         typeof renderFacultyLiveWallForQuestion === "function"
       ) {
-        rightPane.appendChild(renderFacultyLiveWallForQuestion(cur.qObj, cur.caseObj));
+        rightZoomBody.appendChild(renderFacultyLiveWallForQuestion(cur.qObj, cur.caseObj));
       } else {
-        rightPane.appendChild(buildWideWorksheetTableDOM(cur.qObj, ROLE === "faculty"));
+        rightZoomBody.appendChild(buildWideWorksheetTableDOM(cur.qObj, ROLE === "faculty"));
       }
+      rightPane.appendChild(rightZoomBody);
 
       leftPane.hidden = layout === "sheet";
       rightPane.hidden = layout === "scenario";
@@ -13087,14 +13247,10 @@
       const kickIdleHud = () => {
         ov.classList.remove("is-hud-idle");
         if (pptHudIdleTimer) clearTimeout(pptHudIdleTimer);
-        if (state.isPptSlideSharePopup || state.hsdFsAutoHideHud) {
+        if (state.isPptSlideSharePopup && !state.hsdShowFullHudInPopup) {
           pptHudIdleTimer = setTimeout(() => {
-            if (!ov.matches(":hover") || state.isPptSlideSharePopup) {
-              const barHover = ov.querySelector(
-                ".ppt-fs-control-bar:hover, .ppt-audience-corner-hud:hover, .ppt-slide-timer-popover:not([hidden])"
-              );
-              if (!barHover) ov.classList.add("is-hud-idle");
-            }
+            const barHover = ov.querySelector(".ppt-audience-corner-hud:hover");
+            if (!barHover) ov.classList.add("is-hud-idle");
           }, 2400);
         }
       };
@@ -13129,7 +13285,7 @@
     }
 
     ov.hidden = false;
-    ov.classList.toggle("is-hud-autohide", Boolean(state.hsdFsAutoHideHud || state.isPptSlideSharePopup));
+    ov.classList.toggle("is-hud-autohide", Boolean(state.isPptSlideSharePopup && !state.hsdShowFullHudInPopup));
     ov.replaceChildren();
 
     const stageWrap = make("div", null, "ppt-fs-stage-wrap");
@@ -13192,7 +13348,7 @@
 
       const showBarBtn = make("button", "🎛 แสดง Control Panel", "ppt-fs-tool-btn");
       showBarBtn.type = "button";
-      showBarBtn.title = "แสดงแถบ Control Panel เต็มตรงกลางด้านล่าง";
+      showBarBtn.title = "แสดงแถบ Control Panel ด้านล่างแบบไม่บังสไลด์";
       showBarBtn.addEventListener("click", () => {
         state.hsdShowFullHudInPopup = true;
         renderPptPresentationOverlay();
@@ -13203,8 +13359,52 @@
 
       if (pptHudIdleTimer) clearTimeout(pptHudIdleTimer);
       pptHudIdleTimer = setTimeout(() => ov.classList.add("is-hud-idle"), 2000);
+    } else if (!state.isPptSlideSharePopup && state.hsdFsHudCollapsed) {
+      // Slim Non-Overlapping Bottom Strip — Slide 16:9 stays cleanly above with black pillarbox bars!
+      const collapsedBar = make("div", null, "ppt-fs-collapsed-dock");
+      const expandBarBtn = make("button", "▴ เปิดแถบ Control Panel", "ppt-fs-tool-btn");
+      expandBarBtn.type = "button";
+      expandBarBtn.title = "เปิดแถบควบคุมด้านล่าง (แสดงใต้สไลด์ 16:9 โดยไม่ทับเนื้อหาสไลด์)";
+      expandBarBtn.addEventListener("click", () => {
+        state.hsdFsHudCollapsed = false;
+        renderPptPresentationOverlay();
+      });
+
+      const cPrev = make("button", "◀ ข้อก่อนหน้า", "ppt-fs-tool-btn");
+      cPrev.type = "button";
+      cPrev.disabled = state.hsdSlideIdx <= 0;
+      cPrev.addEventListener("click", () => stepHsQuestionSlide(-1));
+
+      const cNext = make("button", `Slide ${state.hsdSlideIdx + 1}/${slides.length} · ข้อถัดไป ▶`, "ppt-fs-tool-btn");
+      cNext.type = "button";
+      cNext.disabled = state.hsdSlideIdx >= slides.length - 1;
+      cNext.addEventListener("click", () => stepHsQuestionSlide(1));
+
+      collapsedBar.append(expandBarBtn, cPrev, cNext);
+
+      if (ROLE === "faculty") {
+        const totalK = getHsQuestionKeyTotalSteps(cur.qObj.id);
+        if (totalK > 0) {
+          const curK = getEffectiveHsKeyStep(cur.qObj.id);
+          const kBtn = make(
+            "button",
+            curK < totalK ? `★ เฉลยถัดไป (${curK}/${totalK})` : `✓ เฉลยครบ (${totalK}/${totalK})`,
+            "ppt-fs-tool-btn"
+          );
+          kBtn.type = "button";
+          kBtn.addEventListener("click", () => stepHsAnswerKeyClicker(1));
+          collapsedBar.appendChild(kBtn);
+        }
+      }
+
+      const cExit = make("button", "✕ จบการฉาย (Esc)", "ppt-fs-tool-btn is-exit");
+      cExit.type = "button";
+      cExit.addEventListener("click", () => exitPptFullscreenShow());
+      collapsedBar.appendChild(cExit);
+
+      ov.appendChild(collapsedBar);
     } else {
-      // Centered Full Dark PowerPoint Control Panel (Shows ALL Clickers + Interactive Timer + ALL Layout/Snap/Laser/Study Controls!)
+      // Non-Overlapping Docked Bottom PowerPoint Control Panel (16:9 Slide scales proportionally above with pillarbox sidebars!)
       const ctrlBar = make("div", null, "ppt-fs-control-bar");
       const topClickersRow = make("div", null, "ppt-ribbon-clickers");
       topClickersRow.appendChild(buildBigQuestionClickerDOM(slides, cur, false));
@@ -13239,7 +13439,11 @@
       LIVE.broadcastTeacherQuestionPointer(cur.mod.id, cur.caseObj.id, cur.qObj.id);
     }
 
-    const shell = make("div", null, `hsd-slide-shell is-16x9-shell is-ppt-app layout-${layout}`);
+    const shell = make(
+      "div",
+      null,
+      `hsd-slide-shell is-16x9-shell is-ppt-app layout-${layout}${state.hsdPptWindowMax ? " is-ppt-window-max" : ""}`
+    );
 
     // 1. Microsoft PowerPoint Crimson-Terracotta Title Bar
     const titleBar = make("div", null, "ppt-titlebar hsd-no-print");
@@ -13274,6 +13478,17 @@
       tbRight.append(scrollPopUp, scrollPopDn, closePopBtn);
     }
 
+    const winMaxTitleBtn = make(
+      "button",
+      state.hsdPptWindowMax ? "⤡ ย่อหน้าต่างโปรแกรม" : "⤢ เต็มหน้าต่างโปรแกรม",
+      "ppt-title-btn"
+    );
+    winMaxTitleBtn.type = "button";
+    winMaxTitleBtn.title = state.hsdPptWindowMax
+      ? "ย่อหน้าต่างโปรแกรม PowerPoint กลับเข้าสู่หน้าเว็บปกติ (Esc)"
+      : "ขยายหน้าต่างโปรแกรม PowerPoint เต็มจอ (Full-Screen PowerPoint Window · ยังไม่เข้าโหมดฉาย Slide Show)";
+    winMaxTitleBtn.addEventListener("click", () => togglePptStudioWindowMax());
+
     const winShareBtn = make(
       "button",
       state.pptPopupConnected ? "🪟 โฟกัสหน้าต่าง Slide Share ↗" : "🪟 แยกหน้าต่าง Slide Share 16:9",
@@ -13288,7 +13503,7 @@
     fsStartBtn.title = "เริ่มฉายสไลด์ 16:9 เต็มหน้าจอเหมือนกดปุ่ม Slide Show ใน Microsoft PowerPoint (F5)";
     fsStartBtn.addEventListener("click", () => enterPptFullscreenShow());
 
-    tbRight.append(winShareBtn, fsStartBtn);
+    tbRight.append(winMaxTitleBtn, winShareBtn, fsStartBtn);
     titleBar.append(tbLeft, tbRight);
     shell.appendChild(titleBar);
 
@@ -13520,37 +13735,25 @@
     );
     zPctBtn.type = "button";
     zPctBtn.style.minWidth = "52px";
-    zPctBtn.title =
-      state.hsdPptZoomMode === "fit"
-        ? "คลิกเพื่อขยายพื้นที่สไลด์เต็มกรอบ (ซ่อน/แสดงแถบสไลด์ซ้าย) และจัดสไลด์ให้อยู่กึ่งกลางจอ"
-        : "คลิกเพื่อรีเซ็ตระดับการซูมกลับเป็น พอดีจอ (100%)";
-    zPctBtn.setAttribute(
-      "aria-pressed",
-      state.hsdPptZoomMode === "fit" && !state.hsdPptShowThumbs ? "true" : "false"
-    );
+    zPctBtn.title = "คลิกเพื่อปรับสไลด์ 16:9 ให้พอดีกรอบพื้นที่ทำงาน (Fit to Window · 100%)";
+    zPctBtn.setAttribute("aria-pressed", state.hsdPptZoomMode === "fit" ? "true" : "false");
     zPctBtn.addEventListener("click", () => {
-      if (state.hsdPptZoomMode !== "fit") {
-        state.hsdPptZoomMode = "fit";
-        state.hsdPptZoomPct = 100;
-      } else {
-        state.hsdPptShowThumbs = !state.hsdPptShowThumbs;
-        try {
-          localStorage.setItem("racm303_ppt_thumbs", state.hsdPptShowThumbs ? "1" : "0");
-        } catch (_) {}
-      }
+      state.hsdPptZoomMode = "fit";
+      state.hsdPptZoomPct = 100;
       renderHsDiscussionView();
-      requestAnimationFrame(() => {
-        const activeShell = container.querySelector(".hsd-slide-shell");
-        if (activeShell && typeof activeShell.scrollIntoView === "function") {
-          activeShell.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      });
     });
 
-    const zExpandBtn = make("button", "⤢", "ppt-status-btn is-slideshow-icon");
+    const zExpandBtn = make(
+      "button",
+      state.hsdPptWindowMax ? "⤡" : "⤢",
+      "ppt-status-btn"
+    );
     zExpandBtn.type = "button";
-    zExpandBtn.title = "ขยายสไลด์เต็มหน้าจอ 16:9 (Full Screen Slide Show · F5)";
-    zExpandBtn.addEventListener("click", () => enterPptFullscreenShow());
+    zExpandBtn.setAttribute("aria-pressed", state.hsdPptWindowMax ? "true" : "false");
+    zExpandBtn.title = state.hsdPptWindowMax
+      ? "ย่อหน้าต่างโปรแกรม PowerPoint กลับขนาดปกติ (Esc)"
+      : "ขยายหน้าต่างโปรแกรม PowerPoint เต็มจอ (Full-Screen PowerPoint Window · ยังไม่เข้าโหมดฉาย Slide Show)";
+    zExpandBtn.addEventListener("click", () => togglePptStudioWindowMax());
 
     zoomGroup.append(zMinus, zSlider, zPlus, zPctBtn, zExpandBtn);
     stRight.append(thumbToggle, notesToggle, normalViewBtn, sorterViewBtn, popBarBtn, showBarBtn, zoomGroup);
@@ -18705,13 +18908,14 @@
     const themeBtn = $("themeToggleBtn");
     if (themeBtn) {
       const isDark = state.theme === "dark";
+      themeBtn.classList.add("is-theme-seg");
       themeBtn.setAttribute("aria-pressed", isDark ? "true" : "false");
       themeBtn.title = isDark
-        ? tr("สลับเป็นโหมดสว่าง (Light Mode)", "Switch to Light Mode")
-        : tr("สลับเป็นโหมดมืด (Dark Mode)", "Switch to Dark Mode");
-      themeBtn.innerHTML = isDark
-        ? `<span>🌙</span><span>${escapeHtml(tr("โหมดมืด", "Dark"))}</span>`
-        : `<span>☀️</span><span>${escapeHtml(tr("โหมดสว่าง", "Light"))}</span>`;
+        ? tr("กำลังใช้โหมดมืด · คลิกเพื่อสลับเป็นโหมดสว่าง (Light Mode)", "Active: Dark Mode · Click to switch to Light Mode")
+        : tr("กำลังใช้โหมดสว่าง · คลิกเพื่อสลับเป็นโหมดมืด (Dark Mode)", "Active: Light Mode · Click to switch to Dark Mode");
+      themeBtn.innerHTML =
+        `<span class="pref-theme-opt${!isDark ? " is-active" : ""}" data-theme-pick="light">☀️ ${escapeHtml(tr("โหมดสว่าง", "Light"))}</span>` +
+        `<span class="pref-theme-opt${isDark ? " is-active" : ""}" data-theme-pick="dark">🌙 ${escapeHtml(tr("โหมดมืด", "Dark"))}</span>`;
     }
   }
 
@@ -18970,8 +19174,14 @@
 
     const themeBtn = $("themeToggleBtn");
     if (themeBtn) {
-      themeBtn.addEventListener("click", () => {
-        applyThemeMode(state.theme === "dark" ? "light" : "dark");
+      themeBtn.addEventListener("click", (ev) => {
+        const pickedEl = ev.target && ev.target.closest ? ev.target.closest("[data-theme-pick]") : null;
+        const pickedTheme = pickedEl ? pickedEl.getAttribute("data-theme-pick") : "";
+        if (pickedTheme && pickedTheme !== state.theme) {
+          applyThemeMode(pickedTheme);
+        } else {
+          applyThemeMode(state.theme === "dark" ? "light" : "dark");
+        }
       });
     }
   }

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>(function(){try{var t=localStorage.getItem("racm303_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");var l=localStorage.getItem("racm303_lang");if(l==="en"){document.documentElement.lang="en";document.documentElement.setAttribute("data-lang","en");}}catch(_){}})();</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20261121g">
+  <link rel="stylesheet" href="assets/styles.css?v=20261121h">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -23,7 +23,7 @@
         <div class="head-links">
           <div class="top-pref-controls" role="group" aria-label="สลับภาษาและโหมดสีหน้าจอ">
             <button class="pref-pill-btn" id="langToggleBtn" type="button" title="สลับภาษา TH / EN"><span class="pref-lang-opt is-active">TH</span><span class="pref-sep">/</span><span class="pref-lang-opt">EN</span></button>
-            <button class="pref-pill-btn" id="themeToggleBtn" type="button" aria-pressed="false" title="สลับโหมดสว่าง / โหมดมืด"><span>☀️</span><span>โหมดสว่าง</span></button>
+            <button class="pref-pill-btn is-theme-seg" id="themeToggleBtn" type="button" aria-pressed="false" title="สลับโหมดสว่าง / โหมดมืด"><span class="pref-theme-opt is-active" data-theme-pick="light">☀️ โหมดสว่าง</span><span class="pref-theme-opt" data-theme-pick="dark">🌙 โหมดมืด</span></button>
           </div>
           <button class="ghost-link" id="facQuickSlideTopBtn" type="button">📊 อัปโหลด Slide สอน</button>
           <button class="ghost-link" id="facQuickLeaveTopBtn" type="button">🔔 คำขอใบลานักศึกษา <span id="facTopLeaveBadge" class="top-notif-pill" hidden>0</span></button>
@@ -823,7 +823,7 @@
   <script>window.PORTAL_ROLE = "faculty";</script>
   <script src="assets/vendor/mqtt.min.js?v=20261120w"></script>
   <script src="assets/vendor/peerjs.min.js?v=20261120w"></script>
-  <script src="assets/live_classroom.js?v=20261121g"></script>
+  <script src="assets/live_classroom.js?v=20261121h"></script>
   <script src="assets/data_schedule.js?v=20261120w"></script>
   <script src="assets/data_roster.js?v=20261120w"></script>
   <script src="assets/data_manual.js?v=20261120w"></script>
@@ -832,6 +832,6 @@
   <script src="assets/data_hs_discussion_key.js?v=20261120w"></script>
   <script src="assets/data_faculty.js?v=20261120w"></script>
   <script src="assets/interactive_qa.js?v=20261121d"></script>
-  <script src="assets/portal.js?v=20261121g"></script>
+  <script src="assets/portal.js?v=20261121h"></script>
 </body>
 </html>

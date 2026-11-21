@@ -98,6 +98,7 @@
       running: false,
       hasStarted: false,
       hasConfigured: false,
+      timedOutInCurrentRun: false,
       durationSec: 300,
       baseRemainingMs: 300000,
       anchorPerfNow: performance.now(),
@@ -203,9 +204,9 @@
       durationSec: state.timer.durationSec || 300,
       pct: Math.max(0, Math.min(100, (remMs / durMs) * 100)),
       formatted: formatMs(remMs),
-      isWarning: Boolean(state.timer.hasStarted) && remMs > 0 && remMs <= 60000,
-      isUrgent: Boolean(state.timer.hasStarted) && remMs > 0 && remMs <= 15000,
-      isTimeUp: Boolean(state.timer.hasStarted) && !state.timer.running && remMs === 0,
+      isWarning: Boolean(state.timer.running) && remMs > 0 && remMs <= 60000,
+      isUrgent: Boolean(state.timer.running) && remMs > 0 && remMs <= 15000,
+      isTimeUp: Boolean(state.timer.timedOutInCurrentRun) && !state.timer.running && remMs === 0,
       hasStarted: Boolean(state.timer.hasStarted),
       hasConfigured: Boolean(state.timer.hasConfigured),
       label: state.timer.label || "",
@@ -220,6 +221,7 @@
       if (rem <= 0) {
         state.timer.running = false;
         state.timer.baseRemainingMs = 0;
+        state.timer.timedOutInCurrentRun = true;
         if (state.timer.chimePlayedForSeq !== state.timer.seq) {
           state.timer.chimePlayedForSeq = state.timer.seq;
           playTimerChime();
@@ -313,15 +315,17 @@
         rem = Math.max(0, rem - wallElapsed);
       }
       const durSec = Math.max(5, Number(msg.durationSec) || 300);
-      // Do not turn an already-expired historical retained MQTT timer into "หมดเวลา 00:00" when a user freshly opens the page
-      if (isRetained && rem === 0) {
-        state.timer.seq = 0;
+      // Never turn any incoming 0-remaining packet (MQTT retained, PeerJS sync, or BroadcastChannel) into a red Time-Up state
+      if (rem === 0) {
+        const wasActivelyRunningHere = Boolean(state.timer.running);
+        state.timer.seq = wasActivelyRunningHere ? Math.max(state.timer.seq + 1, seq) : 0;
         state.timer.durationSec = durSec;
-        state.timer.baseRemainingMs = durSec * 1000;
+        state.timer.baseRemainingMs = wasActivelyRunningHere ? 0 : durSec * 1000;
         state.timer.anchorPerfNow = performance.now();
         state.timer.running = false;
-        state.timer.hasStarted = false;
-        state.timer.hasConfigured = false;
+        state.timer.hasStarted = wasActivelyRunningHere;
+        state.timer.hasConfigured = wasActivelyRunningHere;
+        state.timer.timedOutInCurrentRun = wasActivelyRunningHere;
         state.timer.lastWallMs = Number(msg.sentWallMs) || Date.now();
         emit("timer", getTimerSnapshot());
         return;
@@ -331,6 +335,7 @@
       state.timer.baseRemainingMs = rem;
       state.timer.anchorPerfNow = performance.now();
       state.timer.running = Boolean(msg.running) && rem > 0;
+      state.timer.timedOutInCurrentRun = false;
       if (state.timer.running) {
         state.timer.hasStarted = true;
         state.timer.hasConfigured = true;
@@ -744,6 +749,7 @@
       running: false,
       hasStarted: false,
       hasConfigured: false,
+      timedOutInCurrentRun: false,
       durationSec: 300,
       baseRemainingMs: 300000,
       anchorPerfNow: performance.now(),
@@ -769,6 +775,7 @@
     state.timer.running = true;
     state.timer.hasStarted = true;
     state.timer.hasConfigured = true;
+    state.timer.timedOutInCurrentRun = false;
     state.timer.chimePlayedForSeq = -1;
     if (questionId !== undefined) state.timer.questionId = questionId;
     if (label !== undefined) state.timer.label = label;
@@ -804,6 +811,7 @@
       state.timer.running = true;
       state.timer.hasStarted = true;
       state.timer.hasConfigured = true;
+      state.timer.timedOutInCurrentRun = false;
       state.timer.chimePlayedForSeq = -1;
     }
     publishPacket(
@@ -833,6 +841,7 @@
     if (nextMs > 0) {
       state.timer.chimePlayedForSeq = -1;
       state.timer.hasConfigured = true;
+      state.timer.timedOutInCurrentRun = false;
     }
     state.timer.durationSec = Math.max(state.timer.durationSec, Math.ceil(nextMs / 1000));
     publishPacket(
@@ -859,6 +868,7 @@
     state.timer.running = false;
     state.timer.hasStarted = false;
     state.timer.hasConfigured = Boolean(isSetReady);
+    state.timer.timedOutInCurrentRun = false;
     state.timer.durationSec = sec;
     state.timer.baseRemainingMs = sec * 1000;
     state.timer.anchorPerfNow = performance.now();
@@ -878,6 +888,15 @@
       },
       true
     );
+    emit("timer", getTimerSnapshot());
+  }
+
+  function clearTimeUpAlert() {
+    if (!state.timer.timedOutInCurrentRun) return;
+    state.timer.timedOutInCurrentRun = false;
+    state.timer.hasStarted = false;
+    state.timer.hasConfigured = false;
+    state.timer.baseRemainingMs = (state.timer.durationSec || 300) * 1000;
     emit("timer", getTimerSnapshot());
   }
 
@@ -1176,6 +1195,7 @@
     togglePauseTimer,
     addTimerSeconds,
     resetTimer,
+    clearTimeUpAlert,
     broadcastTeacherQuestionPointer,
     getTeacherPointer: () => Object.assign({}, state.teacherPointer),
     queueLiveTyping,
