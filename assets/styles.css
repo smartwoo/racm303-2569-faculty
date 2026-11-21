@@ -20309,3 +20309,215 @@ html[data-theme="dark"] .hsd-q-step-node {
   background: #0f172a;
   color: #f8fafc;
 }
+
+/* ==========================================================================
+   10.7 NON-SHRINKING PANE CONTROL BAR ON FONT ZOOM (+), ANSWER-KEY CONCEPT
+        HIGHLIGHTS (mark.hsd-ans-hl), & CONCEPT-JUMP DOC POPOVER TABLES
+   ========================================================================== */
+
+/* Prevent top pane control bar (.hsd-pane-snap-bar) from ever shrinking when increasing font size (ก+) */
+.hsd-pane-snap-bar,
+.ppt-slide-sheet .hsd-pane-snap-bar {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  min-height: 30px !important;
+  height: auto !important;
+  overflow: visible !important;
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: #edf4fc !important;
+  border: 1px solid rgba(11, 70, 166, 0.22) !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.hsd-pane-snap-bar .hsd-pane-snap-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35 !important;
+}
+
+.hsd-pane-snap-bar .hsd-pane-bar-actions {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+}
+
+.hsd-slide-right .hsd-zoom-coord-probe,
+.hsd-slide-left .hsd-zoom-coord-probe {
+  flex: 0 0 0px !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.hsd-slide-right > .hsd-box-zoom-body,
+.hsd-slide-left > .hsd-box-zoom-body {
+  flex: 0 0 auto !important;
+}
+
+html[data-theme="dark"] .hsd-pane-snap-bar,
+html[data-theme="dark"] .ppt-slide-sheet .hsd-pane-snap-bar {
+  background: #0d1729 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+/* Answer-Key Concept Highlights (mark.hsd-ans-hl) inside Answer Cells */
+mark.hsd-ans-hl {
+  background: rgba(219, 234, 254, 0.78);
+  color: #0f172a;
+  padding: 1px 5px 1px 3px;
+  border-radius: 4px;
+  border-bottom: 2px solid #2563eb;
+  font-weight: 700;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: box-shadow 0.14s ease, opacity 0.14s ease, background 0.14s ease;
+}
+
+.hsd-ans-hl-tag {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 1.25;
+  vertical-align: baseline;
+}
+
+mark.hsd-ans-hl.is-c1 { background: rgba(219, 234, 254, 0.82); border-bottom-color: #2563eb; }
+mark.hsd-ans-hl.is-c1 .hsd-ans-hl-tag { background: #2563eb; }
+
+mark.hsd-ans-hl.is-c2 { background: rgba(204, 251, 241, 0.84); border-bottom-color: #0d9488; }
+mark.hsd-ans-hl.is-c2 .hsd-ans-hl-tag { background: #0d9488; }
+
+mark.hsd-ans-hl.is-c3 { background: rgba(254, 243, 199, 0.88); border-bottom-color: #d97706; }
+mark.hsd-ans-hl.is-c3 .hsd-ans-hl-tag { background: #d97706; }
+
+mark.hsd-ans-hl.is-c4 { background: rgba(237, 233, 254, 0.86); border-bottom-color: #7c3aed; }
+mark.hsd-ans-hl.is-c4 .hsd-ans-hl-tag { background: #7c3aed; }
+
+mark.hsd-ans-hl.is-c5 { background: rgba(255, 228, 230, 0.86); border-bottom-color: #e11d48; }
+mark.hsd-ans-hl.is-c5 .hsd-ans-hl-tag { background: #e11d48; }
+
+mark.hsd-ans-hl.is-c6 { background: rgba(209, 250, 229, 0.86); border-bottom-color: #059669; }
+mark.hsd-ans-hl.is-c6 .hsd-ans-hl-tag { background: #059669; }
+
+mark.hsd-ans-hl:hover,
+mark.hsd-ans-hl.is-focused {
+  background: #fde047 !important;
+  color: #0f172a !important;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.55);
+}
+
+mark.hsd-ans-hl.is-dimmed {
+  opacity: 0.38;
+}
+
+html[data-theme="dark"] mark.hsd-ans-hl {
+  background: rgba(37, 99, 235, 0.28);
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] mark.hsd-ans-hl.is-c2 { background: rgba(13, 148, 136, 0.28); }
+html[data-theme="dark"] mark.hsd-ans-hl.is-c3 { background: rgba(217, 119, 6, 0.3); }
+html[data-theme="dark"] mark.hsd-ans-hl.is-c4 { background: rgba(124, 58, 237, 0.3); }
+html[data-theme="dark"] mark.hsd-ans-hl.is-c5 { background: rgba(225, 29, 72, 0.28); }
+html[data-theme="dark"] mark.hsd-ans-hl.is-c6 { background: rgba(5, 150, 105, 0.28); }
+
+/* Concept Jump Pills & Clean Table Wrapping inside Teaching Doc Preview Popover */
+.hsd-doc-concept-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.hsd-dcp-label {
+  font-family: var(--font-display);
+  font-size: 10.8px;
+  font-weight: 700;
+  color: #78350f;
+  margin-right: 2px;
+}
+
+.hsd-dcp-btn {
+  appearance: none;
+  border: 1px solid rgba(217, 119, 6, 0.42);
+  background: #ffffff;
+  color: #78350f;
+  font-family: var(--font-display);
+  font-size: 10.8px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.hsd-dcp-btn:hover,
+.hsd-dcp-btn.is-active {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+}
+
+.hsd-doc-pop-body {
+  overflow-x: hidden !important;
+}
+
+.hsd-doc-pop-body .table-scroll,
+.hsd-doc-pop-body .clean-table-wrap {
+  overflow-x: visible !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.hsd-doc-pop-body table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  font-size: 11.2px !important;
+  border-collapse: collapse;
+}
+
+.hsd-doc-pop-body img,
+.hsd-doc-pop-body svg,
+.hsd-doc-pop-body figure {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.hsd-doc-pop-body th,
+.hsd-doc-pop-body td {
+  padding: 5px 6px !important;
+  min-width: 0 !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  line-height: 1.38;
+}
+
+html[data-theme="dark"] .hsd-dcp-label {
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .hsd-dcp-btn {
+  background: #0f172a;
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fef3c7;
+}
+
+html[data-theme="dark"] .hsd-dcp-btn:hover,
+html[data-theme="dark"] .hsd-dcp-btn.is-active {
+  background: #d97706;
+  color: #ffffff;
+}

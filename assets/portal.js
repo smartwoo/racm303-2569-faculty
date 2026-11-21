@@ -21653,69 +21653,121 @@
   let hsdDocPopHideTimer = null;
   let hsdDocPopPinned = false;
 
-  function buildTextbookEvidenceSearchTerms(linkInfo, rowTuple) {
+  function buildTextbookEvidenceSearchTerms(linkInfo, rowTuple, focusConcept) {
+    const focusTerms = [];
+    const frameworkCodes = [];
     const primary = [];
     const secondary = [];
     const stopWords = new Set([
-      "and", "the", "for", "with", "from", "into", "vs", "in", "of", "to", "on", "by", "or",
-      "hs1", "hs2", "hs3", "hs4", "hs5", "hs6", "concise", "หัวข้อ", "ตาราง", "กรอบ", "นิยาม",
-      "การ", "ความ", "และ", "หรือ", "ของ", "ใน", "จาก", "ที่", "เป็น", "ตาม", "เพื่อ", "โดย"
+      "and", "the", "for", "with", "from", "into", "vs", "in", "of", "to", "on", "by", "or", "is", "are", "who",
+      "hs1", "hs2", "hs3", "hs4", "hs5", "hs6", "concise", "หัวข้อ", "ตาราง", "กรอบ", "นิยาม", "คะแนน",
+      "การ", "ความ", "และ", "หรือ", "ของ", "ใน", "จาก", "ที่", "เป็น", "ตาม", "เพื่อ", "โดย", "ผู้ป่วย", "กรณี"
     ]);
     const pushClean = (bucket, raw, minLen) => {
       const s = String(raw || "")
-        .replace(/^\s*\d+[\.\)]\s*/, "")
-        .replace(/^[-•★💬🔗]+\s*/, "")
+        .replace(/^\s*\d+(?:\.\d+)*[\.\)]\s*/, "")
+        .replace(/^\([1-9]\)\s*/, "")
+        .replace(/^[-•★💬🔗🎯📌]+\s*/, "")
+        .replace(/\s*\[[^\]]*\]\s*$/, "")
         .trim();
       if (!s || s.length < (minLen || 2)) return;
       if (stopWords.has(s.toLowerCase())) return;
       if (!bucket.some((x) => x.toLowerCase() === s.toLowerCase())) bucket.push(s);
     };
 
-    const harvestPhrases = (text, bucket) => {
+    const harvestFrameworkCodes = (text) => {
       if (!text) return;
       const str = String(text);
-      // Extract parenthetical terms e.g. (Physical), (Availability), (SDOH)
-      const parenRe = /\(([^()]{2,48})\)/g;
+      const codeRe = /\b(?:\d+[A-Za-z]+|[A-Za-z]+-\d+|COM-B|P4P|UHC|FFS|DRG|SID|PrEP|PEP|HIV|UCS|SDG\s*\d+\.\d+\.\d+|WHO\s*6\s*Building\s*Blocks|Building\s*Blocks|Ottawa\s*Charter|Astana|Model\s*of\s*Care|Acute\s*Care|Chronic\s*Care|Rehabilitative\s*Care|Ambulatory\s*Care|Primary\s*Care|Palliative\s*Care|Capitation|Fee-for-Service|Adverse\s*Selection|Risk\s*Selection|Positive\s*Externalities|Quaternary\s*Prevention)\b/gi;
+      let cm;
+      while ((cm = codeRe.exec(str)) !== null) {
+        pushClean(frameworkCodes, cm[0], 2);
+      }
+      if (/Stabilization|Inpatient|acute episode|เฉียบพลัน/i.test(str)) pushClean(frameworkCodes, "acute care", 2);
+      if (/Empowerment|Self-management|เรื้อรัง/i.test(str)) pushClean(frameworkCodes, "chronic care", 2);
+      if (/Rehabilitation|ฟื้นฟูสมรรถภาพ/i.test(str)) pushClean(frameworkCodes, "rehabilitative care", 2);
+      [
+        "กรอบคำถาม 6W",
+        "รูปแบบการดูแล",
+        "ธรรมนูญว่าด้วยระบบสุขภาพแห่งชาติ",
+        "ปัจจัยกำหนดสุขภาพ",
+        "กฎบัตรออตตาวา",
+        "คุณลักษณะอันพึงประสงค์",
+        "บริการสุขภาพระดับบุคคล",
+        "เหมาจ่ายรายหัว",
+        "จ่ายตามรายการบริการ",
+        "จ่ายตามผลงาน",
+        "มาตรา 40",
+        "รายจ่ายสุขภาพระดับวิบัติ"
+      ].forEach((thFw) => {
+        if (str.includes(thFw)) pushClean(frameworkCodes, thFw, 2);
+      });
+    };
+
+    const harvestPhrases = (text, bucket, includeAlphaNumCodes) => {
+      if (!text) return;
+      const str = String(text);
+      if (includeAlphaNumCodes) harvestFrameworkCodes(str);
+      // Extract parenthetical terms e.g. (Physical), (6W), (Acute exacerbation), (Empowerment & Self-management)
+      const parenRe = /\(([^()]{2,56})\)/g;
       let m;
       while ((m = parenRe.exec(str)) !== null) {
+        if (/คะแนน/.test(m[1])) continue;
         m[1].split(/[\/,&;]/).forEach((part) => pushClean(bucket, part, 2));
       }
+      // Single-quoted or guillemet concepts
+      const sqRe = /[‘'«"“]([^’'»"”]{3,52})[’'»"”]/g;
+      while ((m = sqRe.exec(str)) !== null) {
+        pushClean(bucket, m[1], 3);
+      }
       // Outside parentheses
-      const stripped = str.replace(/\([^()]*\)/g, " ").replace(/^\s*\d+[\.\)]\s*/, " ").trim();
+      const stripped = str.replace(/\([^()]*\)/g, " ").replace(/^\s*\d+(?:\.\d+)*[\.\)]\s*/, " ").trim();
       stripped.split(/[\/,:;—–\-•\n]+/).forEach((seg) => {
         const cleanSeg = seg.trim();
-        if (cleanSeg.length >= 2 && cleanSeg.length <= 42) {
+        if (cleanSeg.length >= 2 && cleanSeg.length <= 44) {
           pushClean(bucket, cleanSeg, 2);
         }
       });
-      // English technical terms
-      const engRe = /[A-Za-z][A-Za-z0-9/-]{2,}(?:\s+[A-Za-z][A-Za-z0-9/-]{2,}){0,3}/g;
+      // Alphanumeric & English technical terms (supports 6W, P4P, COM-B, WHO, WHY, WHAT, etc.)
+      const engRe = /\b[A-Za-z0-9][A-Za-z0-9/-]{1,}(?:\s+[A-Za-z0-9][A-Za-z0-9/-]{1,}){0,3}\b/g;
       while ((m = engRe.exec(str)) !== null) {
-        pushClean(bucket, m[0], 3);
+        if (/^\d+$/.test(m[0])) continue;
+        pushClean(bucket, m[0], 2);
       }
     };
 
+    if (focusConcept) {
+      harvestPhrases(focusConcept, focusTerms, true);
+    }
     if (Array.isArray(rowTuple) && rowTuple.length) {
-      harvestPhrases(rowTuple[0], primary);
-      if (rowTuple.length >= 4 && rowTuple[1]) {
-        harvestPhrases(rowTuple[1], primary);
+      harvestPhrases(rowTuple[0], primary, true);
+      // Also harvest conceptual terms from Answer Key columns (e.g., Acute Care, Chronic Care, 6W, Empowerment)!
+      for (let c = 1; c < rowTuple.length; c += 1) {
+        const cellStr = String(rowTuple[c] || "");
+        harvestFrameworkCodes(cellStr);
+        const pRe = /\(([A-Za-z0-9][^()]{2,52})\)/g;
+        let pm;
+        while ((pm = pRe.exec(cellStr)) !== null) {
+          if (!/คะแนน/.test(pm[1])) {
+            pm[1].split(/[\/,&]/).forEach((pt) => pushClean(primary, pt, 3));
+          }
+        }
+        const leadCol = cellStr.split("\n")[0];
+        if (leadCol && leadCol.length <= 72 && !leadCol.startsWith("•")) {
+          harvestPhrases(leadCol, primary, true);
+        }
       }
     }
     if (linkInfo) {
       if (linkInfo.docTitle) {
         const titleBody = String(linkInfo.docTitle).replace(/^HS\d+\s*หัวข้อ\s*[\d.&,\s]+\s*:?\s*/i, "");
-        harvestPhrases(titleBody, secondary);
+        harvestPhrases(titleBody, primary, true);
       }
       if (linkInfo.logic) {
-        const quoteRe = /[«"“']([^»"”']{2,45})[»"”']/g;
-        let qm;
-        while ((qm = quoteRe.exec(linkInfo.logic)) !== null) {
-          pushClean(secondary, qm[1], 2);
-        }
-        harvestPhrases(linkInfo.logic, secondary);
+        harvestPhrases(linkInfo.logic, secondary, true);
       }
     }
-    return { primary, secondary };
+    return { focusTerms, frameworkCodes, primary, secondary };
   }
 
   function highlightTermsInsideElement(rootEl, terms) {
@@ -21724,7 +21776,7 @@
       .slice()
       .filter((t) => t && t.length >= 2)
       .sort((a, b) => b.length - a.length)
-      .slice(0, 12);
+      .slice(0, 14);
     if (!sorted.length) return 0;
 
     const textNodes = [];
@@ -21742,7 +21794,7 @@
     const usedTerm = new Set();
     sorted.forEach((term) => {
       const lowerTerm = term.toLowerCase();
-      if (usedTerm.has(lowerTerm) || hlCount >= 6) return;
+      if (usedTerm.has(lowerTerm) || hlCount >= 8) return;
       for (let i = 0; i < textNodes.length; i += 1) {
         const tNode = textNodes[i];
         if (!tNode.parentNode) continue;
@@ -21781,15 +21833,19 @@
     return hlCount;
   }
 
-  function extractHsTextbookSectionHTML(docId, secCode, linkInfo, rowTuple) {
+  function extractHsTextbookSectionHTML(docId, secCode, linkInfo, rowTuple, focusConcept) {
     const docsList = (window.RACM_HS_DATA && window.RACM_HS_DATA.docs) || [];
-    const docObj = docsList.find((d) => d.id === docId) || docsList.find((d) => d.code === String(docId || "").replace(/-CONCISE$/, "")) || null;
+    const docObj =
+      docsList.find((d) => d.id === docId) ||
+      docsList.find((d) => d.code === String(docId || "").replace(/-CONCISE$/, "")) ||
+      null;
     if (!docObj || !docObj.html) {
       return {
         docObj: null,
         headingText: "",
         snippetHtml: "<p>ไม่พบเนื้อหาเอกสารคำสอนสำหรับหัวข้อนี้</p>",
-        verbatimExcerpt: ""
+        verbatimExcerpt: "",
+        conceptJumps: []
       };
     }
 
@@ -21808,7 +21864,8 @@
         docObj,
         headingText: docObj.title || "",
         snippetHtml: docObj.html.slice(0, 2400),
-        verbatimExcerpt: ""
+        verbatimExcerpt: "",
+        conceptJumps: []
       };
     }
 
@@ -21840,17 +21897,17 @@
         docObj,
         headingText: docObj.title || "",
         snippetHtml: `<p>${escapeHtml(docObj.subtitle || docObj.title || "")}</p>`,
-        verbatimExcerpt: docObj.subtitle || docObj.title || ""
+        verbatimExcerpt: docObj.subtitle || docObj.title || "",
+        conceptJumps: []
       };
     }
 
-    // Extract ALL nodes in the matched section(s) so definitions/tables further down are never truncated
     const wrap = document.createElement("div");
     matchedHeadings.forEach((hNode) => {
       wrap.appendChild(hNode.cloneNode(true));
       let curNode = hNode.nextElementSibling;
       let guard = 0;
-      while (curNode && guard < 60) {
+      while (curNode && guard < 80) {
         const tag = (curNode.tagName || "").toUpperCase();
         if (tag === "H2" || tag === "H3") break;
         wrap.appendChild(curNode.cloneNode(true));
@@ -21859,65 +21916,133 @@
       }
     });
 
-    // Score candidate blocks (table rows, blockquotes, list items, paragraphs) for Supporting Evidence
-    const { primary, secondary } = buildTextbookEvidenceSearchTerms(linkInfo, rowTuple);
-    const candidates = Array.from(wrap.querySelectorAll("tbody tr, blockquote, li, p")).filter((el) => {
+    // Strip Socratic warm-up reflection question boxes (blockquote[data-qa-id]) so Popover ALWAYS locks onto real Theoretical Concepts!
+    wrap.querySelectorAll("blockquote[data-qa-id]").forEach((bq) => bq.remove());
+
+    const { focusTerms, frameworkCodes, primary, secondary } = buildTextbookEvidenceSearchTerms(
+      linkInfo,
+      rowTuple,
+      focusConcept
+    );
+    const candidates = Array.from(wrap.querySelectorAll("tbody tr, li, p, blockquote")).filter((el) => {
       if (el.tagName === "P" && el.closest("blockquote, li, td")) return false;
       const txt = (el.textContent || "").trim();
-      return txt.length >= 12;
+      if (txt.length < 14) return false;
+      // Exclude pure warm-up question prompts without conceptual definitions
+      if (el.tagName === "BLOCKQUOTE" && /[?？]|อย่างไร\s*$|หรือไม่\s*$/.test(txt) && !el.querySelector("strong")) {
+        return false;
+      }
+      return true;
     });
+
+    // Identify the section's opening Core Thesis / Framework Definition paragraph (first <p> with <strong>)
+    const openingThesisP = wrap.querySelector("h3 + p, h2 + p") || candidates.find((c) => c.tagName === "P" && c.querySelector("strong"));
 
     let bestScore = 0;
     const scored = candidates.map((el) => {
       const lower = (el.textContent || "").toLowerCase();
+      const firstCellLower =
+        el.tagName === "TR" && el.firstElementChild
+          ? (el.firstElementChild.textContent || "").toLowerCase()
+          : "";
       let score = 0;
+      if (el === openingThesisP) score += 6;
+      focusTerms.forEach((term) => {
+        const tl = term.toLowerCase();
+        if (lower.includes(tl)) score += 18;
+        if (firstCellLower && firstCellLower.includes(tl)) score += 22;
+      });
+      frameworkCodes.forEach((term) => {
+        const tl = term.toLowerCase();
+        if (lower.includes(tl)) score += 15;
+        if (firstCellLower && firstCellLower.includes(tl)) score += 22;
+      });
       primary.forEach((term) => {
-        if (lower.includes(term.toLowerCase())) {
-          score += el.tagName === "TR" ? 10 : 8;
-        }
+        const tl = term.toLowerCase();
+        if (lower.includes(tl)) score += el.tagName === "TR" ? 11 : 9;
+        if (firstCellLower && firstCellLower.includes(tl)) score += 14;
       });
       secondary.forEach((term) => {
-        if (lower.includes(term.toLowerCase())) {
-          score += 3;
-        }
+        if (lower.includes(term.toLowerCase())) score += 4;
       });
       if (score > bestScore) bestScore = score;
       return { el, score };
     });
 
-    let verbatimExcerpt = "";
-    const allTerms = [...primary, ...secondary];
+    const selected = [];
     if (bestScore > 0) {
-      const winners = scored
-        .filter((item) => item.score === bestScore || (item.score >= bestScore * 0.78 && item.score >= 8))
-        .slice(0, 2);
-      winners.forEach((w, idx) => {
-        w.el.classList.add("hsd-doc-evidence-block");
-        if (idx === 0) {
-          w.el.classList.add("is-primary-evidence");
-          const rawQuote = (w.el.textContent || "").replace(/\s+/g, " ").trim();
-          verbatimExcerpt = rawQuote.length > 260 ? `${rawQuote.slice(0, 257)}…` : rawQuote;
-          const badge = document.createElement("span");
-          badge.className = "hsd-doc-ev-badge";
-          badge.textContent = "💬 Supporting Evidence";
-          const badgeHost = w.el.tagName === "TR" ? w.el.querySelector("td, th") || w.el : w.el;
-          badgeHost.insertBefore(badge, badgeHost.firstChild);
+      const sortedWinners = scored
+        .filter((it) => it.score > 0)
+        .sort((a, b) => b.score - a.score);
+      // Always include #1 highest-scoring element
+      if (sortedWinners[0]) selected.push(sortedWinners[0].el);
+      // Ensure the section's Core Framework Definition <p> (e.g. กรอบคำถาม 6W / COM-B / 6 Building Blocks) is ALSO included if it matched any framework/primary term!
+      const thesisEntry = scored.find((it) => it.el === openingThesisP && it.score >= 8);
+      if (thesisEntry && !selected.includes(thesisEntry.el)) {
+        // Put Core Framework Definition FIRST when no narrow cell-specific focusConcept was hovered, or when focusConcept itself mentions the framework (e.g. 6W / HOW)
+        const focusMentionsFw =
+          !focusConcept ||
+          frameworkCodes.some((fw) => String(focusConcept).toLowerCase().includes(fw.toLowerCase()));
+        if (focusMentionsFw) {
+          selected.unshift(thesisEntry.el);
+        } else {
+          selected.push(thesisEntry.el);
         }
-        highlightTermsInsideElement(w.el, allTerms);
+      }
+      // Always include top matching framework table row(s) (e.g. Acute Care + Chronic Care in 6W table!) alongside definition
+      sortedWinners
+        .filter((w) => w.el.tagName === "TR" && w.score >= 10)
+        .slice(0, 2)
+        .forEach((trWin) => {
+          if (selected.length < 4 && !selected.includes(trWin.el)) selected.push(trWin.el);
+        });
+      sortedWinners.forEach((w) => {
+        if (selected.length < 4 && !selected.includes(w.el) && w.score >= Math.max(10, bestScore * 0.28)) {
+          selected.push(w.el);
+        }
       });
-    } else if (candidates.length) {
-      const fallbackEl = candidates[0];
-      fallbackEl.classList.add("hsd-doc-evidence-block", "is-primary-evidence");
-      const rawQuote = (fallbackEl.textContent || "").replace(/\s+/g, " ").trim();
-      verbatimExcerpt = rawQuote.length > 240 ? `${rawQuote.slice(0, 237)}…` : rawQuote;
-      highlightTermsInsideElement(wrap, allTerms);
+    } else if (openingThesisP || candidates.length) {
+      selected.push(openingThesisP || candidates[0]);
     }
+
+    let verbatimExcerpt = "";
+    const conceptJumps = [];
+    const allTerms = [...focusTerms, ...frameworkCodes, ...primary, ...secondary];
+
+    selected.forEach((el, idx) => {
+      const targetId = `hsdDocEvTarget_${idx}`;
+      el.id = targetId;
+      el.classList.add("hsd-doc-evidence-block");
+      const strongEl = el.querySelector("strong");
+      const leadLabelRaw = strongEl
+        ? (strongEl.textContent || "").trim()
+        : (el.textContent || "").trim().split(/[:：(]/)[0].trim();
+      const shortJumpLabel =
+        leadLabelRaw.length > 36 ? `${leadLabelRaw.slice(0, 34)}…` : leadLabelRaw || `แนวคิดหลัก #${idx + 1}`;
+      conceptJumps.push({
+        targetId,
+        label: `${el.tagName === "TR" ? "📊 ตาราง: " : "🎯 นิยาม: "}${shortJumpLabel}`
+      });
+
+      if (idx === 0) {
+        el.classList.add("is-primary-evidence");
+        const rawQuote = (el.textContent || "").replace(/\s+/g, " ").trim();
+        verbatimExcerpt = rawQuote.length > 280 ? `${rawQuote.slice(0, 277)}…` : rawQuote;
+      }
+      const badge = document.createElement("span");
+      badge.className = "hsd-doc-ev-badge";
+      badge.textContent = idx === 0 ? "🎯 Concept หลักที่อ้างอิง" : `📌 เชื่อมแนวคิด #${idx + 1}`;
+      const badgeHost = el.tagName === "TR" ? el.querySelector("td, th") || el : el;
+      badgeHost.insertBefore(badge, badgeHost.firstChild);
+      highlightTermsInsideElement(el, allTerms);
+    });
 
     return {
       docObj,
       headingText: (matchedHeadings[0].textContent || "").trim(),
       snippetHtml: wrap.innerHTML,
-      verbatimExcerpt
+      verbatimExcerpt,
+      conceptJumps
     };
   }
 
@@ -21962,7 +22087,13 @@
       });
       document.addEventListener("pointerdown", (ev) => {
         if (pop.hidden) return;
-        if (pop.contains(ev.target) || (ev.target.closest && ev.target.closest(".hsd-doc-ref-chip"))) return;
+        if (
+          pop.contains(ev.target) ||
+          (ev.target.closest &&
+            ev.target.closest(".hsd-doc-ref-chip, .hsd-q-step-node, mark.hsd-qprompt-hl, mark.hsd-ans-hl"))
+        ) {
+          return;
+        }
         closeHsTextbookRefPopover(true);
       });
     }
@@ -21972,7 +22103,7 @@
     return pop;
   }
 
-  function openHsTextbookRefPopover(anchorEl, linkInfo, modObj, pinOnOpen, rowTuple) {
+  function openHsTextbookRefPopover(anchorEl, linkInfo, modObj, pinOnOpen, rowTuple, focusConcept) {
     if (!anchorEl || !linkInfo) return;
     if (hsdDocPopHideTimer) {
       clearTimeout(hsdDocPopHideTimer);
@@ -21981,11 +22112,12 @@
     if (pinOnOpen) hsdDocPopPinned = true;
 
     const pop = ensureHsTextbookRefPopoverDOM();
-    const { docObj, snippetHtml, verbatimExcerpt } = extractHsTextbookSectionHTML(
+    const { docObj, snippetHtml, verbatimExcerpt, conceptJumps } = extractHsTextbookSectionHTML(
       linkInfo.docId,
       linkInfo.docSec,
       linkInfo,
-      rowTuple
+      rowTuple,
+      focusConcept
     );
 
     pop.replaceChildren();
@@ -21996,7 +22128,7 @@
     headLeft.append(
       make(
         "span",
-        `📚 เนื้อหาอ้างอิงจากเอกสารคำสอน · ${(docObj && docObj.code) || linkInfo.docId || ""}`,
+        `📚 เชื่อมกรอบแนวคิดในเอกสารประกอบคำสอน · ${(docObj && docObj.code) || linkInfo.docId || ""}`,
         "hsd-doc-pop-kicker"
       ),
       make("strong", linkInfo.docTitle || (docObj && docObj.title) || "เอกสารคำสอน", "hsd-doc-pop-title")
@@ -22033,21 +22165,54 @@
       pop.appendChild(logicBar);
     }
 
-    if (verbatimExcerpt) {
+    const body = make("div", null, "hsd-doc-pop-body");
+    body.innerHTML = snippetHtml;
+
+    const scrollBodyToTargetEl = (el) => {
+      if (!el) return;
+      body.querySelectorAll(".hsd-doc-evidence-block").forEach((b) =>
+        b.classList.toggle("is-primary-evidence", b === el)
+      );
+      const bRect = body.getBoundingClientRect();
+      const eRect = el.getBoundingClientRect();
+      const targetScroll =
+        body.scrollTop + (eRect.top - bRect.top) - Math.max(16, (bRect.height - Math.min(eRect.height, 96)) / 3);
+      body.scrollTop = Math.max(0, Math.round(targetScroll));
+    };
+
+    if (verbatimExcerpt || (conceptJumps && conceptJumps.length)) {
       const verbBox = make("div", null, "hsd-doc-pop-verbatim");
-      verbBox.innerHTML =
-        `<div class="hsd-doc-pop-verbatim-kicker">💬 Supporting Evidence / Verbatim Quotation จากเอกสารคำสอน:</div>` +
-        `<blockquote class="hsd-doc-pop-verbatim-quote">«${escapeHtml(verbatimExcerpt)}»</blockquote>`;
+      if (conceptJumps && conceptJumps.length) {
+        const jumpsRow = make("div", null, "hsd-doc-concept-pills");
+        jumpsRow.appendChild(make("span", "🎯 คลิกข้ามไปดูจุดเชื่อม Concept:", "hsd-dcp-label"));
+        conceptJumps.forEach((cj, jIdx) => {
+          const jBtn = make("button", cj.label, `hsd-dcp-btn${jIdx === 0 ? " is-active" : ""}`);
+          jBtn.type = "button";
+          jBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            jumpsRow.querySelectorAll(".hsd-dcp-btn").forEach((b) => b.classList.toggle("is-active", b === jBtn));
+            const tEl = body.querySelector(`#${cj.targetId}`);
+            scrollBodyToTargetEl(tEl);
+          });
+          jumpsRow.appendChild(jBtn);
+        });
+        verbBox.appendChild(jumpsRow);
+      }
+      if (verbatimExcerpt) {
+        const qWrap = document.createElement("div");
+        qWrap.innerHTML =
+          `<div class="hsd-doc-pop-verbatim-kicker">💬 นิยามและหลักฐานทฤษฎีจากเอกสารคำสอน (Conceptual Definition & Supporting Evidence):</div>` +
+          `<blockquote class="hsd-doc-pop-verbatim-quote">«${escapeHtml(verbatimExcerpt)}»</blockquote>`;
+        verbBox.appendChild(qWrap);
+      }
       pop.appendChild(verbBox);
     }
 
-    const body = make("div", null, "hsd-doc-pop-body");
-    body.innerHTML = snippetHtml;
     pop.appendChild(body);
 
     const foot = make("div", null, "hsd-doc-pop-foot");
     foot.appendChild(
-      make("span", "ไฮไลต์สีเหลืองอำพันคือส่วน Supporting Evidence ที่ใช้อ้างอิงโดยตรงในเอกสารคำสอน", "hsd-doc-pop-hint")
+      make("span", "ไฮไลต์สีเหลืองอำพันคือกรอบทฤษฎีและตารางเปรียบเทียบในเอกสารคำสอนที่เชื่อมกับข้อนี้โดยตรง", "hsd-doc-pop-hint")
     );
     if (!state.isPptSlideSharePopup && linkInfo.docId) {
       const openFullBtn = make("button", `📖 เปิดอ่านเอกสารคำสอน (${linkInfo.docId}) ↗`, "btn sm teal");
@@ -22064,15 +22229,17 @@
 
     pop.hidden = false;
 
-    // Measure anchor true screen rect (handling Chromium CSS zoom on ancestors via closest probe if inside slide)
     let aLeft = 0;
     let aTop = 0;
     let aBottom = 0;
     let aWidth = 0;
     const zoomBody = anchorEl.closest(".hsd-box-zoom-body");
-    const probe = zoomBody && zoomBody.previousElementSibling && zoomBody.previousElementSibling.classList.contains("hsd-zoom-coord-probe")
-      ? zoomBody.previousElementSibling
-      : null;
+    const probe =
+      zoomBody &&
+      zoomBody.previousElementSibling &&
+      zoomBody.previousElementSibling.classList.contains("hsd-zoom-coord-probe")
+        ? zoomBody.previousElementSibling
+        : null;
     if (zoomBody && probe) {
       const pRect = probe.getBoundingClientRect();
       const zRect = zoomBody.getBoundingClientRect();
@@ -22092,10 +22259,10 @@
 
     const vw = window.innerWidth || 1280;
     const vh = window.innerHeight || 800;
-    const popW = Math.min(580, vw - 24);
+    const popW = Math.min(680, vw - 24);
     pop.style.width = `${popW}px`;
     const popRect = pop.getBoundingClientRect();
-    const popH = Math.min(popRect.height || 410, vh - 24);
+    const popH = Math.min(popRect.height || 440, vh - 24);
 
     let leftPx = Math.round(aLeft + aWidth / 2 - popW / 2);
     leftPx = Math.max(12, Math.min(vw - popW - 12, leftPx));
@@ -22110,16 +22277,10 @@
     pop.style.left = `${leftPx}px`;
     pop.style.top = `${topPx}px`;
 
-    // Auto-scroll popover body directly to the highlighted Supporting Evidence passage
     requestAnimationFrame(() => {
       if (pop.hidden) return;
       const primEl = body.querySelector(".is-primary-evidence") || body.querySelector("mark.hsd-doc-evidence-hl");
-      if (primEl) {
-        const bRect = body.getBoundingClientRect();
-        const eRect = primEl.getBoundingClientRect();
-        const targetScroll = body.scrollTop + (eRect.top - bRect.top) - Math.max(18, (bRect.height - Math.min(eRect.height, 90)) / 3);
-        body.scrollTop = Math.max(0, Math.round(targetScroll));
-      }
+      if (primEl) scrollBodyToTargetEl(primEl);
     });
   }
 
@@ -22127,7 +22288,7 @@
     const chip = make("button", null, "hsd-doc-ref-chip hsd-no-print");
     chip.type = "button";
     chip.dataset.docRefStep = String(rowStep);
-    chip.title = "วางเมาส์ (Hover) หรือคลิกเพื่อ Preview เนื้อหาและไฮไลต์ Supporting Evidence จากเอกสารคำสอน";
+    chip.title = "วางเมาส์ (Hover) หรือคลิกเพื่อ Preview กรอบทฤษฎีและตารางเปรียบเทียบในเอกสารคำสอน";
     chip.innerHTML =
       `<span class="hsd-drc-icon">📚</span>` +
       `<span class="hsd-drc-text">${escapeHtml(linkInfo.docTitle || `${linkInfo.docId} หัวข้อ ${linkInfo.docSec}`)}</span>` +
@@ -22146,6 +22307,181 @@
       openHsTextbookRefPopover(chip, linkInfo, modObj, true, rowTuple);
     });
     return chip;
+  }
+
+  function trimPhraseCleanBoundary(rawStr, maxLen) {
+    const s = String(rawStr || "").trim();
+    if (s.length <= maxLen) return s;
+    // Prefer closing parenthesis within maxLen + 14 if '(' was opened
+    const sub = s.slice(0, maxLen);
+    const openIdx = sub.lastIndexOf("(");
+    const closeIdx = sub.lastIndexOf(")");
+    if (openIdx > closeIdx) {
+      const nextClose = s.indexOf(")", maxLen);
+      if (nextClose !== -1 && nextClose <= maxLen + 22) {
+        return s.slice(0, nextClose + 1).trim();
+      }
+      if (openIdx > 8) return s.slice(0, openIdx).trim();
+    }
+    const lastSpace = sub.lastIndexOf(" ");
+    return (lastSpace > maxLen * 0.55 ? sub.slice(0, lastSpace) : sub).trim();
+  }
+
+  function extractAnswerCellHighlightPhrases(cellText) {
+    const raw = String(cellText || "").trim();
+    if (!raw) return [];
+    const lines = raw
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const picked = [];
+    const addPhrase = (candidate) => {
+      let clean = String(candidate || "")
+        .replace(/^[\s•–\-*]+/, "")
+        .replace(/\s*\[[^\]]*คะแนน[^\]]*\]\s*$/, "")
+        .replace(/\s*\(\d+(?:\.\d+)?\s*(?:คะแนน[^\)]*)?\)\s*$/, "")
+        .replace(/[:：]\s*$/, "")
+        .trim();
+      clean = trimPhraseCleanBoundary(clean, 68);
+      if (clean.length < 4) return;
+      if (!picked.includes(clean) && raw.includes(clean)) {
+        picked.push(clean);
+      }
+    };
+
+    if (raw.length <= 96 && lines.length <= 2 && !raw.startsWith("•")) {
+      addPhrase(lines[0]);
+      return picked.slice(0, 2);
+    }
+
+    for (let i = 0; i < lines.length; i += 1) {
+      if (picked.length >= 2) break;
+      const ln = lines[i];
+      if (/^\*?\s*\(?หมายเหตุ/.test(ln)) continue;
+      const body = ln.replace(/^[\s•–\-]+/, "").trim();
+      if (!body) continue;
+
+      const colonMatch = body.match(/^([^:：]{3,72})[:：]\s*(.+)$/);
+      if (colonMatch) {
+        const head = colonMatch[1].trim();
+        const rest = colonMatch[2].trim();
+        if (
+          /^(Guiding Principle|Interventions|Settings|Providers|ผลทางบวก|ผลทางลบ|คัดกรอง|สุขภาพจิต|สร้างเสริม)/i.test(
+            head
+          )
+        ) {
+          const parenEnd = rest.indexOf(")");
+          const subClause =
+            parenEnd > 4 && parenEnd < 68
+              ? rest.slice(0, parenEnd + 1)
+              : trimPhraseCleanBoundary(rest.split(/[,;]|โดย|เพื่อ|และทีม/)[0], 48);
+          const combo = `${head}: ${subClause}`;
+          if (raw.includes(combo)) {
+            addPhrase(combo);
+            continue;
+          }
+        }
+        addPhrase(head);
+        continue;
+      }
+
+      const sq = body.match(/‘([^’]{4,64})’/);
+      if (sq) {
+        addPhrase(sq[1]);
+        continue;
+      }
+
+      const parenConcept = body.match(/^([^,.;]{4,58}\([A-Za-z0-9][^()]{2,48}\))/);
+      if (parenConcept) {
+        addPhrase(parenConcept[1]);
+        continue;
+      }
+
+      const clause = trimPhraseCleanBoundary(
+        body.split(/\s+(?:โดย|เนื่องจาก|เพราะ|ทำให้|ส่งผลให้|แต่ต้อง|หากไม่|ทั้งนี้)/)[0],
+        58
+      );
+      addPhrase(clause);
+    }
+
+    if (!picked.length && lines[0]) {
+      addPhrase(trimPhraseCleanBoundary(lines[0], 54));
+    }
+    return picked.slice(0, 2);
+  }
+
+  function populateAnswerKeyCellDOM(bodySpan, cellText, opts) {
+    const { shouldHighlight, rowStep, colorIdx, colIdx, linkInfo, modObj, rowTuple } = opts || {};
+    if (!shouldHighlight) {
+      bodySpan.innerHTML = escapeHtml(cellText).replace(/\n/g, "<br>");
+      return;
+    }
+    const phrases = extractAnswerCellHighlightPhrases(cellText);
+    if (!phrases.length) {
+      bodySpan.innerHTML = escapeHtml(cellText).replace(/\n/g, "<br>");
+      return;
+    }
+
+    // Build safe DOM with <mark class="hsd-ans-hl"> for each conceptualized answer phrase!
+    const raw = String(cellText || "");
+    let segments = [{ text: raw, phrase: null }];
+    phrases.forEach((ph) => {
+      const nextSegs = [];
+      let matchedThisPhrase = false;
+      segments.forEach((seg) => {
+        if (matchedThisPhrase || seg.phrase || !seg.text.includes(ph)) {
+          nextSegs.push(seg);
+          return;
+        }
+        const pos = seg.text.indexOf(ph);
+        if (pos > 0) nextSegs.push({ text: seg.text.slice(0, pos), phrase: null });
+        nextSegs.push({ text: ph, phrase: ph });
+        if (pos + ph.length < seg.text.length) {
+          nextSegs.push({ text: seg.text.slice(pos + ph.length), phrase: null });
+        }
+        matchedThisPhrase = true;
+      });
+      segments = nextSegs;
+    });
+
+    const appendTextWithBr = (host, str) => {
+      const parts = String(str || "").split("\n");
+      parts.forEach((p, idx) => {
+        if (idx > 0) host.appendChild(document.createElement("br"));
+        if (p) host.appendChild(document.createTextNode(p));
+      });
+    };
+
+    segments.forEach((seg) => {
+      if (!seg.phrase) {
+        appendTextWithBr(bodySpan, seg.text);
+        return;
+      }
+      const mark = document.createElement("mark");
+      mark.className = `hsd-ans-hl is-c${colorIdx}`;
+      mark.dataset.ansStep = String(rowStep);
+      mark.dataset.ansCol = String(colIdx);
+      mark.dataset.ansPhrase = seg.phrase;
+      mark.tabIndex = 0;
+      mark.title = `★ แนวคิดคำตอบ #${rowStep} → วางเมาส์เพื่อดูเส้นเชื่อมและเปิด Preview แนวคิดในเอกสารประกอบคำสอน`;
+      const tag = make("span", `★#${rowStep}`, "hsd-ans-hl-tag");
+      mark.appendChild(tag);
+      appendTextWithBr(mark, seg.text);
+
+      if (!state.isPptSlideSharePopup && linkInfo) {
+        mark.addEventListener("mouseenter", () => {
+          openHsTextbookRefPopover(mark, linkInfo, modObj, false, rowTuple, seg.phrase);
+        });
+        mark.addEventListener("mouseleave", () => {
+          scheduleCloseHsTextbookRefPopover();
+        });
+        mark.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          openHsTextbookRefPopover(mark, linkInfo, modObj, true, rowTuple, seg.phrase);
+        });
+      }
+      bodySpan.appendChild(mark);
+    });
   }
 
   function buildFacultyTeacherKeyPanelDOM(qObj, modObj, opts) {
@@ -22283,7 +22619,7 @@
               const stepBadge = make(
                 "div",
                 isConceptStage
-                  ? `🔗 โจทย์ #${rowStep} ──▶ คำตอบ #${rowStep}`
+                  ? `🔗 ประเด็นที่ #${rowStep}`
                   : `💬 หลักฐานสนับสนุน #${rowStep}`,
                 `hsd-concept-step-pill${isConceptStage ? "" : " is-evidence-pill"} is-c${colorIdx}`
               );
@@ -22292,7 +22628,16 @@
 
             const bodySpan = document.createElement("div");
             bodySpan.className = "ppt-key-cell-content";
-            bodySpan.innerHTML = escapeHtml(cellText).replace(/\n/g, "<br>");
+            const isAnswerCell = r.length === 1 || idx >= 1;
+            populateAnswerKeyCellDOM(bodySpan, cellText, {
+              shouldHighlight: Boolean(isAnswerCell && (isConceptStage || linkInfo)),
+              rowStep,
+              colorIdx,
+              colIdx: idx,
+              linkInfo,
+              modObj,
+              rowTuple: r
+            });
             td.appendChild(bodySpan);
 
             if (idx === r.length - 1) {
@@ -22688,17 +23033,17 @@
 
         if (!state.isPptSlideSharePopup) {
           mark.addEventListener("mouseenter", () => {
-            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, false, ent.rowTuple);
+            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, false, ent.rowTuple, ent.phrase);
           });
           mark.addEventListener("mouseleave", () => {
             scheduleCloseHsTextbookRefPopover();
           });
           mark.addEventListener("focus", () => {
-            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, false, ent.rowTuple);
+            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, false, ent.rowTuple, ent.phrase);
           });
           mark.addEventListener("click", (ev) => {
             ev.stopPropagation();
-            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, true, ent.rowTuple);
+            openHsTextbookRefPopover(mark, ent.linkInfo, modObj, true, ent.rowTuple, ent.phrase);
           });
         }
 
@@ -22772,7 +23117,7 @@
         make(
           "span",
           drawLines
-            ? "🎯 สิ่งที่โจทย์ถาม (เชื่อมจากโจทย์ ──▶ สู่คำตอบ · Hover ดูคำสอน):"
+            ? "🎯 สิ่งที่โจทย์ถาม (เชื่อมจากโจทย์ ──▶ สู่แต่ละ Highlight ในคำตอบ · Hover ดูคำสอน):"
             : "🎯 สิ่งที่โจทย์ถามที่เชื่อมกับข้อที่ Unhide (Hover ดูคำสอน):",
           "hsd-qhub-label"
         )
@@ -22796,7 +23141,8 @@
         );
         qNodeBtn.type = "button";
         qNodeBtn.dataset.qTargetStep = String(step);
-        qNodeBtn.title = `สิ่งที่โจทย์ถาม #${step} → วางเมาส์เพื่อเน้นเส้นเชื่อมทั้ง 3 จุด และเปิด Preview เอกสารประกอบคำสอน (${lk.docTitle || lk.docId})`;
+        qNodeBtn.dataset.qFocusLabel = rawLabel;
+        qNodeBtn.title = `สิ่งที่โจทย์ถาม #${step} → วางเมาส์เพื่อเน้นเส้นเชื่อมทั้ง 3 จุด และเปิด Preview แนวคิดในเอกสารประกอบคำสอน (${lk.docTitle || lk.docId})`;
         qNodesWrap.appendChild(qNodeBtn);
       });
       qHub.appendChild(qNodesWrap);
@@ -22915,6 +23261,8 @@
         if (rawRects.length > 1) {
           if (preferFragmentMode === "bottom") {
             r = rawRects[rawRects.length - 1];
+          } else if (preferFragmentMode === "leftmost" || preferFragmentMode === "first") {
+            r = rawRects[0];
           } else {
             r = rawRects.reduce((best, c) => (c.right > best.right ? c : best), rawRects[0]);
           }
@@ -22938,6 +23286,39 @@
       };
     };
 
+    const scoreClueToAnsTarget = (clueText, ansEl, mIdx, totalMarks, aIdx, totalAns) => {
+      const cLower = String(clueText || "")
+        .replace(/^💬?\s*#\d+\s*/, "")
+        .toLowerCase();
+      const aPhrase = String(ansEl.dataset.ansPhrase || ansEl.textContent || "").toLowerCase();
+      const tdEl = ansEl.closest("td");
+      const cellLower = tdEl ? (tdEl.textContent || "").toLowerCase() : aPhrase;
+      let score = 0;
+
+      // Shared numbers (e.g., 60, 5–6, 3–4, 24, 10, 4,000, 12.31) are strong anchors!
+      const nums = cLower.match(/\d+(?:[.,–-]\d+)?/g) || [];
+      nums.forEach((n) => {
+        if (aPhrase.includes(n)) score += 14;
+        else if (cellLower.includes(n)) score += 9;
+      });
+
+      // Shared Thai/English content substrings (>= 4 chars)
+      const tokens = cLower
+        .split(/[\s,.;:()«»"“”/]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 4);
+      tokens.forEach((tkWord) => {
+        if (aPhrase.includes(tkWord)) score += 10;
+        else if (cellLower.includes(tkWord)) score += 6;
+      });
+
+      // Positional affinity (e.g., upper scenario Patient 3.1 -> Col 1, lower scenario Patient 3.2 -> Col 2)
+      const relM = totalMarks > 1 ? mIdx / (totalMarks - 1) : 0.5;
+      const relA = totalAns > 1 ? aIdx / (totalAns - 1) : 0.5;
+      score += Math.max(0, 4 - Math.abs(relM - relA) * 4);
+      return score;
+    };
+
     const appendStyledCurve = (dStr, hex, colorIdx, isStepFocused, isStepDimmed, extraClass, dashArr, baseW) => {
       const svgNS = "http://www.w3.org/2000/svg";
       if (!isStepDimmed) {
@@ -22950,7 +23331,7 @@
             ? "rgba(15,23,42,0.75)"
             : "rgba(255,255,255,0.78)"
         );
-        halo.setAttribute("stroke-width", isStepFocused ? "4.6" : "3.3");
+        halo.setAttribute("stroke-width", isStepFocused ? "4.4" : "3.1");
         halo.setAttribute("class", "hsd-concept-halo");
         halosGroup.appendChild(halo);
       }
@@ -22959,7 +23340,7 @@
       path.setAttribute("d", dStr);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", hex);
-      path.setAttribute("stroke-width", isStepFocused ? String((baseW || 1.95) + 0.9) : String(baseW || 1.95));
+      path.setAttribute("stroke-width", isStepFocused ? String((baseW || 1.85) + 0.9) : String(baseW || 1.85));
       if (dashArr) path.setAttribute("stroke-dasharray", dashArr);
       path.setAttribute("marker-end", `url(#hsdArrowC${colorIdx})`);
       path.setAttribute(
@@ -22995,8 +23376,14 @@
         const marks = Array.from(leftZoomBody.querySelectorAll(`mark[data-concept-step="${step}"]`));
         if (!marks.length) return;
 
-        const targetPill = rowEl.querySelector(".hsd-concept-step-pill") || rowEl;
-        const targetRect = getZoomAdjustedScreenRect(targetPill, rightAnchorProbe, rightZoomBody, null);
+        // Collect EVERY Answer Key highlight (mark.hsd-ans-hl) inside the Answer Key cells of this row!
+        const rawAnsMarks = Array.from(rowEl.querySelectorAll("mark.hsd-ans-hl"));
+        const fallbackPill = rowEl.querySelector(".hsd-concept-step-pill") || rowEl;
+        const ansNodes = rawAnsMarks.length ? rawAnsMarks : [fallbackPill];
+        const ansTargets = ansNodes.map((aEl) => ({
+          aEl,
+          aRect: getZoomAdjustedScreenRect(aEl, rightAnchorProbe, rightZoomBody, "leftmost")
+        }));
 
         // Locate Question Prompt anchor (สิ่งที่โจทย์ถาม) inside rightZoomBody
         const qStepNode =
@@ -23023,9 +23410,58 @@
           }))
           .sort((a, b) => (isHoriz ? a.mRect.cx - b.mRect.cx : a.mRect.cy - b.mRect.cy));
 
-        // Leg 1: เนื้อหา Scenario (every clue) ──▶ คำตอบ (Answer Key row)
-        sortedMarks.forEach(({ mRect }, mIdx) => {
-          const fanOffset = (mIdx - (sortedMarks.length - 1) / 2) * (isHoriz ? 10 : 4.2);
+        // Build Clue <-> Each Answer-Key Highlight pairs so EVERY clue AND EVERY Answer-Key highlight is directly connected!
+        const pairs = [];
+        const hitAnsIdx = new Set();
+
+        sortedMarks.forEach((mObj, mIdx) => {
+          let bestAIdx = 0;
+          let bestSc = -1;
+          ansTargets.forEach((aObj, aIdx) => {
+            const sc = scoreClueToAnsTarget(
+              mObj.mEl.textContent || "",
+              aObj.aEl,
+              mIdx,
+              sortedMarks.length,
+              aIdx,
+              ansTargets.length
+            );
+            if (sc > bestSc) {
+              bestSc = sc;
+              bestAIdx = aIdx;
+            }
+          });
+          pairs.push({ mIdx, aIdx: bestAIdx });
+          hitAnsIdx.add(bestAIdx);
+        });
+
+        // Guarantee EVERY Answer-Key highlight in every answer column gets a direct Scenario -> Answer Highlight connector!
+        ansTargets.forEach((aObj, aIdx) => {
+          if (hitAnsIdx.has(aIdx)) return;
+          let bestMIdx = 0;
+          let bestSc = -1;
+          sortedMarks.forEach((mObj, mIdx) => {
+            const sc = scoreClueToAnsTarget(
+              mObj.mEl.textContent || "",
+              aObj.aEl,
+              mIdx,
+              sortedMarks.length,
+              aIdx,
+              ansTargets.length
+            );
+            if (sc > bestSc) {
+              bestSc = sc;
+              bestMIdx = mIdx;
+            }
+          });
+          pairs.push({ mIdx: bestMIdx, aIdx });
+        });
+
+        const drawnStartDots = new Set();
+        pairs.forEach(({ mIdx, aIdx }, pIdx) => {
+          const mRect = sortedMarks[mIdx].mRect;
+          const targetRect = ansTargets[aIdx].aRect;
+          const fanOffset = ((pIdx % 3) - 1) * 2.2;
           let x1;
           let y1;
           let x2;
@@ -23035,39 +23471,42 @@
           if (!isHoriz) {
             x1 = Math.min(lPaneRect.right - 3, Math.max(lPaneRect.left + 8, mRect.right + 2)) - stageRect.left;
             y1 = Math.min(lPaneRect.bottom - 8, Math.max(lPaneRect.top + 26, mRect.cy)) - stageRect.top;
-            x2 = Math.max(rPaneRect.left + 3, Math.min(rPaneRect.right - 12, targetRect.left - 2)) - stageRect.left;
+            x2 = Math.max(rPaneRect.left + 4, Math.min(rPaneRect.right - 10, targetRect.left - 2)) - stageRect.left;
             y2 =
               Math.min(
                 rPaneRect.bottom - 8,
                 Math.max(rPaneRect.top + 26, targetRect.cy + fanOffset)
               ) - stageRect.top;
-            const dx = Math.max(40, Math.abs(x2 - x1) * 0.46);
+            const dx = Math.max(42, Math.abs(x2 - x1) * 0.42);
             dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + dx).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - dx).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
           } else {
             x1 = Math.min(lPaneRect.right - 14, Math.max(lPaneRect.left + 14, mRect.cx)) - stageRect.left;
             y1 = Math.min(lPaneRect.bottom - 2, Math.max(lPaneRect.top + 24, mRect.bottom + 1)) - stageRect.top;
             x2 =
               Math.min(
-                rPaneRect.right - 20,
-                Math.max(rPaneRect.left + 24, targetRect.cx + fanOffset)
+                rPaneRect.right - 18,
+                Math.max(rPaneRect.left + 18, targetRect.left + Math.min(28, targetRect.width * 0.35))
               ) - stageRect.left;
-            y2 = Math.max(rPaneRect.top + 3, Math.min(rPaneRect.bottom - 10, targetRect.top - 1)) - stageRect.top;
-            const dy = Math.max(28, Math.abs(y2 - y1) * 0.48);
+            y2 = Math.max(rPaneRect.top + 4, Math.min(rPaneRect.bottom - 10, targetRect.top - 1)) - stageRect.top;
+            const dy = Math.max(26, Math.abs(y2 - y1) * 0.45);
             dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${(y1 + dy).toFixed(1)}, ${x2.toFixed(1)} ${(y2 - dy).toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
           }
 
-          const startDot = document.createElementNS(svgNS, "circle");
-          startDot.setAttribute("cx", x1.toFixed(1));
-          startDot.setAttribute("cy", y1.toFixed(1));
-          startDot.setAttribute("r", isStepFocused ? "4.3" : "3.2");
-          startDot.setAttribute("fill", hex);
-          startDot.setAttribute("opacity", isStepDimmed ? "0.18" : "0.96");
-          pathsGroup.appendChild(startDot);
+          if (!drawnStartDots.has(mIdx)) {
+            drawnStartDots.add(mIdx);
+            const startDot = document.createElementNS(svgNS, "circle");
+            startDot.setAttribute("cx", x1.toFixed(1));
+            startDot.setAttribute("cy", y1.toFixed(1));
+            startDot.setAttribute("r", isStepFocused ? "4.2" : "3.1");
+            startDot.setAttribute("fill", hex);
+            startDot.setAttribute("opacity", isStepDimmed ? "0.18" : "0.96");
+            pathsGroup.appendChild(startDot);
+          }
 
-          appendStyledCurve(dStr, hex, colorIdx, isStepFocused, isStepDimmed, "is-scen-to-ans", "", 1.95);
+          appendStyledCurve(dStr, hex, colorIdx, isStepFocused, isStepDimmed, "is-scen-to-ans", "", 1.85);
         });
 
-        // Leg 2 & Leg 3: Triangulate through สิ่งที่โจทย์ถาม (Scenario ──▶ สิ่งที่โจทย์ถาม ──▶ คำตอบ)
+        // Leg 2 & Leg 3: Triangulate through สิ่งที่โจทย์ถาม (Scenario ──▶ สิ่งที่โจทย์ถาม ──▶ EACH Answer Key Highlight!)
         if (qRect) {
           const leadMarkRect = sortedMarks[0].mRect;
           let sx;
@@ -23091,19 +23530,26 @@
             const dyQ = Math.max(22, Math.abs(qy - sy) * 0.45);
             dScenToQ = `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${sx.toFixed(1)} ${(sy + dyQ).toFixed(1)}, ${qx.toFixed(1)} ${(qy - dyQ).toFixed(1)}, ${qx.toFixed(1)} ${qy.toFixed(1)}`;
           }
-          appendStyledCurve(dScenToQ, hex, colorIdx, isStepFocused, isStepDimmed, "is-scen-to-qprompt", "5 3.2", 1.55);
+          appendStyledCurve(dScenToQ, hex, colorIdx, isStepFocused, isStepDimmed, "is-scen-to-qprompt", "5 3.2", 1.5);
 
-          // Leg 3: สิ่งที่โจทย์ถาม (Question Prompt) ──▶ คำตอบ (Answer Key row)
-          const qOutX = Math.max(rPaneRect.left + 6, Math.min(rPaneRect.right - 14, qRect.left + 8)) - stageRect.left;
-          const qOutY = Math.min(rPaneRect.bottom - 10, Math.max(rPaneRect.top + 24, qRect.bottom + 1)) - stageRect.top;
-          const aInX = Math.max(rPaneRect.left + 4, Math.min(rPaneRect.right - 14, targetRect.left + 2)) - stageRect.left;
-          const aInY = Math.min(rPaneRect.bottom - 8, Math.max(rPaneRect.top + 26, targetRect.top + 2)) - stageRect.top;
-          const spineX = Math.max(
-            rPaneRect.left + 3 - stageRect.left,
-            Math.min(qOutX, aInX) - (14 + (idx % 5) * 4.5)
-          );
-          const dQToAns = `M ${qOutX.toFixed(1)} ${qOutY.toFixed(1)} C ${spineX.toFixed(1)} ${(qOutY + 18).toFixed(1)}, ${spineX.toFixed(1)} ${(aInY - 18).toFixed(1)}, ${aInX.toFixed(1)} ${aInY.toFixed(1)}`;
-          appendStyledCurve(dQToAns, hex, colorIdx, isStepFocused, isStepDimmed, "is-qprompt-to-ans", "3.2 2.4", 1.7);
+          // Leg 3: สิ่งที่โจทย์ถาม (Question Prompt) ──▶ EACH Answer Key Highlight (mark.hsd-ans-hl)
+          ansTargets.forEach(({ aRect }, aIdx) => {
+            const qOutX =
+              Math.max(
+                rPaneRect.left + 8,
+                Math.min(rPaneRect.right - 14, qRect.left + Math.min(qRect.width - 6, 12 + aIdx * 16))
+              ) - stageRect.left;
+            const qOutY = Math.min(rPaneRect.bottom - 10, Math.max(rPaneRect.top + 24, qRect.bottom + 1)) - stageRect.top;
+            const aInX =
+              Math.max(
+                rPaneRect.left + 6,
+                Math.min(rPaneRect.right - 12, aRect.left + Math.min(22, aRect.width * 0.25))
+              ) - stageRect.left;
+            const aInY = Math.min(rPaneRect.bottom - 8, Math.max(rPaneRect.top + 26, aRect.top - 1)) - stageRect.top;
+            const dyQA = Math.max(22, Math.abs(aInY - qOutY) * 0.42);
+            const dQToAns = `M ${qOutX.toFixed(1)} ${qOutY.toFixed(1)} C ${qOutX.toFixed(1)} ${(qOutY + dyQA).toFixed(1)}, ${aInX.toFixed(1)} ${(aInY - dyQA).toFixed(1)}, ${aInX.toFixed(1)} ${aInY.toFixed(1)}`;
+            appendStyledCurve(dQToAns, hex, colorIdx, isStepFocused, isStepDimmed, "is-qprompt-to-ans", "3.2 2.4", 1.55);
+          });
         }
       });
     };
@@ -23126,6 +23572,11 @@
         const s = Number(tr.dataset.conceptRowStep) || 0;
         tr.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
         tr.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
+      });
+      rightZoomBody.querySelectorAll("mark.hsd-ans-hl").forEach((am) => {
+        const s = Number(am.dataset.ansStep) || 0;
+        am.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
+        am.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
       });
       rightZoomBody.querySelectorAll(".hsd-q-step-node[data-q-target-step]").forEach((nd) => {
         const s = Number(nd.dataset.qTargetStep) || 0;
@@ -23161,6 +23612,12 @@
         tr.addEventListener("mouseleave", () => applyFocusState(0));
       });
 
+      rightZoomBody.querySelectorAll("mark.hsd-ans-hl").forEach((am) => {
+        const s = Number(am.dataset.ansStep) || 0;
+        am.addEventListener("mouseenter", () => applyFocusState(s));
+        am.addEventListener("mouseleave", () => applyFocusState(0));
+      });
+
       rightZoomBody.querySelectorAll(".hsd-vq-chip[data-focus-clue-step]").forEach((btn) => {
         const s = Number(btn.dataset.focusClueStep) || 0;
         btn.addEventListener("mouseenter", () => applyFocusState(s));
@@ -23175,10 +23632,11 @@
         const s = Number(nd.dataset.qTargetStep) || 0;
         const lk = links[s - 1] || links[0];
         const rowTuple = rows[s - 1] || rows[0] || [];
+        const focusLabel = nd.dataset.qFocusLabel || "";
         nd.addEventListener("mouseenter", () => {
           applyFocusState(s);
           if (!state.isPptSlideSharePopup && lk) {
-            openHsTextbookRefPopover(nd, lk, cur.mod, false, rowTuple);
+            openHsTextbookRefPopover(nd, lk, cur.mod, false, rowTuple, focusLabel);
           }
         });
         nd.addEventListener("mouseleave", () => {
@@ -23189,7 +23647,7 @@
           ev.stopPropagation();
           applyFocusState(activeStep === s ? 0 : s);
           if (!state.isPptSlideSharePopup && lk) {
-            openHsTextbookRefPopover(nd, lk, cur.mod, true, rowTuple);
+            openHsTextbookRefPopover(nd, lk, cur.mod, true, rowTuple, focusLabel);
           }
         });
       });
