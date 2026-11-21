@@ -13225,6 +13225,10 @@
             stageEl.style.setProperty("--hsd-left-pct", `${clamped}%`);
           }
           if (ratioPill) ratioPill.textContent = `${clamped}:${100 - clamped}`;
+          const parentSheet = stageEl.closest(".ppt-slide-sheet");
+          if (parentSheet && typeof parentSheet._redrawConceptLines === "function") {
+            parentSheet._redrawConceptLines();
+          }
         };
 
         const onUp = () => {
@@ -14101,7 +14105,7 @@
     return row;
   }
 
-  function autoFitSingleSheetBoxes(sheetEl) {
+  function autoFitSingleSheetBoxes(sheetEl, forceBoxRefit) {
     if (!sheetEl || !sheetEl.isConnected) return;
     const fitZ = Number(sheetEl.dataset.pptFitZoom) || 0.84;
     sheetEl.querySelectorAll(".hsd-box-zoom-body").forEach((boxEl) => {
@@ -14112,6 +14116,11 @@
       const paneEl = boxEl.closest(".hsd-slide-left, .hsd-slide-right, .hsd-key-slide-stage");
 
       if (!isAuto) {
+        boxEl._lastFitSig = "";
+        if (paneEl) {
+          paneEl.style.overflowY = "auto";
+          paneEl.style.overflowX = "auto";
+        }
         boxEl.style.zoom = ((manualPct / 100) * fitZ).toFixed(4);
         boxEl.dataset.effectivePct = String(manualPct);
         sheetEl.querySelectorAll(`[data-box-pct="${side}"]`).forEach((b) => {
@@ -14121,6 +14130,7 @@
       }
 
       if (!paneEl || paneEl.hidden) {
+        boxEl._lastFitSig = "";
         boxEl.style.zoom = fitZ.toFixed(4);
         boxEl.dataset.effectivePct = "100";
         sheetEl.querySelectorAll(`[data-box-pct="${side}"]`).forEach((b) => {
@@ -14129,23 +14139,32 @@
         return;
       }
 
-      if (paneEl.clientHeight < 36 || paneEl.clientWidth < 50) {
+      const pOffW = paneEl.offsetWidth;
+      const pOffH = paneEl.offsetHeight;
+      if (pOffH < 36 || pOffW < 50) {
         boxEl.style.zoom = fitZ.toFixed(4);
         if (!sheetEl._deferredFitQueued) {
           sheetEl._deferredFitQueued = true;
           requestAnimationFrame(() => {
             sheetEl._deferredFitQueued = false;
-            autoFitSingleSheetBoxes(sheetEl);
+            autoFitSingleSheetBoxes(sheetEl, true);
           });
         }
         return;
       }
 
+      const fitSig = `${pOffW}x${pOffH}@${fitZ.toFixed(4)}`;
+      if (!forceBoxRefit && boxEl._lastFitSig === fitSig) {
+        return;
+      }
+
+      // Lock overflow hidden during & after Auto-Fit so OS scrollbars never toggle clientWidth/clientHeight!
+      paneEl.style.overflowY = "hidden";
+      paneEl.style.overflowX = "hidden";
       paneEl.scrollTop = 0;
       paneEl.scrollLeft = 0;
       boxEl.style.zoom = fitZ.toFixed(4);
 
-      // Measure strictly in paneEl's un-zoomed (zoom=1) container space (note: scrollHeight is always >= clientHeight)
       const fitsCleanly = () =>
         paneEl.scrollHeight <= paneEl.clientHeight && paneEl.scrollWidth <= paneEl.clientWidth + 2;
 
@@ -14191,6 +14210,11 @@
         boxEl.style.zoom = ((chosenPct / 100) * fitZ).toFixed(4);
       }
 
+      if (!fitsCleanly()) {
+        paneEl.style.overflowY = "auto";
+      }
+
+      boxEl._lastFitSig = fitSig;
       boxEl.dataset.effectivePct = String(chosenPct);
       paneEl.scrollTop = 0;
       paneEl.scrollLeft = 0;
@@ -14207,23 +14231,17 @@
   function applySlideBoxesZoom(rootEl) {
     const scope = rootEl || document;
     scope.querySelectorAll(".ppt-slide-sheet").forEach((sheetEl) => {
-      autoFitSingleSheetBoxes(sheetEl);
+      autoFitSingleSheetBoxes(sheetEl, true);
     });
   }
 
   function scheduleStabilizedSlideFit(stageEl, sheetEl, useZoomState) {
-    fitSlideSheetToStage(stageEl, sheetEl, useZoomState);
+    fitSlideSheetToStage(stageEl, sheetEl, useZoomState, true);
     requestAnimationFrame(() => {
-      fitSlideSheetToStage(stageEl, sheetEl, useZoomState);
-      requestAnimationFrame(() => {
-        fitSlideSheetToStage(stageEl, sheetEl, useZoomState);
-      });
-    });
-    setTimeout(() => {
       if (sheetEl && sheetEl.isConnected) {
-        fitSlideSheetToStage(stageEl, sheetEl, useZoomState);
+        fitSlideSheetToStage(stageEl, sheetEl, useZoomState, false);
       }
-    }, 140);
+    });
   }
 
   function buildBoxFontSizeCtrlDOM(side) {
@@ -14745,8 +14763,8 @@
     // Re-optimize automatically if any embedded figure/image finishes decoding after initial frame
     sheet.querySelectorAll("img").forEach((imgEl) => {
       if (!imgEl.complete) {
-        imgEl.addEventListener("load", () => autoFitSingleSheetBoxes(sheet), { once: true });
-        imgEl.addEventListener("error", () => autoFitSingleSheetBoxes(sheet), { once: true });
+        imgEl.addEventListener("load", () => autoFitSingleSheetBoxes(sheet, true), { once: true });
+        imgEl.addEventListener("error", () => autoFitSingleSheetBoxes(sheet, true), { once: true });
       }
     });
 
@@ -14770,26 +14788,70 @@
     return sheet;
   }
 
-  function fitSlideSheetToStage(stageEl, sheetEl, useZoomState) {
-    if (!stageEl || !sheetEl) return;
+  function fitSlideSheetToStage(stageEl, sheetEl, useZoomState, forceRefit) {
+    if (!stageEl || !sheetEl || sheetEl._fittingNow) return;
     const isProjected = sheetEl.classList.contains("is-projected");
-    const padX = isProjected ? 0 : window.innerWidth <= 960 ? 8 : 16;
-    const padY = isProjected ? 0 : window.innerWidth <= 960 ? 8 : 12;
-    const availW = Math.max(280, stageEl.clientWidth - padX);
-    const availH = Math.max(200, stageEl.clientHeight - padY);
-    const fitW = Math.min(availW, availH * (16 / 9));
-    const scaleFactor =
-      useZoomState && state.hsdPptZoomMode === "manual" ? (state.hsdPptZoomPct || 100) / 100 : 1;
-    const finalW = Math.round(fitW * scaleFactor);
-    const finalH = Math.round(finalW * (9 / 16));
-    sheetEl.style.width = `${finalW}px`;
-    sheetEl.style.height = `${finalH}px`;
-    sheetEl.style.maxWidth = "none";
-    const fontScale = Math.max(0.68, Math.min(1.42, finalW / 1220));
-    sheetEl.style.setProperty("--ppt-scale", fontScale.toFixed(3));
-    const fitZoom = Math.max(0.24, Math.min(1.26, finalW / 1690));
-    sheetEl.dataset.pptFitZoom = fitZoom.toFixed(4);
-    autoFitSingleSheetBoxes(sheetEl);
+    const isManualZoom = Boolean(useZoomState && state.hsdPptZoomMode === "manual");
+    const scaleFactor = isManualZoom ? (state.hsdPptZoomPct || 100) / 100 : 1;
+    if (!isProjected) {
+      stageEl.classList.toggle("is-manual-zoom", isManualZoom && scaleFactor > 1);
+    }
+
+    // Use offsetWidth/offsetHeight (border-box, 100% immune to scrollbar presence!)
+    const stageW = stageEl.offsetWidth;
+    const stageH = stageEl.offsetHeight;
+    if (stageW < 80 || stageH < 60) return;
+
+    if (
+      !forceRefit &&
+      sheetEl._lastStageW !== undefined &&
+      Math.abs(stageW - sheetEl._lastStageW) <= 1 &&
+      Math.abs(stageH - sheetEl._lastStageH) <= 1 &&
+      sheetEl._lastScaleFactor === scaleFactor
+    ) {
+      return;
+    }
+
+    sheetEl._fittingNow = true;
+    try {
+      sheetEl._lastStageW = stageW;
+      sheetEl._lastStageH = stageH;
+      sheetEl._lastScaleFactor = scaleFactor;
+
+      let padX = 0;
+      let padY = 0;
+      if (!isProjected) {
+        const cs = window.getComputedStyle(stageEl);
+        padX =
+          (parseFloat(cs.paddingLeft) || 0) +
+          (parseFloat(cs.paddingRight) || 0) +
+          (parseFloat(cs.borderLeftWidth) || 0) +
+          (parseFloat(cs.borderRightWidth) || 0) +
+          6;
+        padY =
+          (parseFloat(cs.paddingTop) || 0) +
+          (parseFloat(cs.paddingBottom) || 0) +
+          (parseFloat(cs.borderTopWidth) || 0) +
+          (parseFloat(cs.borderBottomWidth) || 0) +
+          6;
+      }
+
+      const availW = Math.max(260, stageW - padX);
+      const availH = Math.max(180, stageH - padY);
+      const fitW = Math.min(availW, availH * (16 / 9));
+      const finalW = Math.floor(fitW * scaleFactor);
+      const finalH = Math.floor(finalW * (9 / 16));
+      sheetEl.style.width = `${finalW}px`;
+      sheetEl.style.height = `${finalH}px`;
+      sheetEl.style.maxWidth = "none";
+      const fontScale = Math.max(0.68, Math.min(1.42, finalW / 1220));
+      sheetEl.style.setProperty("--ppt-scale", fontScale.toFixed(3));
+      const fitZoom = Math.max(0.24, Math.min(1.26, finalW / 1690));
+      sheetEl.dataset.pptFitZoom = fitZoom.toFixed(4);
+      autoFitSingleSheetBoxes(sheetEl, Boolean(forceRefit));
+    } finally {
+      sheetEl._fittingNow = false;
+    }
   }
 
   function buildPptSlideSorterGridDOM(slides, onPickSlide) {
@@ -15180,7 +15242,8 @@
     });
 
     const centerCol = make("div", null, "ppt-center-col");
-    const canvasStage = make("div", null, "ppt-canvas-stage");
+    const canvasStage = make("div", null, `ppt-canvas-stage${isSorter ? " is-sorter-stage" : ""}`);
+    let mountedSheet = null;
 
     if (isSorter) {
       canvasStage.appendChild(
@@ -15198,12 +15261,8 @@
         pptCanvasResizeObserver = null;
       }
     } else {
-      const sheet = buildPptSlideSheetDOM(cur, slides, false);
-      canvasStage.appendChild(sheet);
-      if (pptCanvasResizeObserver) pptCanvasResizeObserver.disconnect();
-      pptCanvasResizeObserver = new ResizeObserver(() => fitSlideSheetToStage(canvasStage, sheet, true));
-      pptCanvasResizeObserver.observe(canvasStage);
-      scheduleStabilizedSlideFit(canvasStage, sheet, true);
+      mountedSheet = buildPptSlideSheetDOM(cur, slides, false);
+      canvasStage.appendChild(mountedSheet);
     }
     centerCol.appendChild(canvasStage);
 
@@ -15331,7 +15390,7 @@
       zPctBtn.textContent = `${state.hsdPptZoomPct}% ↺`;
       zPctBtn.setAttribute("aria-pressed", "false");
       const sheetEl = canvasStage.querySelector(".ppt-slide-sheet");
-      if (sheetEl) fitSlideSheetToStage(canvasStage, sheetEl, true);
+      if (sheetEl) fitSlideSheetToStage(canvasStage, sheetEl, true, true);
     });
 
     const zPlus = make("button", "+", "ppt-status-btn");
@@ -15375,6 +15434,15 @@
     shell.appendChild(statusBar);
 
     container.appendChild(shell);
+
+    if (mountedSheet) {
+      scheduleStabilizedSlideFit(canvasStage, mountedSheet, true);
+      if (pptCanvasResizeObserver) pptCanvasResizeObserver.disconnect();
+      pptCanvasResizeObserver = new ResizeObserver(() => {
+        fitSlideSheetToStage(canvasStage, mountedSheet, true, false);
+      });
+      pptCanvasResizeObserver.observe(canvasStage);
+    }
   }
 
   function renderHsScrollMode(container, matchedCases) {
@@ -20854,7 +20922,7 @@
         if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
         const p = node.parentElement;
         if (!p) return NodeFilter.FILTER_REJECT;
-        if (p.closest(".hsd-scenario-label, .hsd-scen-question-inline, figcaption, script, style, mark")) {
+        if (p.closest(".hsd-scenario-label, .hsd-scen-question-inline, script, style, mark")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -20909,7 +20977,7 @@
       }
     });
 
-    // 2. Build SVG Bezier Connector Overlay inside stage
+    // 2. Build SVG Bezier Connector Overlay inside stage (Draws EVERY highlighted clue -> Answer Key!)
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("class", "hsd-concept-svg-layer hsd-no-print");
@@ -20922,8 +20990,8 @@
       marker.setAttribute("viewBox", "0 0 10 10");
       marker.setAttribute("refX", "8.5");
       marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "6");
-      marker.setAttribute("markerHeight", "6");
+      marker.setAttribute("markerWidth", "5.6");
+      marker.setAttribute("markerHeight", "5.6");
       marker.setAttribute("orient", "auto-start-reverse");
       const poly = document.createElementNS(svgNS, "path");
       poly.setAttribute("d", "M 0 1.2 L 9 5 L 0 8.8 z");
@@ -20933,17 +21001,33 @@
     });
     svg.appendChild(defs);
 
+    const halosGroup = document.createElementNS(svgNS, "g");
     const pathsGroup = document.createElementNS(svgNS, "g");
-    svg.appendChild(pathsGroup);
+    svg.append(halosGroup, pathsGroup);
     stage.appendChild(svg);
 
     let activeStep = Number(state.hsdFocusedConceptStep) || 0;
+    let redrawRafPending = false;
+    let lastStageW = 0;
+    let lastStageH = 0;
 
-    const getZoomAdjustedScreenRect = (el, probeEl, zbEl) => {
+    const getZoomAdjustedScreenRect = (el, probeEl, zbEl, preferFragmentMode) => {
       const pRect = probeEl.getBoundingClientRect();
       const zRect = zbEl.getBoundingClientRect();
       const zFactor = zRect.width > 0 ? pRect.width / zRect.width : 1;
-      const r = el.getBoundingClientRect();
+      let r = el.getBoundingClientRect();
+      if (preferFragmentMode) {
+        const rawRects = Array.from(el.getClientRects()).filter((rc) => rc.width > 1 && rc.height > 1);
+        if (rawRects.length > 1) {
+          if (preferFragmentMode === "bottom") {
+            r = rawRects[rawRects.length - 1];
+          } else {
+            r = rawRects.reduce((best, cur) => (cur.right > best.right ? cur : best), rawRects[0]);
+          }
+        } else if (rawRects.length === 1) {
+          r = rawRects[0];
+        }
+      }
       const left = pRect.left + (r.left - zRect.left) * zFactor;
       const top = pRect.top + (r.top - zRect.top) * zFactor;
       const width = r.width * zFactor;
@@ -20960,7 +21044,9 @@
       };
     };
 
-    const redrawLines = () => {
+    const redrawLinesNow = () => {
+      redrawRafPending = false;
+      halosGroup.replaceChildren();
       pathsGroup.replaceChildren();
       if (!sheet.isConnected || state.hsdShowConceptLines === false) return;
       if (leftPane.hidden || rightPane.hidden) return;
@@ -20982,15 +21068,26 @@
         const marks = Array.from(leftZoomBody.querySelectorAll(`mark[data-concept-step="${step}"]`));
         if (!marks.length) return;
 
-        const rowRect = getZoomAdjustedScreenRect(rowEl, rightAnchorProbe, rightZoomBody);
+        const targetPill = rowEl.querySelector(".hsd-concept-step-pill") || rowEl;
+        const targetRect = getZoomAdjustedScreenRect(targetPill, rightAnchorProbe, rightZoomBody, null);
         const isStepFocused = activeStep === step;
         const isStepDimmed = activeStep > 0 && activeStep !== step;
 
-        // Draw primary clue at rest; when focused, draw all clues for that step!
-        const marksToDraw = isStepFocused ? marks : [marks[0]];
+        // Sort marks top-to-bottom so fanned landing offsets never cross within the same step
+        const sortedMarks = marks
+          .map((mEl) => ({
+            mEl,
+            mRect: getZoomAdjustedScreenRect(
+              mEl,
+              leftAnchorProbe,
+              leftZoomBody,
+              isHoriz ? "bottom" : "rightmost"
+            )
+          }))
+          .sort((a, b) => (isHoriz ? a.mRect.cx - b.mRect.cx : a.mRect.cy - b.mRect.cy));
 
-        marksToDraw.forEach((mEl, mIdx) => {
-          const mRect = getZoomAdjustedScreenRect(mEl, leftAnchorProbe, leftZoomBody);
+        sortedMarks.forEach(({ mRect }, mIdx) => {
+          const fanOffset = (mIdx - (sortedMarks.length - 1) / 2) * (isHoriz ? 10 : 4.2);
           let x1;
           let y1;
           let x2;
@@ -21000,33 +21097,50 @@
           if (!isHoriz) {
             x1 = Math.min(lPaneRect.right - 3, Math.max(lPaneRect.left + 8, mRect.right + 2)) - stageRect.left;
             y1 = Math.min(lPaneRect.bottom - 8, Math.max(lPaneRect.top + 26, mRect.cy)) - stageRect.top;
-            x2 = Math.max(rPaneRect.left + 3, Math.min(rPaneRect.right - 12, rowRect.left + 2)) - stageRect.left;
-            y2 = Math.min(rPaneRect.bottom - 8, Math.max(rPaneRect.top + 26, rowRect.top + Math.min(26, rowRect.height * 0.36))) - stageRect.top;
-            const dx = Math.max(38, Math.abs(x2 - x1) * 0.46);
+            x2 = Math.max(rPaneRect.left + 3, Math.min(rPaneRect.right - 12, targetRect.left - 2)) - stageRect.left;
+            y2 =
+              Math.min(
+                rPaneRect.bottom - 8,
+                Math.max(rPaneRect.top + 26, targetRect.cy + fanOffset)
+              ) - stageRect.top;
+            const dx = Math.max(40, Math.abs(x2 - x1) * 0.46);
             dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + dx).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - dx).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
           } else {
             x1 = Math.min(lPaneRect.right - 14, Math.max(lPaneRect.left + 14, mRect.cx)) - stageRect.left;
             y1 = Math.min(lPaneRect.bottom - 2, Math.max(lPaneRect.top + 24, mRect.bottom + 1)) - stageRect.top;
-            x2 = Math.min(rPaneRect.right - 20, Math.max(rPaneRect.left + 24, rowRect.left + Math.min(90, rowRect.width * 0.16))) - stageRect.left;
-            y2 = Math.max(rPaneRect.top + 3, Math.min(rPaneRect.bottom - 10, rowRect.top + 4)) - stageRect.top;
+            x2 =
+              Math.min(
+                rPaneRect.right - 20,
+                Math.max(rPaneRect.left + 24, targetRect.cx + fanOffset)
+              ) - stageRect.left;
+            y2 = Math.max(rPaneRect.top + 3, Math.min(rPaneRect.bottom - 10, targetRect.top - 1)) - stageRect.top;
             const dy = Math.max(28, Math.abs(y2 - y1) * 0.48);
             dStr = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${(y1 + dy).toFixed(1)}, ${x2.toFixed(1)} ${(y2 - dy).toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+          }
+
+          if (!isStepDimmed) {
+            const halo = document.createElementNS(svgNS, "path");
+            halo.setAttribute("d", dStr);
+            halo.setAttribute("fill", "none");
+            halo.setAttribute("stroke", document.documentElement.getAttribute("data-theme") === "dark" ? "rgba(15,23,42,0.75)" : "rgba(255,255,255,0.78)");
+            halo.setAttribute("stroke-width", isStepFocused ? "4.8" : "3.6");
+            halo.setAttribute("class", "hsd-concept-halo");
+            halosGroup.appendChild(halo);
           }
 
           const startDot = document.createElementNS(svgNS, "circle");
           startDot.setAttribute("cx", x1.toFixed(1));
           startDot.setAttribute("cy", y1.toFixed(1));
-          startDot.setAttribute("r", isStepFocused ? "4.5" : "3.4");
+          startDot.setAttribute("r", isStepFocused ? "4.3" : "3.2");
           startDot.setAttribute("fill", hex);
-          startDot.setAttribute("opacity", isStepDimmed ? "0.2" : "0.95");
+          startDot.setAttribute("opacity", isStepDimmed ? "0.18" : "0.96");
           pathsGroup.appendChild(startDot);
 
           const path = document.createElementNS(svgNS, "path");
           path.setAttribute("d", dStr);
           path.setAttribute("fill", "none");
           path.setAttribute("stroke", hex);
-          path.setAttribute("stroke-width", isStepFocused ? "3.1" : mIdx === 0 ? "2.1" : "1.6");
-          if (mIdx > 0) path.setAttribute("stroke-dasharray", "5 4");
+          path.setAttribute("stroke-width", isStepFocused ? "2.9" : "1.95");
           path.setAttribute("marker-end", `url(#hsdArrowC${colorIdx})`);
           path.setAttribute(
             "class",
@@ -21035,6 +21149,12 @@
           pathsGroup.appendChild(path);
         });
       });
+    };
+
+    const scheduleRedrawLines = () => {
+      if (redrawRafPending) return;
+      redrawRafPending = true;
+      requestAnimationFrame(redrawLinesNow);
     };
 
     const applyFocusState = (nextStep) => {
@@ -21050,10 +21170,10 @@
         tr.classList.toggle("is-focused", activeStep > 0 && s === activeStep);
         tr.classList.toggle("is-dimmed", activeStep > 0 && s !== activeStep);
       });
-      redrawLines();
+      redrawLinesNow();
     };
 
-    sheet._redrawConceptLines = redrawLines;
+    sheet._redrawConceptLines = scheduleRedrawLines;
     sheet._setConceptFocus = applyFocusState;
 
     leftZoomBody.querySelectorAll("mark.hsd-clue-hl").forEach((m) => {
@@ -21072,17 +21192,23 @@
       tr.addEventListener("mouseleave", () => applyFocusState(0));
     });
 
-    leftPane.addEventListener("scroll", redrawLines, { passive: true });
-    rightPane.addEventListener("scroll", redrawLines, { passive: true });
+    leftPane.addEventListener("scroll", scheduleRedrawLines, { passive: true });
+    rightPane.addEventListener("scroll", scheduleRedrawLines, { passive: true });
 
     if (typeof ResizeObserver === "function") {
-      const ro = new ResizeObserver(() => redrawLines());
+      const ro = new ResizeObserver(() => {
+        const w = stage.offsetWidth;
+        const h = stage.offsetHeight;
+        if (Math.abs(w - lastStageW) <= 1 && Math.abs(h - lastStageH) <= 1) return;
+        lastStageW = w;
+        lastStageH = h;
+        scheduleRedrawLines();
+      });
       ro.observe(stage);
     }
 
     requestAnimationFrame(() => {
-      redrawLines();
-      setTimeout(redrawLines, 160);
+      redrawLinesNow();
     });
   }
 

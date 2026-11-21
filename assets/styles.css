@@ -16903,12 +16903,26 @@ html[data-theme="dark"] .hsd-q-title-kicker {
 /* Optimized First-Open PowerPoint Studio Shell & Unified 16:9 Slide Typography */
 .hsd-slide-shell.is-ppt-app:not(.is-ppt-window-max) {
   height: auto;
-  min-height: calc(100vh - 84px);
+  min-height: 0;
+}
+
+.hsd-slide-shell.is-ppt-app:not(.is-ppt-window-max) .ppt-workspace:not(.is-sorter-mode) {
+  height: clamp(520px, calc(100vh - 206px), 760px);
+  max-height: clamp(520px, calc(100vh - 206px), 760px);
+  flex: 0 0 auto;
 }
 
 .hsd-slide-shell.is-ppt-app:not(.is-ppt-window-max) .ppt-canvas-stage {
-  height: clamp(510px, calc(100vh - 210px), 740px);
-  min-height: 510px;
+  height: 100%;
+  min-height: 0;
+}
+
+.ppt-canvas-stage:not(.is-manual-zoom):not(.is-sorter-stage) {
+  overflow: hidden !important;
+}
+
+.ppt-slide-sheet .hsd-box-zoom-body {
+  padding-bottom: 3px;
 }
 
 .hsd-slide-shell.is-ppt-app .ppt-ribbon {
@@ -18194,11 +18208,20 @@ html[data-theme="dark"] .hsd-km-empty {
   height: 100%;
   pointer-events: none;
   z-index: 24;
-  overflow: visible;
+  overflow: hidden;
+}
+
+.hsd-concept-halo {
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.hsd-concept-halo.is-dimmed {
+  opacity: 0.08;
 }
 
 .hsd-concept-path {
-  opacity: 0.78;
+  opacity: 0.82;
   transition: opacity 0.15s ease, stroke-width 0.15s ease;
 }
 
@@ -18208,7 +18231,7 @@ html[data-theme="dark"] .hsd-km-empty {
 }
 
 .hsd-concept-path.is-dimmed {
-  opacity: 0.16;
+  opacity: 0.15;
 }
 
 mark.hsd-clue-hl {
