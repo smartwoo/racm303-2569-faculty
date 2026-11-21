@@ -867,7 +867,7 @@
     summary.replaceChildren();
     if (!state.myStudent) {
       summary.appendChild(
-        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้อง Discussion กลุ่มภาคสนาม และดาวน์โหลดปฏิทินส่วนตัว (.ics / .csv)")
+        make("span", "พิมพ์รหัส 7 หลักหรือชื่อ เพื่อผูกห้อง Discussion กลุ่มภาคสนาม และส่งออกตารางส่วนตัว (.ics / .xlsx)")
       );
       if (clearBtn) clearBtn.hidden = true;
       if (typeof renderRoleConcierge === "function") renderRoleConcierge();
@@ -1295,9 +1295,11 @@
     // Update summary box & tooltips (keeping button face labels clean without embedded IDs)
     const sumBox = $("calTargetSummaryBox");
     const dlIcsBtn = $("studioDownloadIcsBtn");
-    const dlCsvBtn = $("studioDownloadCsvBtn");
+    const dlXlsxBtn = $("studioDownloadXlsxBtn");
     const topIcsBtn = $("exportIcsBtn");
-    const topCsvBtn = $("exportGcalCsvBtn");
+    const topXlsxBtn = $("dlScheduleExcelBtn") || $("facDlXlsxBtn");
+    const sideIcsBtn = $("sideDlIcsQuickBtn");
+    const sideXlsxBtn = $("sideDlXlsxQuickBtn");
 
     let shortTarget = "ตารางรวมทั้งรายวิชา";
     if (activeStu && ctx.siteObj) {
@@ -1339,17 +1341,20 @@
       }
     }
 
-    setBtnLabel(dlIcsBtn, "Export .ics (Google / Apple iCal)");
-    setBtnLabel(dlCsvBtn, "Export .csv (Google Calendar)");
-    setBtnLabel(topIcsBtn, "Export iCal (.ics)");
-    setBtnLabel(topCsvBtn, "Google (.csv)");
-    setBtnLabel($("sideDlIcsQuickBtn"), "Export .ics");
-    setBtnLabel($("sideDlCsvQuickBtn"), "Google (.csv)");
-    const syncTip = `ส่งออกตามตัวกรองปัจจุบัน: ${shortTarget} (${sessionsToExport.length} รายการ)`;
-    if (topIcsBtn) topIcsBtn.title = syncTip;
-    if (topCsvBtn) topCsvBtn.title = syncTip;
-    if (dlIcsBtn) dlIcsBtn.title = syncTip;
-    if (dlCsvBtn) dlCsvBtn.title = syncTip;
+    setBtnLabel(dlIcsBtn, "Export as .ics");
+    setBtnLabel(dlXlsxBtn, "Export as .xlsx");
+    setBtnLabel(topIcsBtn, "Export as .ics");
+    setBtnLabel(topXlsxBtn, "Export as .xlsx");
+    setBtnLabel(sideIcsBtn, "Export as .ics");
+    setBtnLabel(sideXlsxBtn, "Export as .xlsx");
+    const syncIcsTip = `ส่งออกปฏิทิน .ics (Google Calendar / Apple iCal / Outlook) ตามตัวกรองปัจจุบัน: ${shortTarget} (${sessionsToExport.length} รายการ)`;
+    const syncXlsxTip = `ส่งออกตาราง Excel .xlsx ตามตัวกรองปัจจุบัน: ${shortTarget} (${sessionsToExport.length} รายการ)`;
+    if (topIcsBtn) topIcsBtn.title = syncIcsTip;
+    if (topXlsxBtn) topXlsxBtn.title = syncXlsxTip;
+    if (dlIcsBtn) dlIcsBtn.title = syncIcsTip;
+    if (dlXlsxBtn) dlXlsxBtn.title = syncXlsxTip;
+    if (sideIcsBtn) sideIcsBtn.title = syncIcsTip;
+    if (sideXlsxBtn) sideXlsxBtn.title = syncXlsxTip;
     if ($("calSideSyncTargetLabel")) {
       $("calSideSyncTargetLabel").textContent = `กำลังซิงค์: ${shortTarget} (${sessionsToExport.length} คาบ · พร้อมลิงก์ Zoom)`;
     }
@@ -1431,7 +1436,7 @@
     });
 
     if ($("studioDownloadIcsBtn")) $("studioDownloadIcsBtn").addEventListener("click", downloadScheduleIcs);
-    if ($("studioDownloadCsvBtn")) $("studioDownloadCsvBtn").addEventListener("click", downloadScheduleGoogleCsv);
+    if ($("studioDownloadXlsxBtn")) $("studioDownloadXlsxBtn").addEventListener("click", () => downloadScheduleXlsx(false));
     if ($("studioCopySubUrlBtn")) {
       $("studioCopySubUrlBtn").addEventListener("click", () => {
         const urlEl = $("studioSubscribeUrlInput");
@@ -1606,7 +1611,7 @@
     }
 
     if ($("sideDlIcsQuickBtn")) $("sideDlIcsQuickBtn").addEventListener("click", downloadScheduleIcs);
-    if ($("sideDlCsvQuickBtn")) $("sideDlCsvQuickBtn").addEventListener("click", downloadScheduleGoogleCsv);
+    if ($("sideDlXlsxQuickBtn")) $("sideDlXlsxQuickBtn").addEventListener("click", () => downloadScheduleXlsx(false));
     if ($("sideOpenFullStudioBtn")) {
       $("sideOpenFullStudioBtn").addEventListener("click", () => {
         const disc = $("calStudioDisclosure");
@@ -1764,7 +1769,14 @@
     };
 
     if ($("exportIcsBtn")) $("exportIcsBtn").addEventListener("click", downloadScheduleIcs);
-    if ($("exportGcalCsvBtn")) $("exportGcalCsvBtn").addEventListener("click", downloadScheduleGoogleCsv);
+    const topXlsxBtn = $("dlScheduleExcelBtn") || $("facDlXlsxBtn");
+    if (topXlsxBtn) {
+      topXlsxBtn.addEventListener("click", (ev) => {
+        if (!hasActiveScheduleFilter()) return; // allow native download of pre-built 3-sheet XLSX
+        ev.preventDefault();
+        downloadScheduleXlsx(true);
+      });
+    }
     if ($("exportSchedulePdfBtn")) {
       $("exportSchedulePdfBtn").addEventListener("click", (ev) => {
         if (!hasActiveScheduleFilter()) return; // allow native download of pre-built PDF
@@ -2293,14 +2305,10 @@
         actions.appendChild(bSrn);
       }
 
-      const gcalSingle = make("a", "+ Google Calendar", "btn sm");
-      gcalSingle.href = buildGoogleCalendarTemplateUrl(s);
-      gcalSingle.target = "_blank";
-      gcalSingle.rel = "noopener";
-      actions.appendChild(gcalSingle);
-
-      const icsSingle = make("button", "บันทึก .ics คาบนี้", "btn sm");
+      const icsSingle = make("button", null, "btn sm cal-ics-btn");
       icsSingle.type = "button";
+      icsSingle.title = "ส่งออกไฟล์ปฏิทิน .ics เฉพาะคาบนี้ ใช้ได้ทั้ง Google Calendar, Apple Calendar (iCal) และ Outlook";
+      icsSingle.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export as .ics`;
       icsSingle.addEventListener("click", () => downloadSingleSessionIcs(s));
       actions.appendChild(icsSingle);
 
@@ -2566,17 +2574,13 @@
 
     const footer = make("div", null, "cal-modal-footer");
     const leftExport = make("div", null, "header-actions");
-    const gcalBtn = make("a", "+ เพิ่มเข้า Google Calendar ทันที ↗", "btn sm cal-gcal-btn");
-    gcalBtn.href = buildGoogleCalendarTemplateUrl(session);
-    gcalBtn.target = "_blank";
-    gcalBtn.rel = "noopener";
-
     const icsBtn = make("button", null, "btn sm cal-ics-btn");
     icsBtn.type = "button";
-    icsBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export เฉพาะคาบนี้ (.ics)`;
+    icsBtn.title = "ส่งออกไฟล์ปฏิทิน .ics เฉพาะคาบนี้ ใช้ได้ทั้ง Google Calendar, Apple Calendar (iCal) และ Outlook";
+    icsBtn.innerHTML = `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Export as .ics (คาบนี้)`;
     icsBtn.addEventListener("click", () => downloadSingleSessionIcs(session));
 
-    leftExport.append(gcalBtn, icsBtn);
+    leftExport.append(icsBtn);
 
     const viewAgendaBtn = make("button", "ดูในมุมมองกำหนดการเต็ม", "btn sm");
     viewAgendaBtn.type = "button";
@@ -2812,53 +2816,228 @@
     return `"${s}"`;
   }
 
-  function downloadScheduleGoogleCsv() {
-    const sessions = getSessionsForExport();
+  function xlsxColName(colNum) {
+    let n = colNum;
+    let s = "";
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  }
+
+  function xlsxCellXml(colNum, rowNum, val, styleIdx = 0, isNum = false) {
+    const ref = `${xlsxColName(colNum)}${rowNum}`;
+    if (isNum && val !== "" && val !== null && val !== undefined && Number.isFinite(Number(val))) {
+      return `<c r="${ref}" s="${styleIdx}" t="n"><v>${Number(val)}</v></c>`;
+    }
+    const safe = escXml(val == null ? "" : String(val));
+    return `<c r="${ref}" s="${styleIdx}" t="inlineStr"><is><t xml:space="preserve">${safe}</t></is></c>`;
+  }
+
+  function buildScheduleXlsxBlob(sessions, titleText, subtitleText, sheetName) {
     const ctx = getActivePersonalContext();
-    const header = [
-      "Subject",
-      "Start Date",
-      "Start Time",
-      "End Date",
-      "End Time",
-      "All Day Event",
-      "Description",
-      "Location",
-      "Private"
-    ].join(",");
+    const safeSheet = escXml(
+      String(sheetName || "RACM303_2569")
+        .replace(/[:\\/?*\[\]]/g, " ")
+        .trim()
+        .slice(0, 31) || "RACM303_2569"
+    );
+    const colWidths = [9, 20, 15, 22, 14, 46, 30, 26, 38, 24];
+    const headers = [
+      "สัปดาห์",
+      "วันที่",
+      "เวลา",
+      "หมวดกิจกรรม",
+      "รหัสคาบ",
+      "หัวข้อและกิจกรรมการเรียนรู้",
+      "อาจารย์ผู้สอน / วิทยากร",
+      "ห้องเรียน / สถานที่",
+      "ลิงก์ Zoom / ช่องทางออนไลน์",
+      "รูปแบบ / การเช็กชื่อ"
+    ];
 
-    const rows = [header];
-    sessions.forEach((s) => {
+    const colsXml =
+      `<cols>` +
+      colWidths.map((w, idx) => `<col min="${idx + 1}" max="${idx + 1}" width="${w}" customWidth="1"/>`).join("") +
+      `</cols>`;
+
+    const rowXmlList = [];
+    const r1Cells = [xlsxCellXml(1, 1, titleText, 1)];
+    const r2Cells = [xlsxCellXml(1, 2, subtitleText, 2)];
+    for (let c = 2; c <= headers.length; c++) {
+      r1Cells.push(xlsxCellXml(c, 1, "", 1));
+      r2Cells.push(xlsxCellXml(c, 2, "", 2));
+    }
+    rowXmlList.push(`<row r="1" ht="28" customHeight="1">${r1Cells.join("")}</row>`);
+    rowXmlList.push(`<row r="2" ht="23" customHeight="1">${r2Cells.join("")}</row>`);
+    rowXmlList.push(
+      `<row r="3" ht="26" customHeight="1">${headers.map((h, i) => xlsxCellXml(i + 1, 3, h, 3)).join("")}</row>`
+    );
+
+    sessions.forEach((s, idx) => {
+      const rNum = idx + 4;
       const eff = resolveEffectiveSessionDetails(s, ctx);
-      const { description, location } = buildEventDescriptionAndLocation(s, eff);
-      const subject = `[RACM 303] ${eff.title}`;
-      const startDate = isoToUsDate(eff.startISO);
-      const endDate = isoToUsDate(eff.endISO || eff.startISO);
-      const startTime = eff.isAllDay ? "" : to12HourAmPm(s.startTime || "09:00");
-      const endTime = eff.isAllDay ? "" : to12HourAmPm(s.endTime || "12:00");
-      const allDay = eff.isAllDay ? "True" : "False";
+      const timeText = eff.isAllDay ? "ตลอดวัน" : `${s.startTime || "09:00"}–${s.endTime || "12:00"}`;
+      const catText = CAT_NAMES[s.category] || s.category || "-";
+      const zoomText = s.zoom
+        ? `${s.zoom.url} (ID: ${s.zoom.id} / Pass: ${s.zoom.pass})`
+        : s.actionUrl || "-";
+      const fmtText = `${s.format || ""}${s.checkIn ? " (" + s.checkIn + ")" : ""}`.trim() || "-";
+      const isOdd = idx % 2 === 1;
+      const stCenter = isOdd ? 7 : 6;
+      const stText = isOdd ? 5 : 4;
+      const wkVal = s.week;
+      const wkIsNum = wkVal !== "" && wkVal !== null && wkVal !== undefined && Number.isFinite(Number(wkVal));
 
-      rows.push(
-        [
-          csvCell(subject),
-          csvCell(startDate),
-          csvCell(startTime),
-          csvCell(endDate),
-          csvCell(endTime),
-          csvCell(allDay),
-          csvCell(description),
-          csvCell(location),
-          csvCell("False")
-        ].join(",")
-      );
+      const cells = [
+        xlsxCellXml(1, rNum, wkIsNum ? Number(wkVal) : String(wkVal || "-"), stCenter, wkIsNum),
+        xlsxCellXml(2, rNum, s.dateTH || eff.startISO || "-", stText),
+        xlsxCellXml(3, rNum, timeText, stCenter),
+        xlsxCellXml(4, rNum, catText, stText),
+        xlsxCellXml(5, rNum, s.code || "-", stCenter),
+        xlsxCellXml(6, rNum, eff.title || s.title || "-", stText),
+        xlsxCellXml(7, rNum, eff.lecturer || s.lecturers || "-", stText),
+        xlsxCellXml(8, rNum, eff.room || s.room || "-", stText),
+        xlsxCellXml(9, rNum, zoomText, stText),
+        xlsxCellXml(10, rNum, fmtText, stText)
+      ];
+      rowXmlList.push(`<row r="${rNum}">${cells.join("")}</row>`);
     });
 
-    const csvContent = "\uFEFF" + rows.join("\r\n") + "\r\n";
-    triggerBlobDownload(
-      csvContent,
-      "text/csv;charset=utf-8",
-      `RACM303_2569_GoogleCalendar${getExportFilenameSuffix()}.csv`
+    const sheetXml =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+      `<sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
+      `<sheetFormatPr defaultRowHeight="21"/>` +
+      colsXml +
+      `<sheetData>${rowXmlList.join("")}</sheetData>` +
+      `<mergeCells count="2"><mergeCell ref="A1:J1"/><mergeCell ref="A2:J2"/></mergeCells>` +
+      `</worksheet>`;
+
+    const stylesXml =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+      `<fonts count="5">` +
+      `<font><sz val="11"/><color rgb="FF162238"/><name val="Sarabun"/></font>` +
+      `<font><b/><sz val="13.5"/><color rgb="FF002D72"/><name val="Sarabun"/></font>` +
+      `<font><b/><sz val="10.5"/><color rgb="FF475569"/><name val="Sarabun"/></font>` +
+      `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Sarabun"/></font>` +
+      `<font><b/><sz val="11"/><color rgb="FF0F172A"/><name val="Sarabun"/></font>` +
+      `</fonts>` +
+      `<fills count="5">` +
+      `<fill><patternFill patternType="none"/></fill>` +
+      `<fill><patternFill patternType="gray125"/></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FF002D72"/><bgColor indexed="64"/></patternFill></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFF8FAFC"/><bgColor indexed="64"/></patternFill></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFEFF6FF"/><bgColor indexed="64"/></patternFill></fill>` +
+      `</fills>` +
+      `<borders count="2">` +
+      `<border><left/><right/><top/><bottom/><diagonal/></border>` +
+      `<border><left style="thin"><color rgb="FFCBD5E1"/></left><right style="thin"><color rgb="FFCBD5E1"/></right><top style="thin"><color rgb="FFCBD5E1"/></top><bottom style="thin"><color rgb="FFCBD5E1"/></bottom><diagonal/></border>` +
+      `</borders>` +
+      `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+      `<cellXfs count="8">` +
+      `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+      `<xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+      `<xf numFmtId="0" fontId="2" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>` +
+      `<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
+      `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
+      `<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
+      `<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>` +
+      `<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>` +
+      `</cellXfs>` +
+      `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+      `</styleSheet>`;
+
+    const entries = [
+      {
+        name: "[Content_Types].xml",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+          `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+          `<Default Extension="xml" ContentType="application/xml"/>` +
+          `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+          `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+          `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+          `</Types>`
+      },
+      {
+        name: "_rels/.rels",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>` +
+          `</Relationships>`
+      },
+      {
+        name: "xl/workbook.xml",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+          `<sheets><sheet name="${safeSheet}" sheetId="1" r:id="rId1"/></sheets>` +
+          `</workbook>`
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        content:
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
+          `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+          `</Relationships>`
+      },
+      { name: "xl/styles.xml", content: stylesXml },
+      { name: "xl/worksheets/sheet1.xml", content: sheetXml }
+    ];
+
+    return buildStoredZipBlob(
+      entries,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
+  }
+
+  function downloadScheduleXlsx(useToolbarFilters = false) {
+    const ctx = getActivePersonalContext();
+    const filterIds = ["schedWeekFilter", "schedCatFilter", "schedTeacherFilter", "schedDiscFilter", "schedAreaFilter", "schedSearchInput"];
+    const hasAnyFilter = Boolean(
+      ctx.effectiveStudent ||
+        ctx.teacherVal ||
+        ctx.areaVal ||
+        ctx.discVal ||
+        filterIds.some((id) => $(id) && String($(id).value || "").trim() !== "")
+    );
+    if (!useToolbarFilters && !hasAnyFilter && window.location.protocol !== "file:") {
+      const a = document.createElement("a");
+      a.href = "downloads/ตารางเรียนปี_3-2569_ฉบับปรับปรุง.xlsx";
+      a.download = ROLE === "faculty" ? "ตารางสอน_RACM303_2569.xlsx" : "ตารางเรียน_RACM303_2569.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+
+    const sessions = useToolbarFilters ? getFilteredSessions(false) : getSessionsForExport();
+    const calTitle = getActiveCalendarDisplayName();
+    const subtitle = `ตารางกิจกรรมการเรียนการสอน รายวิชา RACM 303 ปีการศึกษา 2569 · ${calTitle} · รวม ${sessions.length} คาบกิจกรรม`;
+    const prefix = ROLE === "faculty" ? "ตารางสอน_RACM303_2569" : "ตารางเรียน_RACM303_2569";
+    const suffix = getExportFilenameSuffix() || (hasAnyFilter ? "_Filtered" : "");
+    const blob = buildScheduleXlsxBlob(
+      sessions,
+      calTitle,
+      subtitle,
+      ROLE === "faculty" ? "ตารางสอน RACM 303" : "ตารางเรียน RACM 303"
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${prefix}${suffix}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
   }
 
   function buildGoogleCalendarTemplateUrl(session) {
@@ -17943,8 +18122,8 @@
           ? "Teaching Calendar · Instructor Workload & Session Slide Studio"
           : "Academic Schedule & Interactive Course Calendar (AY 2026)",
         ROLE === "faculty"
-          ? "Filter by instructor, upload lecture slides per session, and export personalized iCal (.ics) or Google Calendar (.csv)."
-          : "Check in up to 15 min before class · Export personal or group schedules to Apple iCal (.ics) & Google Calendar (.csv) with embedded Zoom links."
+          ? "Filter by instructor, upload lecture slides per session, and export schedules as Calendar (.ics for Google & Apple iCal) or Excel (.xlsx)."
+          : "Check in up to 15 min before class · Export personal or group schedules as Calendar (.ics for Google & Apple iCal) or Excel (.xlsx) with embedded Zoom links."
       ],
       "panel-fieldwork": [
         "Fieldwork Groups by Hospital Site (9 Fieldwork Sites)",
@@ -17997,6 +18176,8 @@
     setTranslatedText($("schedSubSpecBtn"), "HS Rotation");
     setTranslatedText($("calStartWeekBtn"), "Week 1");
     setTranslatedText($("toggleCalSidebarBtn"), "◫ Milestones");
+    setTranslatedText($("calSideTabSync"), "Sync .ics");
+    setTranslatedText($("fCalSideTabSync"), "Sync .ics");
     setTranslatedText($("resetSchedFiltersBtn"), "Reset Filters");
     setTranslatedText($("discClearFiltersBtn"), "Reset Filters");
     setTranslatedText($("fieldClearFiltersBtn"), "Reset Filters");
