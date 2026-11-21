@@ -10796,8 +10796,11 @@
 
   function getShortQuestionNumLabel(qObj, fallbackIdx) {
     const raw = String((qObj && qObj.label) || "");
-    const m = raw.match(/(\d+\.\d+)/);
-    return m ? m[1] : raw || String(fallbackIdx + 1);
+    const matches = raw.match(/\d+\.\d+/g);
+    if (matches && matches.length > 0) {
+      return matches.join(" & ");
+    }
+    return raw || String((fallbackIdx || 0) + 1);
   }
 
   function getClearQuestionHeadingLabel(qObj, fallbackIdx) {
@@ -10853,6 +10856,7 @@
       const idx = slides.findIndex((s) => s.kind === "question" && s.qObj.id === qId);
       if (idx >= 0) {
         state.hsdSlideIdx = idx;
+        markSlideBoxesAutoOptimize("both");
         renderHsDiscussionView();
         broadcastPptPresentationState();
       }
@@ -10860,7 +10864,7 @@
       renderHsDiscussionView();
       requestAnimationFrame(() => {
         const qEl = document.getElementById(`hsd-qblock-${qId}`);
-        if (qEl) qEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (qEl) qEl.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
     if (ROLE === "faculty") {
@@ -10869,22 +10873,11 @@
   }
 
   function manualStepHsSlide(delta) {
-    const matchedCases = getFilteredHsDiscussionCases();
     if (state.hsdViewMode === "slide") {
-      const slides = buildHsSlideDeckItems(matchedCases);
-      if (!slides.length) return;
-      const next = Math.max(0, Math.min(slides.length - 1, state.hsdSlideIdx + delta));
-      if (next === state.hsdSlideIdx) return;
-      state.hsdSlideIdx = next;
-      const targetSlide = slides[next];
-      if (targetSlide && targetSlide.qObj) {
-        state.hsdLastSelectedQId = targetSlide.qObj.id;
-        pauseFollowTeacherIfDiverged(targetSlide.qObj.id);
-      }
-      renderHsDiscussionView();
-      broadcastPptPresentationState();
+      stepHsQuestionSlide(delta);
       return;
     }
+    const matchedCases = getFilteredHsDiscussionCases();
     const qList = getFlatQuestionList(matchedCases);
     if (!qList.length) return;
     const curIdx = Math.max(0, qList.findIndex((item) => item.qObj.id === state.hsdLastSelectedQId));
@@ -11038,6 +11031,7 @@
       sel.addEventListener("change", () => {
         state.hsdModule = sel.value || "ALL";
         state.hsdSlideIdx = 0;
+        state.hsdLastSelectedQId = "";
         const suffix = state.hsdModule !== "ALL" ? `-${state.hsdModule}` : "";
         if (!state.isPptSlideSharePopup) {
           history.replaceState(null, "", `#hs-discussion${suffix}`);
@@ -11050,6 +11044,7 @@
     if ($("hsdSearchInput")) {
       $("hsdSearchInput").addEventListener("input", () => {
         state.hsdSlideIdx = 0;
+        state.hsdLastSelectedQId = "";
         renderHsDiscussionView();
       });
     }
@@ -11058,6 +11053,7 @@
       $("hsdResetFilterBtn").addEventListener("click", () => {
         state.hsdModule = "ALL";
         state.hsdSlideIdx = 0;
+        state.hsdLastSelectedQId = "";
         if (sel) sel.value = "ALL";
         if ($("hsdSearchInput")) $("hsdSearchInput").value = "";
         if (!state.isPptSlideSharePopup) {
@@ -11247,6 +11243,8 @@
         }
       }
 
+      if (state.hsdLobbyOpen || (spot && !spot.hidden)) return;
+
       const isPresenting = state.hsdTheater || state.isPptSlideSharePopup;
       if (!isPresenting && (state.activeTab !== "hs-discussion" || state.hsdViewMode !== "slide")) {
         if (state.activeTab === "hs-discussion" && e.key === "F5") {
@@ -11264,12 +11262,26 @@
         enterPptFullscreenShow();
         return;
       }
+      if ((e.key === "g" || e.key === "G") && isPresenting) {
+        e.preventDefault();
+        state.hsdFsGridOpen = !state.hsdFsGridOpen;
+        renderPptPresentationOverlay();
+        return;
+      }
+      if (state.hsdFsGridOpen) return;
+
       if (e.key === "ArrowRight") {
         e.preventDefault();
         stepHsQuestionSlide(1);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         stepHsQuestionSlide(-1);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        stepOrScrollQuestionSlide(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        stepOrScrollQuestionSlide(-1);
       } else if (e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
         if (ROLE === "faculty" && state.hsdRemoteClickerTarget === "key") {
@@ -11291,10 +11303,6 @@
         } else {
           stepHsAnswerKeyClicker(1);
         }
-      } else if ((e.key === "g" || e.key === "G") && isPresenting) {
-        e.preventDefault();
-        state.hsdFsGridOpen = !state.hsdFsGridOpen;
-        renderPptPresentationOverlay();
       } else if (e.key === "l" || e.key === "L") {
         e.preventDefault();
         state.hsdLaserActive = !state.hsdLaserActive;
@@ -11412,6 +11420,7 @@
       btn.addEventListener("click", () => {
         state.hsdModule = item.id;
         state.hsdSlideIdx = 0;
+        state.hsdLastSelectedQId = "";
         if ($("hsdModuleSelect")) $("hsdModuleSelect").value = item.id;
         const suffix = item.id !== "ALL" ? `-${item.id}` : "";
         history.replaceState(null, "", `#hs-discussion${suffix}`);
@@ -12093,14 +12102,33 @@
     if (!slides.length) return { matchedCases, slides, cur: null };
     if (state.hsdSlideIdx >= slides.length) state.hsdSlideIdx = slides.length - 1;
     if (state.hsdSlideIdx < 0) state.hsdSlideIdx = 0;
+    if (state.hsdLastSelectedQId) {
+      const curAtIdx = slides[state.hsdSlideIdx];
+      if (!curAtIdx || !curAtIdx.qObj || curAtIdx.qObj.id !== state.hsdLastSelectedQId) {
+        const qIdx = slides.findIndex((s) => s.qObj && s.qObj.id === state.hsdLastSelectedQId);
+        if (qIdx >= 0) {
+          state.hsdSlideIdx = qIdx;
+        } else if (curAtIdx && curAtIdx.qObj) {
+          state.hsdLastSelectedQId = curAtIdx.qObj.id;
+        }
+      }
+    } else if (slides[state.hsdSlideIdx] && slides[state.hsdSlideIdx].qObj) {
+      state.hsdLastSelectedQId = slides[state.hsdSlideIdx].qObj.id;
+    }
     return { matchedCases, slides, cur: slides[state.hsdSlideIdx] };
   }
 
   function stepHsQuestionSlide(delta) {
     const { slides } = getActiveSlideDeckContext();
     if (!slides.length) return;
-    const next = Math.max(0, Math.min(slides.length - 1, state.hsdSlideIdx + delta));
-    if (next === state.hsdSlideIdx) return;
+    const baseIdx = state.hsdLastSelectedQId
+      ? (() => {
+          const found = slides.findIndex((s) => s.qObj && s.qObj.id === state.hsdLastSelectedQId);
+          return found >= 0 ? found : state.hsdSlideIdx;
+        })()
+      : state.hsdSlideIdx;
+    const next = Math.max(0, Math.min(slides.length - 1, baseIdx + delta));
+    if (next === baseIdx && next === state.hsdSlideIdx) return;
     state.hsdSlideIdx = next;
     state.hsdKeyJustRevealedQ = "";
     const targetSlide = slides[next];
@@ -12216,31 +12244,71 @@
     broadcastPptPresentationState();
   }
 
-  function scrollActiveSlidePanes(deltaDir) {
+  function scrollActiveSlidePanes(deltaDir, opts) {
     const root =
       (state.hsdTheater || state.isPptSlideSharePopup) && $("pptPresentationOverlay")
         ? $("pptPresentationOverlay")
         : $("hsdCasesContainer");
-    if (!root) return;
-    const candidates = root.querySelectorAll(".hsd-key-slide-stage, .hsd-slide-right, .hsd-slide-left");
+    if (!root) return false;
+
+    // Explicit Question-first priority (NEVER rely on querySelectorAll DOM order, which puts .hsd-slide-left Scenario first!)
+    const qPanes = [
+      root.querySelector(".hsd-key-slide-stage"),
+      root.querySelector(".hsd-slide-right")
+    ].filter((el) => el && !el.hidden && el.offsetParent !== null);
+
+    const scenPanes = [root.querySelector(".hsd-slide-left")].filter(
+      (el) => el && !el.hidden && el.offsetParent !== null
+    );
+
+    const candidates =
+      qPanes.length > 0
+        ? opts && opts.questionOnly
+          ? qPanes
+          : [...qPanes, ...scenPanes]
+        : scenPanes;
+
+    const dir = deltaDir >= 0 ? 1 : -1;
+    const now = Date.now();
+
     for (let i = 0; i < candidates.length; i += 1) {
       const el = candidates[i];
-      if (el.hidden || el.offsetParent === null) continue;
       const maxS = el.scrollHeight - el.clientHeight;
-      if (maxS > 16) {
-        const stepPx = Math.max(180, Math.round(el.clientHeight * 0.68)) * (deltaDir >= 0 ? 1 : -1);
-        el.scrollBy({ top: stepPx, behavior: "smooth" });
-        setTimeout(() => {
-          const paneKind = el.classList.contains("hsd-slide-left")
-            ? "left"
-            : el.classList.contains("hsd-key-slide-stage")
-            ? "key"
-            : "right";
-          const ratio = maxS > 0 ? el.scrollTop / maxS : 0;
-          broadcastPptSyncMessage({ type: "ppt_sync_scroll", pane: paneKind, ratio });
-        }, 220);
-        return;
-      }
+      if (maxS <= 10) continue;
+
+      const lastTs = Number(el.dataset.targetScrollTs) || 0;
+      const curTop =
+        now - lastTs < 420 && el.dataset.targetScrollTop !== undefined
+          ? Number(el.dataset.targetScrollTop)
+          : el.scrollTop;
+
+      const canScroll = dir > 0 ? curTop < maxS - 5 : curTop > 5;
+      if (!canScroll) continue;
+
+      const stepPx = Math.max(180, Math.round(el.clientHeight * 0.68)) * dir;
+      const nextTop = Math.max(0, Math.min(maxS, curTop + stepPx));
+      el.dataset.targetScrollTop = String(nextTop);
+      el.dataset.targetScrollTs = String(now);
+      el.scrollTo({ top: nextTop, behavior: "smooth" });
+
+      setTimeout(() => {
+        const paneKind = el.classList.contains("hsd-slide-left")
+          ? "left"
+          : el.classList.contains("hsd-key-slide-stage")
+          ? "key"
+          : "right";
+        const ratio = maxS > 0 ? el.scrollTop / maxS : 0;
+        broadcastPptSyncMessage({ type: "ppt_sync_scroll", pane: paneKind, ratio });
+      }, 220);
+      return true;
+    }
+    return false;
+  }
+
+  function stepOrScrollQuestionSlide(deltaDir) {
+    const scrolledQuestion = scrollActiveSlidePanes(deltaDir, { questionOnly: true });
+    if (!scrolledQuestion) {
+      stepHsQuestionSlide(deltaDir >= 0 ? 1 : -1);
     }
   }
 
@@ -13101,7 +13169,7 @@
     const head = make("div", null, "ppt-dock-header");
     head.append(
       make("span", tr("🟦 CLICKER เปลี่ยนข้อคำถาม", "🟦 QUESTION CLICKER"), "ppt-dock-tag"),
-      make("span", tr("ลูกศร ◀ / ▶", "← / → Keys"), "ppt-dock-sub")
+      make("span", tr("ลูกศร ◀ ▶ / ▲ ▼ ยึดตามคำถาม", "Arrow Keys · Question-First"), "ppt-dock-sub")
     );
     dock.appendChild(head);
 
@@ -13798,13 +13866,13 @@
 
       const scUp = make("button", "⬆", "ppt-fs-tool-btn");
       scUp.type = "button";
-      scUp.title = "เลื่อนเนื้อหาในสไลด์ขึ้น";
-      scUp.addEventListener("click", () => scrollActiveSlidePanes(-1));
+      scUp.title = "เลื่อนฝั่งคำถามขึ้นก่อน (หากอยู่บนสุดจะย้อนข้อคำถามก่อนหน้า · ArrowUp)";
+      scUp.addEventListener("click", () => stepOrScrollQuestionSlide(-1));
 
       const scDn = make("button", "⬇", "ppt-fs-tool-btn");
       scDn.type = "button";
-      scDn.title = "เลื่อนเนื้อหาในสไลด์ลง";
-      scDn.addEventListener("click", () => scrollActiveSlidePanes(1));
+      scDn.title = "เลื่อนฝั่งคำถามลงก่อน (หากครบข้อจะไปข้อคำถามถัดไป · ArrowDown)";
+      scDn.addEventListener("click", () => stepOrScrollQuestionSlide(1));
 
       const gridBtn = make("button", "⊞ ทุกสไลด์", "ppt-fs-tool-btn");
       gridBtn.type = "button";
@@ -14064,7 +14132,7 @@
       if (layout === "scenario") {
         const inlineQBtn = make(
           "button",
-          state.hsdHideInlineQInScen ? "👁 แสดงคำถามท้ายโจทย์" : "🙈 ซ่อนคำถามท้ายโจทย์",
+          state.hsdHideInlineQInScen ? "👁 แสดงคำถามหัวสไลด์" : "🙈 ซ่อนคำถามหัวสไลด์",
           "hsd-pane-vis-btn"
         );
         inlineQBtn.type = "button";
@@ -14220,12 +14288,12 @@
       const leftZoomBody = make("div", null, "hsd-box-zoom-body");
       leftZoomBody.setAttribute("data-box-side", "left");
       leftZoomBody.style.zoom = `${(((state.hsdLeftFontPct || 100) / 100) * 0.84).toFixed(4)}`;
-      leftZoomBody.appendChild(buildScenarioPaneContent(cur.caseObj));
       if (layout === "scenario" && !state.hsdHideInlineQInScen) {
-        const qRecapWrap = make("div", null, "hsd-scen-question-inline");
+        const qRecapWrap = make("div", null, "hsd-scen-question-inline is-top-question-lead");
         qRecapWrap.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
         leftZoomBody.appendChild(qRecapWrap);
       }
+      leftZoomBody.appendChild(buildScenarioPaneContent(cur.caseObj));
       leftPane.appendChild(leftZoomBody);
 
       const resizer = make("div", null, `hsd-split-resizer hsd-no-print${isHoriz ? " is-horizontal" : ""}`);
@@ -14662,11 +14730,13 @@
     if (state.pptPopupConnected) {
       const scrollPopUp = make("button", "⬆ เลื่อนจอฉาย", "ppt-title-btn");
       scrollPopUp.type = "button";
-      scrollPopUp.addEventListener("click", () => scrollActiveSlidePanes(-1));
+      scrollPopUp.title = "เลื่อนฝั่งคำถามขึ้นก่อน (หากอยู่บนสุดจะย้อนข้อคำถามก่อนหน้า)";
+      scrollPopUp.addEventListener("click", () => stepOrScrollQuestionSlide(-1));
 
       const scrollPopDn = make("button", "⬇ เลื่อนจอฉาย", "ppt-title-btn");
       scrollPopDn.type = "button";
-      scrollPopDn.addEventListener("click", () => scrollActiveSlidePanes(1));
+      scrollPopDn.title = "เลื่อนฝั่งคำถามลงก่อน (หากครบข้อจะไปข้อคำถามถัดไป)";
+      scrollPopDn.addEventListener("click", () => stepOrScrollQuestionSlide(1));
 
       const closePopBtn = make("button", "✕ ปิดหน้าต่างฉาย", "ppt-title-btn");
       closePopBtn.type = "button";

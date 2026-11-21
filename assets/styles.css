@@ -8285,6 +8285,7 @@ button.ghost-link {
   border-top: 1px solid var(--line);
   padding-top: 12px;
   margin-top: 12px;
+  scroll-margin-top: 96px;
 }
 
 .hsd-question-block:first-of-type {
@@ -12781,6 +12782,15 @@ html[data-theme="dark"] .disc-site-subband {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1.5px dashed var(--line);
+}
+
+.hsd-scen-question-inline.is-top-question-lead {
+  margin-top: 0;
+  margin-bottom: 14px;
+  padding-top: 0;
+  padding-bottom: 12px;
+  border-top: 0;
+  border-bottom: 1.5px dashed var(--line);
 }
 
 .hsd-slide-shell.is-16x9-shell {
