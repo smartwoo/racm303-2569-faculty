@@ -96,6 +96,8 @@
     timer: {
       seq: 0,
       running: false,
+      hasStarted: false,
+      hasConfigured: false,
       durationSec: 300,
       baseRemainingMs: 300000,
       anchorPerfNow: performance.now(),
@@ -201,9 +203,11 @@
       durationSec: state.timer.durationSec || 300,
       pct: Math.max(0, Math.min(100, (remMs / durMs) * 100)),
       formatted: formatMs(remMs),
-      isWarning: remMs > 0 && remMs <= 60000,
-      isUrgent: remMs > 0 && remMs <= 15000,
-      isTimeUp: state.timer.seq > 0 && remMs === 0,
+      isWarning: Boolean(state.timer.hasStarted) && remMs > 0 && remMs <= 60000,
+      isUrgent: Boolean(state.timer.hasStarted) && remMs > 0 && remMs <= 15000,
+      isTimeUp: Boolean(state.timer.hasStarted) && !state.timer.running && remMs === 0,
+      hasStarted: Boolean(state.timer.hasStarted),
+      hasConfigured: Boolean(state.timer.hasConfigured),
       label: state.timer.label || "",
       questionId: state.timer.questionId || ""
     };
@@ -308,11 +312,36 @@
         const wallElapsed = Math.max(0, Date.now() - Number(msg.sentWallMs));
         rem = Math.max(0, rem - wallElapsed);
       }
+      const durSec = Math.max(5, Number(msg.durationSec) || 300);
+      // Do not turn an already-expired historical retained MQTT timer into "หมดเวลา 00:00" when a user freshly opens the page
+      if (isRetained && rem === 0) {
+        state.timer.seq = 0;
+        state.timer.durationSec = durSec;
+        state.timer.baseRemainingMs = durSec * 1000;
+        state.timer.anchorPerfNow = performance.now();
+        state.timer.running = false;
+        state.timer.hasStarted = false;
+        state.timer.hasConfigured = false;
+        state.timer.lastWallMs = Number(msg.sentWallMs) || Date.now();
+        emit("timer", getTimerSnapshot());
+        return;
+      }
       state.timer.seq = Math.max(state.timer.seq + 1, seq);
-      state.timer.durationSec = Math.max(10, Number(msg.durationSec) || 300);
+      state.timer.durationSec = durSec;
       state.timer.baseRemainingMs = rem;
       state.timer.anchorPerfNow = performance.now();
       state.timer.running = Boolean(msg.running) && rem > 0;
+      if (state.timer.running) {
+        state.timer.hasStarted = true;
+        state.timer.hasConfigured = true;
+      } else if (!isRetained) {
+        state.timer.hasStarted = Boolean(msg.hasStarted);
+        state.timer.hasConfigured =
+          msg.hasConfigured !== undefined ? Boolean(msg.hasConfigured) : rem > 0;
+      } else {
+        state.timer.hasStarted = false;
+        state.timer.hasConfigured = Boolean(msg.hasConfigured);
+      }
       state.timer.label = String(msg.label || "จับเวลาอภิปรายกลุ่มย่อย").slice(0, 100);
       state.timer.questionId = String(msg.questionId || "").slice(0, 32);
       state.timer.lastWallMs = Number(msg.sentWallMs) || Date.now();
@@ -713,6 +742,8 @@
     state.timer = {
       seq: 0,
       running: false,
+      hasStarted: false,
+      hasConfigured: false,
       durationSec: 300,
       baseRemainingMs: 300000,
       anchorPerfNow: performance.now(),
@@ -730,12 +761,14 @@
 
   /* ---------- Teacher Timer & Slide Pointer Controls ---------- */
   function startTimer(durationSec, questionId, label) {
-    const sec = Math.max(10, Math.min(3600, Number(durationSec) || state.timer.durationSec || 300));
+    const sec = Math.max(5, Math.min(5400, Number(durationSec) || state.timer.durationSec || 300));
     state.timer.seq += 1;
     state.timer.durationSec = sec;
     state.timer.baseRemainingMs = sec * 1000;
     state.timer.anchorPerfNow = performance.now();
     state.timer.running = true;
+    state.timer.hasStarted = true;
+    state.timer.hasConfigured = true;
     state.timer.chimePlayedForSeq = -1;
     if (questionId !== undefined) state.timer.questionId = questionId;
     if (label !== undefined) state.timer.label = label;
@@ -746,6 +779,8 @@
         type: "timer",
         seq: state.timer.seq,
         running: true,
+        hasStarted: true,
+        hasConfigured: true,
         durationSec: sec,
         remainingMs: sec * 1000,
         questionId: state.timer.questionId,
@@ -767,6 +802,8 @@
       state.timer.baseRemainingMs = nextMs;
       state.timer.anchorPerfNow = performance.now();
       state.timer.running = true;
+      state.timer.hasStarted = true;
+      state.timer.hasConfigured = true;
       state.timer.chimePlayedForSeq = -1;
     }
     publishPacket(
@@ -775,6 +812,8 @@
         type: "timer",
         seq: state.timer.seq,
         running: state.timer.running,
+        hasStarted: state.timer.hasStarted,
+        hasConfigured: state.timer.hasConfigured,
         durationSec: state.timer.durationSec,
         remainingMs: state.timer.baseRemainingMs,
         questionId: state.timer.questionId,
@@ -787,11 +826,14 @@
 
   function addTimerSeconds(deltaSec) {
     const cur = getTimerRemainingMs();
-    const nextMs = Math.max(0, Math.min(3600 * 1000, cur + (Number(deltaSec) || 60) * 1000));
+    const nextMs = Math.max(0, Math.min(5400 * 1000, cur + (Number(deltaSec) || 60) * 1000));
     state.timer.seq += 1;
     state.timer.baseRemainingMs = nextMs;
     state.timer.anchorPerfNow = performance.now();
-    if (nextMs > 0) state.timer.chimePlayedForSeq = -1;
+    if (nextMs > 0) {
+      state.timer.chimePlayedForSeq = -1;
+      state.timer.hasConfigured = true;
+    }
     state.timer.durationSec = Math.max(state.timer.durationSec, Math.ceil(nextMs / 1000));
     publishPacket(
       "timer",
@@ -799,6 +841,8 @@
         type: "timer",
         seq: state.timer.seq,
         running: state.timer.running,
+        hasStarted: state.timer.hasStarted,
+        hasConfigured: state.timer.hasConfigured,
         durationSec: state.timer.durationSec,
         remainingMs: nextMs,
         questionId: state.timer.questionId,
@@ -809,10 +853,12 @@
     emit("timer", getTimerSnapshot());
   }
 
-  function resetTimer(durationSec) {
-    const sec = Math.max(10, Math.min(3600, Number(durationSec) || state.timer.durationSec || 300));
+  function resetTimer(durationSec, isSetReady) {
+    const sec = Math.max(5, Math.min(5400, Number(durationSec) || state.timer.durationSec || 300));
     state.timer.seq += 1;
     state.timer.running = false;
+    state.timer.hasStarted = false;
+    state.timer.hasConfigured = Boolean(isSetReady);
     state.timer.durationSec = sec;
     state.timer.baseRemainingMs = sec * 1000;
     state.timer.anchorPerfNow = performance.now();
@@ -823,6 +869,8 @@
         type: "timer",
         seq: state.timer.seq,
         running: false,
+        hasStarted: false,
+        hasConfigured: Boolean(isSetReady),
         durationSec: sec,
         remainingMs: sec * 1000,
         questionId: state.timer.questionId,

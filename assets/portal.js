@@ -922,17 +922,29 @@
   }
 
   function openHsDiscussion(mod) {
-    state.hsdModule = mod && /^HS[1-6]$/.test(mod) ? mod : "ALL";
+    const cleanMod = mod && /^HS[1-6]$/i.test(mod) ? String(mod).toUpperCase() : "ALL";
+    state.hsdModule = cleanMod;
     state.hsdSlideIdx = 0;
     if ($("hsdModuleSelect")) $("hsdModuleSelect").value = state.hsdModule;
-    switchTab("hs-discussion");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    switchTab("hs-discussion", false);
+    if (window.history && window.history.replaceState) {
+      const nextHash = cleanMod !== "ALL" ? `#hs-discussion-${cleanMod}` : "#hs-discussion";
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+    requestAnimationFrame(() => {
+      const targetEl = $("hsdCasesContainer") || $("panel-hs-discussion");
+      if (targetEl && typeof targetEl.scrollIntoView === "function") {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
   }
 
   const TAB_TO_NAV_CATEGORY = {
     schedule: "schedule-classroom",
     discussion: "schedule-classroom",
-    "hs-discussion": "schedule-classroom",
+    "hs-discussion": "knowledge",
     fieldwork: "fieldwork",
     manual: "knowledge",
     textbooks: "knowledge",
@@ -2383,7 +2395,16 @@
 
     const hsSpecRows = ((SCHED.tableSpec && SCHED.tableSpec.hs) || [])
       .map(
-        (x) => `<tr><td><strong>${escapeHtml(x.code)}</strong></td><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.date)}</td><td><strong>${escapeHtml(x.weight)}</strong></td></tr>`
+        (x) =>
+          `<tr>` +
+          `<td><strong>${escapeHtml(x.code)}</strong></td>` +
+          `<td>${escapeHtml(x.title)}<br>` +
+          `<button type="button" class="spec-hs-jump-link" data-spec-hsd="${escapeHtml(x.code)}">💬 โจทย์อภิปราย ${escapeHtml(x.code)} →</button> ` +
+          `<button type="button" class="spec-hs-jump-link" data-spec-tb="${escapeHtml(x.code)}">📘 บทเรียน ${escapeHtml(x.code)} →</button>` +
+          `</td>` +
+          `<td>${escapeHtml(x.date)}</td>` +
+          `<td><strong>${escapeHtml(x.weight)}</strong></td>` +
+          `</tr>`
       )
       .join("");
 
@@ -2396,18 +2417,18 @@
     wrap.innerHTML = `
       <div class="data-card">
         <h3>ตารางหมุนเวียนอาจารย์ประจำกลุ่มอภิปราย HS1–HS6 (6 กลุ่มย่อย · 169 คน)</h3>
-        <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">เวลาเรียนระบบสุขภาพ: ช่วงเช้า <strong>08.30–12.00 น.</strong> (บรรยาย 08.30–09.30 · กลุ่มย่อย 09.40–12.00) และช่วงบ่าย <strong>13.30–17.00 น.</strong> (บรรยาย 13.30–14.30 · กลุ่มย่อย 14.40–17.00) · หมายเหตุ: เช้าวันอังคารที่ 1 ธ.ค. 2569 (HS4) กลุ่มที่ 6 ย้ายไปใช้ห้อง <strong>2C2-03</strong> ชั่วคราว และช่วงบ่าย (HS5) กลับเข้าห้อง <strong>1C1-07</strong> ตามปกติ</p>
+        <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">เวลาเรียนระบบสุขภาพ: ช่วงเช้า <strong>08.30–12.00 น.</strong> (บรรยาย 08.30–09.30 · กลุ่มย่อย 09.40–12.00) และช่วงบ่าย <strong>13.30–17.00 น.</strong> (บรรยาย 13.30–14.30 · กลุ่มย่อย 14.40–17.00) · คลิกที่หัวคอลัมน์ <strong>HS1–HS6</strong> เพื่อเปิดสไลด์โจทย์อภิปรายของคาบนั้นในคลังความรู้และบทเรียนได้ทันที</p>
         <div class="clean-table-wrap">
           <table class="clean-table">
             <thead>
               <tr>
                 <th>กลุ่มอภิปราย</th>
-                <th>HS1 (26 พ.ย. 08.30–12.00)</th>
-                <th>HS2 (30 พ.ย. 08.30–12.00)</th>
-                <th>HS3 (30 พ.ย. 13.30–17.00)</th>
-                <th>HS4 (1 ธ.ค. 08.30–12.00)</th>
-                <th>HS5 (1 ธ.ค. 13.30–17.00)</th>
-                <th>HS6 (4 ธ.ค. 08.30–12.00)</th>
+                <th>HS1 (26 พ.ย. 08.30–12.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS1">💬 เปิดโจทย์ HS1 →</button></th>
+                <th>HS2 (30 พ.ย. 08.30–12.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS2">💬 เปิดโจทย์ HS2 →</button></th>
+                <th>HS3 (30 พ.ย. 13.30–17.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS3">💬 เปิดโจทย์ HS3 →</button></th>
+                <th>HS4 (1 ธ.ค. 08.30–12.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS4">💬 เปิดโจทย์ HS4 →</button></th>
+                <th>HS5 (1 ธ.ค. 13.30–17.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS5">💬 เปิดโจทย์ HS5 →</button></th>
+                <th>HS6 (4 ธ.ค. 08.30–12.00)<br><button type="button" class="spec-hs-jump-link" data-spec-hsd="HS6">💬 เปิดโจทย์ HS6 →</button></th>
               </tr>
             </thead>
             <tbody>${rotRows}</tbody>
@@ -2418,7 +2439,7 @@
         <h3>สัดส่วนเนื้อหาการสอบภาคทฤษฎีระบบสุขภาพ (HS1–HS6 · สอบ อ. 22 ธ.ค. 2569 แบบ Open Note 1 แผ่น A4 ลายมือ)</h3>
         <div class="clean-table-wrap">
           <table class="clean-table">
-            <thead><tr><th>รหัส</th><th>หัวข้อบทเรียน</th><th>วันเรียน</th><th>น้ำหนัก</th></tr></thead>
+            <thead><tr><th>รหัส</th><th>หัวข้อบทเรียน &amp; ลิงก์คลังความรู้</th><th>วันเรียน</th><th>น้ำหนัก</th></tr></thead>
             <tbody>${hsSpecRows}</tbody>
           </table>
         </div>
@@ -2432,6 +2453,13 @@
           </table>
         </div>
       </div>`;
+
+    wrap.querySelectorAll("[data-spec-hsd]").forEach((btn) => {
+      btn.addEventListener("click", () => openHsDiscussion(btn.dataset.specHsd));
+    });
+    wrap.querySelectorAll("[data-spec-tb]").forEach((btn) => {
+      btn.addEventListener("click", () => openTextbookDoc(btn.dataset.specTb));
+    });
   }
 
   /* ---------- Interactive Calendar Event Detail Popover Modal ---------- */
@@ -6614,15 +6642,19 @@
 
       const [sx, sy] = projectThailandLatLon(geo.lat || 15.0, geo.lon || 101.0);
       const anchor = geo.anchor || "start";
-      const labelX = sx + (geo.dx || 10) - 3;
-      const baseLabelY = sy + (geo.dy || 4) - 6;
-      const pillW = Math.max(68, provText.length * 7.6 + 20);
-      const pillH = 19;
+      const labelX = sx + (geo.dx || 10);
+      const focusedBaselineY = sy + (geo.dy || 4) - 2.5;
+      const pillW = Math.max(82, provText.length * 7.8 + 26);
+      const pillH = 24;
       let pillX = labelX;
       if (anchor === "middle") pillX = labelX - pillW / 2;
       else if (anchor === "end") pillX = labelX - pillW;
-      pillX = Math.max(8, Math.min(432 - pillW, pillX));
-      const pillY = (geo.dy || 4) < -6 ? baseLabelY - 24 : baseLabelY + 5.5;
+      pillX = Math.max(8, Math.min(434 - pillW, pillX));
+      // Leave full vertical clearance for Thai lower vowels (ุ / ู) below baseline and upper tone marks (วรรณยุกต์) above
+      const pillY =
+        (geo.dy || 4) < -6
+          ? Math.max(6, focusedBaselineY - 19 - pillH)
+          : Math.min(674 - pillH, focusedBaselineY + 11.5);
 
       const calloutG = document.createElementNS(svgNS, "g");
       calloutG.setAttribute("class", "th-prov-callout-g");
@@ -6633,14 +6665,14 @@
       rect.setAttribute("y", pillY.toFixed(1));
       rect.setAttribute("width", pillW.toFixed(1));
       rect.setAttribute("height", String(pillH));
-      rect.setAttribute("rx", "9.5");
+      rect.setAttribute("rx", "12");
       rect.setAttribute("fill", pinColor);
       rect.setAttribute("stroke", "#ffffff");
       rect.setAttribute("stroke-width", "1.4");
 
       const txt = document.createElementNS(svgNS, "text");
       txt.setAttribute("x", (pillX + pillW / 2).toFixed(1));
-      txt.setAttribute("y", (pillY + 13.2).toFixed(1));
+      txt.setAttribute("y", (pillY + 15.6).toFixed(1));
       txt.setAttribute("text-anchor", "middle");
       txt.setAttribute("class", "th-prov-callout-txt");
       txt.textContent = `📍 ${provText}`;
@@ -9325,6 +9357,13 @@
         $(id).addEventListener("click", () => printWithCleanTitle(""));
       }
     });
+    const jumpHsdBtn = $("jumpTextbookToHsDiscBtn");
+    if (jumpHsdBtn) {
+      jumpHsdBtn.addEventListener("click", () => {
+        const m = String(state.activeDocId || "HS1").match(/^HS[1-6]/i);
+        openHsDiscussion(m ? m[0].toUpperCase() : "ALL");
+      });
+    }
   }
 
   function renderTextbookReader() {
@@ -9335,6 +9374,7 @@
     const gdocBtn = $("activeTextbookGdocBtn");
     const pdfBtn = $("exportTextbookPdfBtn");
     const docxBtn = $("exportTextbookDocxBtn");
+    const jumpHsdBtn = $("jumpTextbookToHsDiscBtn");
     if (!picker || !prose) return;
 
     const docs = HS.docs || [];
@@ -9361,6 +9401,13 @@
 
     const current = docs.find((d) => d.id === state.activeDocId) || docs[0];
     if (!current) return;
+
+    if (jumpHsdBtn) {
+      const m = String(current.id || "HS1").match(/^HS[1-6]/i);
+      const baseMod = m ? m[0].toUpperCase() : "HS1";
+      jumpHsdBtn.textContent =
+        ROLE === "faculty" ? `💬 สไลด์โจทย์ & เฉลย ${baseMod} →` : `💬 โจทย์อภิปราย ${baseMod} →`;
+    }
 
     if (metaTitle) {
       metaTitle.textContent = `${current.badge} — ${current.sessionInfo || current.subtitle || ""}`;
@@ -9857,6 +9904,8 @@
   const stuLocalTimer = {
     active: false,
     running: false,
+    hasStarted: false,
+    hasConfigured: false,
     durationSec: 300,
     baseRemainingMs: 300000,
     anchorPerfNow: 0,
@@ -9921,15 +9970,17 @@
         durationSec: stuLocalTimer.durationSec || 300,
         formatted: `${mm}:${ss}`,
         pct: Math.max(0, Math.min(100, (remMs / durMs) * 100)),
-        isWarning: totalSec > 15 && totalSec <= 60,
-        isUrgent: totalSec > 0 && totalSec <= 15,
-        isTimeUp: remMs === 0 && stuLocalTimer.chimePlayed
+        isWarning: Boolean(stuLocalTimer.hasStarted) && totalSec > 15 && totalSec <= 60,
+        isUrgent: Boolean(stuLocalTimer.hasStarted) && totalSec > 0 && totalSec <= 15,
+        isTimeUp: Boolean(stuLocalTimer.hasStarted) && !stuLocalTimer.running && remMs === 0,
+        hasStarted: Boolean(stuLocalTimer.hasStarted),
+        hasConfigured: Boolean(stuLocalTimer.hasConfigured)
       };
     }
     if (snapOpt) return snapOpt;
     return LIVE
       ? LIVE.getTimerSnapshot()
-      : { running: false, durationSec: 300, formatted: "05:00", pct: 100 };
+      : { running: false, hasStarted: false, hasConfigured: false, durationSec: 300, formatted: "05:00", pct: 100 };
   }
 
   const slideTimerCtrl = {
@@ -9944,6 +9995,8 @@
         stuLocalTimer.baseRemainingMs = sec * 1000;
         stuLocalTimer.anchorPerfNow = performance.now();
         stuLocalTimer.running = true;
+        stuLocalTimer.hasStarted = true;
+        stuLocalTimer.hasConfigured = true;
         stuLocalTimer.chimePlayed = false;
         ensureStuLocalTimerTicker();
       }
@@ -9952,10 +10005,12 @@
     setReady(durationSec) {
       const sec = Math.max(5, Math.min(5400, Math.round(Number(durationSec) || 300)));
       if (ROLE === "faculty" && LIVE) {
-        LIVE.resetTimer(sec);
+        LIVE.resetTimer(sec, true);
       } else {
         stuLocalTimer.active = true;
         stuLocalTimer.running = false;
+        stuLocalTimer.hasStarted = false;
+        stuLocalTimer.hasConfigured = true;
         stuLocalTimer.durationSec = sec;
         stuLocalTimer.baseRemainingMs = sec * 1000;
         stuLocalTimer.chimePlayed = false;
@@ -9981,6 +10036,8 @@
           stuLocalTimer.baseRemainingMs = rem > 0 ? rem : (stuLocalTimer.durationSec || 300) * 1000;
           stuLocalTimer.anchorPerfNow = performance.now();
           stuLocalTimer.running = true;
+          stuLocalTimer.hasStarted = true;
+          stuLocalTimer.hasConfigured = true;
           stuLocalTimer.chimePlayed = false;
           ensureStuLocalTimerTicker();
         }
@@ -10003,27 +10060,52 @@
         stuLocalTimer.baseRemainingMs = nextMs;
         stuLocalTimer.anchorPerfNow = performance.now();
         stuLocalTimer.durationSec = Math.max(stuLocalTimer.durationSec, Math.ceil(nextMs / 1000) || 60);
-        if (nextMs > 0) stuLocalTimer.chimePlayed = false;
+        if (nextMs > 0) {
+          stuLocalTimer.chimePlayed = false;
+          stuLocalTimer.hasConfigured = true;
+        }
       }
       syncTimerWidgetDOM();
     },
     reset() {
       const snap = getEffectiveSlideTimerSnapshot();
-      this.setReady(snap.durationSec || 300);
+      const dur = snap.durationSec || 300;
+      if (ROLE === "faculty" && LIVE) {
+        LIVE.resetTimer(dur, false);
+      } else {
+        stuLocalTimer.active = false;
+        stuLocalTimer.running = false;
+        stuLocalTimer.hasStarted = false;
+        stuLocalTimer.hasConfigured = false;
+        stuLocalTimer.durationSec = dur;
+        stuLocalTimer.baseRemainingMs = dur * 1000;
+        stuLocalTimer.chimePlayed = false;
+      }
+      syncTimerWidgetDOM();
     },
     syncWithRoom() {
       stuLocalTimer.active = false;
       stuLocalTimer.running = false;
+      stuLocalTimer.hasStarted = false;
+      stuLocalTimer.hasConfigured = false;
       syncTimerWidgetDOM();
     }
   };
 
   function syncTimerWidgetDOM(snap) {
     const s = getEffectiveSlideTimerSnapshot(snap);
+    const isIdleUnset = !s.running && !s.isTimeUp && !s.hasConfigured && !s.hasStarted;
 
     document.querySelectorAll("[data-ppt-mirror-timer]").forEach((el) => {
-      const suffix = el.dataset.pptHasCaret === "1" ? " ▾" : "";
-      el.textContent = `⏱ ${s.isTimeUp ? "หมดเวลา 00:00" : s.formatted}${suffix}`;
+      const hasCaret = el.dataset.pptHasCaret === "1";
+      const suffix = hasCaret ? " ▾" : "";
+      if (s.isTimeUp) {
+        el.textContent = `⏱ หมดเวลา 00:00${suffix}`;
+      } else if (isIdleUnset) {
+        el.textContent = hasCaret ? "⏱ Set Timer ▾" : "⏱ Set Timer";
+      } else {
+        el.textContent = `⏱ ${s.formatted}${suffix}`;
+      }
       el.classList.toggle("is-running", Boolean(s.running));
       el.classList.toggle("is-warning", Boolean(s.isWarning));
       el.classList.toggle("is-urgent", Boolean(s.isUrgent));
@@ -10039,7 +10121,9 @@
         ? "⏰ หมดเวลาอภิปราย!"
         : s.running
         ? "⏱ กำลังนับถอยหลังสด"
-        : "⏱ นาฬิกาจับเวลาสไลด์ (กดตั้งเวลาได้)";
+        : s.hasConfigured || s.hasStarted
+        ? `⏱ ตั้งเวลาไว้ ${s.formatted} (กด ▶ เพื่อเริ่ม)`
+        : "⏱ Set Timer · ตั้งเวลานับถอยหลัง";
     });
 
     document.querySelectorAll("[data-ppt-timer-playbtn]").forEach((el) => {
@@ -10076,7 +10160,9 @@
         ? "หมดเวลาอภิปราย!"
         : s.running
         ? "กำลังจับเวลาสด"
-        : "นาฬิกาห้องกลุ่ม";
+        : s.hasConfigured || s.hasStarted
+        ? "พร้อมเริ่มนับเวลา"
+        : "กดตั้งเวลา (Set Timer)";
     }
     if (bar) {
       bar.style.width = `${s.pct}%`;
@@ -12388,7 +12474,7 @@
 
   function buildInteractiveSlideHeaderTimerDOM() {
     if (state.isPptSlideSharePopup) {
-      const timerBadge = make("span", "⏱ 05:00", "ppt-sm-timer");
+      const timerBadge = make("span", "⏱ Set Timer", "ppt-sm-timer");
       timerBadge.setAttribute("data-ppt-mirror-timer", "1");
       return timerBadge;
     }
@@ -12405,7 +12491,7 @@
       slideTimerCtrl.togglePause();
     });
 
-    const clockBtn = make("button", "⏱ 05:00 ▾", "ppt-sm-timer-btn");
+    const clockBtn = make("button", "⏱ Set Timer ▾", "ppt-sm-timer-btn");
     clockBtn.type = "button";
     clockBtn.setAttribute("data-ppt-mirror-timer", "1");
     clockBtn.dataset.pptHasCaret = "1";
@@ -12444,7 +12530,7 @@
     card.setAttribute("data-ppt-timer-card", "1");
 
     const top = make("div", null, "ppt-bst-top");
-    const statusLbl = make("span", "⏱ นาฬิกานับถอยหลัง");
+    const statusLbl = make("span", "⏱ Set Timer · ตั้งเวลานับถอยหลัง");
     statusLbl.setAttribute("data-ppt-timer-status", "1");
     top.appendChild(statusLbl);
 
@@ -12541,7 +12627,7 @@
     const head = make("div", null, "ppt-dock-header");
     head.append(
       make("span", "⏱ COUNTDOWN TIMER", "ppt-dock-tag"),
-      make("span", "คลิกตัวเลขตั้งเวลาได้", "ppt-dock-sub")
+      make("span", "คลิกตั้งเวลาได้", "ppt-dock-sub")
     );
     dock.appendChild(head);
 
@@ -12554,7 +12640,7 @@
     playBtn.addEventListener("click", () => slideTimerCtrl.togglePause());
 
     const anchor = make("div", null, `ppt-timer-pop-anchor${isDropUp ? " is-drop-up" : ""}`);
-    const clockBtn = make("button", "⏱ 05:00 ▾", "ppt-timer-dock-clock-btn");
+    const clockBtn = make("button", "⏱ Set Timer ▾", "ppt-timer-dock-clock-btn");
     clockBtn.type = "button";
     clockBtn.setAttribute("data-ppt-mirror-timer", "1");
     clockBtn.dataset.pptHasCaret = "1";
@@ -13413,7 +13499,8 @@
     zSlider.addEventListener("input", () => {
       state.hsdPptZoomMode = "manual";
       state.hsdPptZoomPct = Number(zSlider.value) || 100;
-      zPctLbl.textContent = `${state.hsdPptZoomPct}%`;
+      zPctBtn.textContent = `${state.hsdPptZoomPct}% ↺`;
+      zPctBtn.setAttribute("aria-pressed", "false");
       const sheetEl = canvasStage.querySelector(".ppt-slide-sheet");
       if (sheetEl) fitSlideSheetToStage(canvasStage, sheetEl, true);
     });
@@ -13426,24 +13513,46 @@
       renderHsDiscussionView();
     });
 
-    const zPctLbl = make(
-      "span",
-      state.hsdPptZoomMode === "fit" ? "พอดีจอ" : `${state.hsdPptZoomPct}%`
+    const zPctBtn = make(
+      "button",
+      state.hsdPptZoomMode === "fit" ? "พอดีจอ" : `${state.hsdPptZoomPct}% ↺`,
+      "ppt-status-btn"
     );
-    zPctLbl.style.minWidth = "44px";
-    zPctLbl.style.textAlign = "center";
-
-    const zFitBtn = make("button", "⤢", "ppt-status-btn");
-    zFitBtn.type = "button";
-    zFitBtn.title = "ปรับขนาดสไลด์ 16:9 ให้พอดีหน้าต่าง (Fit to Window)";
-    zFitBtn.setAttribute("aria-pressed", state.hsdPptZoomMode === "fit" ? "true" : "false");
-    zFitBtn.addEventListener("click", () => {
-      state.hsdPptZoomMode = "fit";
-      state.hsdPptZoomPct = 100;
+    zPctBtn.type = "button";
+    zPctBtn.style.minWidth = "52px";
+    zPctBtn.title =
+      state.hsdPptZoomMode === "fit"
+        ? "คลิกเพื่อขยายพื้นที่สไลด์เต็มกรอบ (ซ่อน/แสดงแถบสไลด์ซ้าย) และจัดสไลด์ให้อยู่กึ่งกลางจอ"
+        : "คลิกเพื่อรีเซ็ตระดับการซูมกลับเป็น พอดีจอ (100%)";
+    zPctBtn.setAttribute(
+      "aria-pressed",
+      state.hsdPptZoomMode === "fit" && !state.hsdPptShowThumbs ? "true" : "false"
+    );
+    zPctBtn.addEventListener("click", () => {
+      if (state.hsdPptZoomMode !== "fit") {
+        state.hsdPptZoomMode = "fit";
+        state.hsdPptZoomPct = 100;
+      } else {
+        state.hsdPptShowThumbs = !state.hsdPptShowThumbs;
+        try {
+          localStorage.setItem("racm303_ppt_thumbs", state.hsdPptShowThumbs ? "1" : "0");
+        } catch (_) {}
+      }
       renderHsDiscussionView();
+      requestAnimationFrame(() => {
+        const activeShell = container.querySelector(".hsd-slide-shell");
+        if (activeShell && typeof activeShell.scrollIntoView === "function") {
+          activeShell.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
     });
 
-    zoomGroup.append(zMinus, zSlider, zPlus, zPctLbl, zFitBtn);
+    const zExpandBtn = make("button", "⤢", "ppt-status-btn is-slideshow-icon");
+    zExpandBtn.type = "button";
+    zExpandBtn.title = "ขยายสไลด์เต็มหน้าจอ 16:9 (Full Screen Slide Show · F5)";
+    zExpandBtn.addEventListener("click", () => enterPptFullscreenShow());
+
+    zoomGroup.append(zMinus, zSlider, zPlus, zPctBtn, zExpandBtn);
     stRight.append(thumbToggle, notesToggle, normalViewBtn, sorterViewBtn, popBarBtn, showBarBtn, zoomGroup);
     statusBar.append(stLeft, stRight);
     shell.appendChild(statusBar);
@@ -15704,6 +15813,25 @@
     }
 
     const matRow = make("div", null, "cshp-materials-grid");
+    const hoverHsMod =
+      session.hsModule || (/^HS[1-6]$/i.test(session.docLink || "") ? String(session.docLink).toUpperCase() : "");
+
+    if (hoverHsMod && !isHol) {
+      const hsdJumpBtn = make(
+        "button",
+        ROLE === "faculty"
+          ? `💬 สไลด์โจทย์ & เฉลย Discussion (${hoverHsMod}) →`
+          : `💬 สไลด์โจทย์ & ใบงาน Discussion (${hoverHsMod}) →`,
+        "cal-mat-btn is-hsd-jump"
+      );
+      hsdJumpBtn.type = "button";
+      hsdJumpBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        hideCalendarHoverPopover();
+        openHsDiscussion(hoverHsMod);
+      });
+      matRow.appendChild(hsdJumpBtn);
+    }
 
     if (docInfo && !isHol) {
       const docBtn = make("button", docInfo.shortLabel, "cal-mat-btn is-doc-ready");
@@ -18639,9 +18767,9 @@
     // Primary Category Hierarchy + Secondary Sub-tabs (Cohesive TH / EN)
     const primaryCatMap = {
       "schedule-classroom": {
-        title: ROLE === "faculty" ? "Schedule & Classrooms" : "Schedule & Classrooms",
-        pill: "3 Sections",
-        sub: ROLE === "faculty" ? "Teaching Calendar · 6 Groups · HS Cases & Key" : "Calendar · 6 Small Groups · HS Case Studio"
+        title: "Schedule & Classrooms",
+        pill: "2 Sections",
+        sub: ROLE === "faculty" ? "Teaching Calendar & Slides · 6 Small Groups" : "Course Calendar · 6 Small-Group Rooms"
       },
       fieldwork: {
         title: "Fieldwork Groups",
@@ -18650,8 +18778,11 @@
       },
       knowledge: {
         title: "Knowledge Content",
-        pill: ROLE === "faculty" ? "4 Sections" : "3 Sections",
-        sub: ROLE === "faculty" ? "Manual · HS1–6 · Practice · Instructor Guide" : "Course Manual · HS1–6 Study · 82 Practice Qs"
+        pill: ROLE === "faculty" ? "5 Sections" : "4 Sections",
+        sub:
+          ROLE === "faculty"
+            ? "Manual · HS1–6 · Case Studio & Key · Practice · Guide"
+            : "Course Manual · HS1–6 Study · Case Studio · 82 Practice Qs"
       },
       admin: {
         title: "Course Admin",

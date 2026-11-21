@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>(function(){try{var t=localStorage.getItem("racm303_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");var l=localStorage.getItem("racm303_lang");if(l==="en"){document.documentElement.lang="en";document.documentElement.setAttribute("data-lang","en");}}catch(_){}})();</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20261121f">
+  <link rel="stylesheet" href="assets/styles.css?v=20261121g">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -48,16 +48,16 @@
           <button class="nav-scroll-btn is-left" type="button" aria-label="เลื่อนหมวดหมู่ไปทางซ้าย" hidden>‹</button>
           <div class="nav-primary-bar" id="primaryCategoryBar" role="menubar" aria-label="หมวดเนื้อหาหลักสำหรับคณาจารย์">
             <button class="nav-group-btn" type="button" data-nav-cat="schedule-classroom" aria-expanded="true">
-              <span class="ngb-top"><span class="ngb-ico">📅</span><span class="ngb-title">ตารางสอนและห้องเรียน</span><span class="ngb-pill">3 หมวด</span></span>
-              <span class="ngb-sub">ปฏิทินสอน · ผัง 6 กลุ่ม · โจทย์และเฉลย HS</span>
+              <span class="ngb-top"><span class="ngb-ico">📅</span><span class="ngb-title">ตารางสอนและห้องเรียน</span><span class="ngb-pill">2 หมวด</span></span>
+              <span class="ngb-sub">ปฏิทินสอนและสไลด์ · ผังห้องเรียน 6 กลุ่ม</span>
             </button>
             <button class="nav-group-btn" type="button" data-nav-cat="fieldwork" aria-expanded="false">
               <span class="ngb-top"><span class="ngb-ico">🏥</span><span class="ngb-title">กลุ่มพื้นที่ภาคสนาม</span><span class="ngb-pill">9 แห่ง</span></span>
               <span class="ngb-sub">โรงพยาบาลภาคสนาม · ที่ปรึกษา · แผนที่ 3D</span>
             </button>
             <button class="nav-group-btn" type="button" data-nav-cat="knowledge" aria-expanded="false">
-              <span class="ngb-top"><span class="ngb-ico">📚</span><span class="ngb-title">คลังความรู้และบทเรียน</span><span class="ngb-pill">4 หมวด</span></span>
-              <span class="ngb-sub">คู่มือวิชา · HS1–6 · โจทย์ · คู่มือผู้สอน</span>
+              <span class="ngb-top"><span class="ngb-ico">📚</span><span class="ngb-title">คลังความรู้และบทเรียน</span><span class="ngb-pill">5 หมวด</span></span>
+              <span class="ngb-sub">คู่มือวิชา · HS1–6 · อภิปราย &amp; เฉลย · โจทย์ · คู่มือผู้สอน</span>
             </button>
             <button class="nav-group-btn" type="button" data-nav-cat="admin" aria-expanded="false">
               <span class="ngb-top"><span class="ngb-ico">🗂️</span><span class="ngb-title">บริหารและธุรการ</span><span class="ngb-pill" id="adminGroupCatPill">3 หมวด</span></span>
@@ -74,10 +74,10 @@
             <nav class="nav-tabs" id="secondaryNavTabs" role="tablist" aria-label="หมวดเนื้อหาย่อยสำหรับคณาจารย์">
               <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" data-nav-cat="schedule-classroom" aria-selected="true" type="button">ปฏิทินสอนและสไลด์</button>
               <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" data-nav-cat="schedule-classroom" aria-selected="false" type="button">ผังกลุ่มและห้องเรียน <span class="tab-count">6 กลุ่ม</span></button>
-              <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" data-nav-cat="schedule-classroom" aria-selected="false" type="button">อภิปรายกรณีศึกษาและเฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
               <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" data-nav-cat="fieldwork" aria-selected="false" type="button" hidden>กลุ่มพื้นที่ภาคสนาม <span class="tab-count">9 แห่ง</span></button>
               <button class="nav-tab" id="fTabManual" role="tab" data-tab="manual" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คู่มือรายวิชา 2569 <span class="tab-count">17 บท</span></button>
               <button class="nav-tab" id="fTabTextbooks" role="tab" data-tab="textbooks" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>บทเรียนระบบสุขภาพ <span class="tab-count">HS1–HS6</span></button>
+              <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>อภิปรายกรณีศึกษาและเฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
               <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คำศัพท์และโจทย์ฝึกหัด <span class="tab-count">82 ข้อ</span></button>
               <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คู่มือผู้สอนและต้นฉบับ</button>
               <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" data-nav-cat="admin" aria-selected="false" type="button" hidden>ระบบรับงานและ E-learning</button>
@@ -712,6 +712,7 @@
           <p>ฉบับเดียวกับที่นักศึกษาใช้อ่านเตรียมตัวก่อนเข้าอภิปรายกลุ่มย่อยและสอบ Open Note พร้อมปุ่มเปิด Google Docs ต้นฉบับและส่งออกเป็น PDF / Word (.docx)</p>
         </div>
         <div class="header-actions">
+          <button class="btn primary" id="jumpTextbookToHsDiscBtn" type="button">💬 สไลด์โจทย์ &amp; เฉลย HS1 →</button>
           <button class="btn" id="toggleAllAnswersBtn" type="button">เปิดแนวคำตอบทั้งหมด</button>
           <a class="btn teal" id="activeTextbookGdocBtn" href="#" target="_blank" rel="noopener" hidden>แก้ไข/ดูใน Google Docs ↗</a>
           <a class="btn pdf-red" id="exportTextbookPdfBtn" href="exports/pdf/HS1.pdf" download="RACM303_HS1.pdf" title="ส่งออกบทเรียนนี้เป็นไฟล์ PDF"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/></svg>Export as PDF</a>
@@ -822,7 +823,7 @@
   <script>window.PORTAL_ROLE = "faculty";</script>
   <script src="assets/vendor/mqtt.min.js?v=20261120w"></script>
   <script src="assets/vendor/peerjs.min.js?v=20261120w"></script>
-  <script src="assets/live_classroom.js?v=20261120w"></script>
+  <script src="assets/live_classroom.js?v=20261121g"></script>
   <script src="assets/data_schedule.js?v=20261120w"></script>
   <script src="assets/data_roster.js?v=20261120w"></script>
   <script src="assets/data_manual.js?v=20261120w"></script>
@@ -831,6 +832,6 @@
   <script src="assets/data_hs_discussion_key.js?v=20261120w"></script>
   <script src="assets/data_faculty.js?v=20261120w"></script>
   <script src="assets/interactive_qa.js?v=20261121d"></script>
-  <script src="assets/portal.js?v=20261121f"></script>
+  <script src="assets/portal.js?v=20261121g"></script>
 </body>
 </html>

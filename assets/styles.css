@@ -12527,7 +12527,7 @@ html[data-theme="dark"] .disc-site-subband {
 
 .th-prov-callout-txt {
   font-family: var(--font-display);
-  font-size: 12.5px;
+  font-size: 11.6px;
   font-weight: 800;
   fill: #ffffff;
   letter-spacing: 0.01em;
@@ -15795,9 +15795,24 @@ html[data-theme="dark"] .ppt-launch-win-btn {
   bottom: calc(100% + 26px) !important;
 }
 
+.ppt-slide-sheet {
+  isolation: isolate;
+  z-index: 1;
+}
+
 .ppt-slide-master-head {
   position: relative;
   z-index: 60;
+}
+
+.ppt-fs-grid-backdrop {
+  z-index: 120 !important;
+  padding-bottom: 120px !important;
+}
+
+.ppt-fs-control-bar {
+  position: relative;
+  z-index: 140 !important;
 }
 
 .ppt-ribbon .ppt-q-select {
@@ -15806,6 +15821,39 @@ html[data-theme="dark"] .ppt-launch-win-btn {
 
 .ppt-ribbon .ppt-big-btn {
   padding: 5px 9px;
+}
+
+.cal-mat-btn.is-hsd-jump {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #002d72 0%, #0b46a6 100%);
+  color: #ffffff !important;
+  border: 1px solid #0b46a6;
+}
+
+.cal-mat-btn.is-hsd-jump:hover {
+  filter: brightness(1.08);
+}
+
+.spec-hs-jump-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(11, 70, 166, 0.28);
+  background: #eff6ff;
+  color: #0b46a6;
+  font-family: var(--font-display);
+  font-size: 11.8px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+  text-decoration: none;
+}
+
+.spec-hs-jump-link:hover {
+  background: #dbeafe;
+  border-color: #2563eb;
 }
 
 /* Timer Dock in Centered Control Panel */
