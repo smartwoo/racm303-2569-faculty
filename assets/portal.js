@@ -3364,12 +3364,122 @@
     }
   }
 
-  function renderRosterMiniChip(s) {
+  function hexToRgbObj(hex) {
+    const clean = String(hex || "#007aff").replace("#", "").trim();
+    const full =
+      clean.length === 3
+        ? clean.split("").map((c) => c + c).join("")
+        : clean.padEnd(6, "0").slice(0, 6);
+    const num = parseInt(full, 16);
+    if (Number.isNaN(num)) return { r: 0, g: 122, b: 255 };
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  }
+
+  function hexToRgbTuple(hex) {
+    const { r, g, b } = hexToRgbObj(hex);
+    return `${r}, ${g}, ${b}`;
+  }
+
+  function hexToHsl(hex) {
+    let { r, g, b } = hexToRgbObj(hex);
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h *= 60;
+    }
+    return { h, s: s * 100, l: l * 100 };
+  }
+
+  function hslToHex(h, s, l) {
+    const hh = ((h % 360) + 360) % 360;
+    const ss = Math.max(0, Math.min(100, s)) / 100;
+    const ll = Math.max(0, Math.min(100, l)) / 100;
+    const c = (1 - Math.abs(2 * ll - 1)) * ss;
+    const x = c * (1 - Math.abs(((hh / 60) % 2) - 1));
+    const m = ll - c / 2;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    if (hh < 60) {
+      r = c;
+      g = x;
+    } else if (hh < 120) {
+      r = x;
+      g = c;
+    } else if (hh < 180) {
+      g = c;
+      b = x;
+    } else if (hh < 240) {
+      g = x;
+      b = c;
+    } else if (hh < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function shiftColorLightness(hex, dL, dH = 0) {
+    const { h, s, l } = hexToHsl(hex);
+    const sClamped = Math.max(66, Math.min(94, s));
+    const nextL = Math.max(20, Math.min(72, l + dL));
+    return hslToHex(h + dH, sClamped, nextL);
+  }
+
+  function buildTeamGradientRamp(baseHex, steps, opts = {}) {
+    const count = Math.max(1, Number(steps) || 1);
+    const { h, s } = hexToHsl(baseHex);
+    const sBase = Math.max(68, Math.min(90, s));
+    const isCyanTeal = h >= 152 && h <= 198;
+    const isGreenGold = h >= 42 && h < 152;
+    const lightStart = opts.lightStart ?? (isCyanTeal ? 44 : isGreenGold ? 48 : 61);
+    const lightEnd = opts.lightEnd ?? (isCyanTeal ? 24 : isGreenGold ? 25 : 34);
+    const hueSpan = opts.hueSpan ?? 16;
+    if (count === 1) return [hslToHex(h, sBase, (lightStart + lightEnd) / 2)];
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const t = i / (count - 1);
+      const curH = h - hueSpan / 2 + t * hueSpan;
+      const curS = Math.min(94, sBase + Math.sin(t * Math.PI) * 5);
+      const curL = lightStart + t * (lightEnd - lightStart);
+      out.push(hslToHex(curH, curS, curL));
+    }
+    return out;
+  }
+
+  function renderRosterMiniChip(s, accentOverride) {
     const siteId = getSiteIdByAreaName(s.area);
     const parts = getStudentNameParts(s);
     const chip = make("button", null, `gsorter-member-chip chip-site-${siteId}`);
     chip.type = "button";
     if (state.myStudent && state.myStudent.id === s.id) chip.classList.add("is-mine");
+    if (accentOverride) {
+      chip.style.setProperty("--site-dot", accentOverride);
+      chip.style.setProperty("--site-border", `rgba(${hexToRgbTuple(accentOverride)}, 0.36)`);
+    }
     const effNick = getEffectiveNickname(s);
     chip.title = `${s.id} ${s.fullName}${effNick ? " (" + effNick + ")" : ""} · พื้นที่ ${siteId}. ${s.area}`;
 
@@ -3413,11 +3523,54 @@
     grouped.forEach(({ site, list }) => {
       if (!list.length) return;
       list.sort((a, b) => compareTH(a.id, b.id));
+      const baseColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff";
+      const memberRamp = buildTeamGradientRamp(baseColor, list.length, { hueSpan: 10 });
       const subBlock = make("div", null, `gsorter-site-subgroup chip-site-${site.id}`);
+      subBlock.style.setProperty("--sub-rgb", hexToRgbTuple(baseColor));
       const subHead = make("div", null, "gsorter-subgroup-head");
       subHead.innerHTML = `<span class="area-sub-pill sm area-site-${site.id}"><i class="area-dot"></i>${escapeHtml(site.shortName)} (${list.length})</span>`;
       const pillsWrap = make("div", null, "gsorter-subgroup-pills");
-      list.forEach((s) => pillsWrap.appendChild(renderRosterMiniChip(s)));
+      list.forEach((s, mIdx) => pillsWrap.appendChild(renderRosterMiniChip(s, memberRamp[mIdx])));
+      subBlock.append(subHead, pillsWrap);
+      containerEl.appendChild(subBlock);
+    });
+  }
+
+  function renderFieldworkGradGroupedMiniChips(students, containerEl, siteColor) {
+    const byDisc = new Map();
+    (SCHED.hsGroups || []).forEach((g) => byDisc.set(g.id, { grp: g, list: [] }));
+    (students || []).forEach((s) => {
+      if (!byDisc.has(s.disc)) {
+        byDisc.set(s.disc, { grp: { id: s.disc, defaultRoom: "" }, list: [] });
+      }
+      byDisc.get(s.disc).list.push(s);
+    });
+
+    const entries = [];
+    byDisc.forEach((val) => {
+      if (val.list.length) entries.push(val);
+    });
+    const ramp = buildTeamGradientRamp(siteColor || "#007aff", entries.length);
+
+    entries.forEach(({ grp, list }, idx) => {
+      list.sort((a, b) => compareTH(a.id, b.id));
+      const stepColor = ramp[idx] || siteColor || "#007aff";
+      const stepRgb = hexToRgbTuple(stepColor);
+      const gradLight = shiftColorLightness(stepColor, 7, -3);
+      const gradDeep = shiftColorLightness(stepColor, -9, 3);
+      const roomShort = grp.defaultRoom ? ` · ${grp.defaultRoom.split(" ")[0]}` : "";
+
+      const subBlock = make("div", null, "gsorter-site-subgroup is-grad-step");
+      subBlock.style.setProperty("--sub-color", stepColor);
+      subBlock.style.setProperty("--sub-rgb", stepRgb);
+      subBlock.style.setProperty("--sub-grad-light", gradLight);
+      subBlock.style.setProperty("--sub-grad-deep", gradDeep);
+
+      const subHead = make("div", null, "gsorter-subgroup-head");
+      subHead.innerHTML = `<span class="grad-disc-pill"><span class="grad-disc-num">G${escapeHtml(String(grp.id))}</span><span>${escapeHtml(tr("กลุ่ม", "Group"))} ${escapeHtml(String(grp.id))}${escapeHtml(roomShort)} (${list.length})</span></span>`;
+
+      const pillsWrap = make("div", null, "gsorter-subgroup-pills");
+      list.forEach((s) => pillsWrap.appendChild(renderRosterMiniChip(s, stepColor)));
       subBlock.append(subHead, pillsWrap);
       containerEl.appendChild(subBlock);
     });
@@ -3540,9 +3693,12 @@
           card.appendChild(make("p", `ผู้ประสานงาน: ${site.staffRef}`, "gsorter-staff-line"));
         }
 
-        const mosaic = make("div", null, "gsorter-avatar-mosaic");
-        (hasFilter ? matched : allMembers).forEach((s) => mosaic.appendChild(renderRosterMiniChip(s)));
-        if (hasFilter && !matched.length) {
+        const mosaic = make("div", null, "gsorter-avatar-mosaic is-site-grouped");
+        const toShow = hasFilter ? matched : allMembers;
+        const sitePinColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff";
+        if (toShow.length) {
+          renderFieldworkGradGroupedMiniChips(toShow, mosaic, sitePinColor);
+        } else if (hasFilter) {
           mosaic.appendChild(make("span", "ไม่มีสมาชิกที่ตรงกับคำค้นในพื้นที่นี้", "gsorter-empty-note"));
         }
         card.appendChild(mosaic);
@@ -3989,12 +4145,15 @@
     9: "อุ้มผาง"
   };
 
-  function buildFormationPlayerNode(s, mode, rowIdx, colIdx) {
+  function buildFormationPlayerNode(s, mode, rowIdx, colIdx, overrideColor) {
     const siteId = getSiteIdByAreaName(s.area);
     const nodeColor =
-      mode === "discussion"
+      overrideColor ||
+      (mode === "discussion"
         ? (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[siteId]) || "#007aff"
-        : DISC_GROUP_COLORS[s.disc] || "#007aff";
+        : DISC_GROUP_COLORS[s.disc] || "#007aff");
+    const nodeGradLight = shiftColorLightness(nodeColor, 7, -3);
+    const nodeGradDeep = shiftColorLightness(nodeColor, -10, 3);
     const parts = getStudentNameParts(s);
     const isMine = state.myStudent && state.myStudent.id === s.id;
 
@@ -4002,6 +4161,9 @@
     btn.type = "button";
     btn.style.setProperty("--fm-delay", `${rowIdx * 45 + colIdx * 22}ms`);
     btn.style.setProperty("--node-color", nodeColor);
+    btn.style.setProperty("--node-rgb", hexToRgbTuple(nodeColor));
+    btn.style.setProperty("--node-grad-light", nodeGradLight);
+    btn.style.setProperty("--node-grad-deep", nodeGradDeep);
     const effNick = getEffectiveNickname(s);
     btn.title = `${s.id} ${s.fullName}${effNick ? " (" + effNick + ")" : ""} · Discussion กลุ่ม ${s.disc} · พื้นที่ ${siteId}.${s.area}`;
 
@@ -4060,7 +4222,7 @@
     return svg;
   }
 
-  function buildFormationSubgroupPods(sortedMembers, mode) {
+  function buildFormationSubgroupPods(sortedMembers, mode, teamColor) {
     const pods = [];
     if (mode === "discussion") {
       const bySite = new Map();
@@ -4073,11 +4235,17 @@
       });
       bySite.forEach(({ site, list }) => {
         if (!list.length) return;
+        const podColor = (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff";
+        const memberColors = buildTeamGradientRamp(podColor, list.length, { hueSpan: 10 });
         pods.push({
           key: `site-${site.id}`,
           badgeText: String(site.id),
           titleText: site.shortName,
-          color: (typeof SITE_PIN_COLORS !== "undefined" && SITE_PIN_COLORS[site.id]) || "#007aff",
+          color: podColor,
+          rgb: hexToRgbTuple(podColor),
+          gradLight: shiftColorLightness(podColor, 8, -3),
+          gradDeep: shiftColorLightness(podColor, -11, 3),
+          memberColors,
           members: list
         });
       });
@@ -4090,14 +4258,29 @@
         }
         byDisc.get(s.disc).list.push(s);
       });
-      byDisc.forEach(({ grp, list }) => {
-        if (!list.length) return;
+      const rawEntries = [];
+      byDisc.forEach((val) => {
+        if (val.list.length) rawEntries.push(val);
+      });
+      const podRamp = buildTeamGradientRamp(teamColor || "#007aff", rawEntries.length);
+      rawEntries.forEach(({ grp, list }, idx) => {
         const roomShort = grp.defaultRoom ? ` · ${grp.defaultRoom.split(" ")[0]}` : "";
+        const podColor = podRamp[idx] || teamColor || "#007aff";
+        const podHsl = hexToHsl(podColor);
+        const memberColors = buildTeamGradientRamp(podColor, list.length, {
+          lightStart: Math.min(64, podHsl.l + 5),
+          lightEnd: Math.max(23, podHsl.l - 5),
+          hueSpan: 6
+        });
         pods.push({
           key: `disc-${grp.id}`,
           badgeText: `G${grp.id}`,
           titleText: `${tr("กลุ่ม", "Group")} ${grp.id}${roomShort}`,
-          color: DISC_GROUP_COLORS[grp.id] || "#007aff",
+          color: podColor,
+          rgb: hexToRgbTuple(podColor),
+          gradLight: shiftColorLightness(podColor, 8, -3),
+          gradDeep: shiftColorLightness(podColor, -10, 3),
+          memberColors,
           members: list
         });
       });
@@ -4134,6 +4317,9 @@
 
     const board = make("div", null, `fm-board${wide ? " is-wide" : ""}`);
     board.style.setProperty("--fm-team-color", teamColor);
+    board.style.setProperty("--team-rgb", hexToRgbTuple(teamColor));
+    board.style.setProperty("--team-grad-light", shiftColorLightness(teamColor, 9, -4));
+    board.style.setProperty("--team-grad-deep", shiftColorLightness(teamColor, -12, 4));
 
     if (tabs.length) {
       const tabStrip = make("div", null, "fm-team-tabs");
@@ -4205,15 +4391,11 @@
     if (viewStyle === "chips") {
       const chipBody = make("div", null, "th-inspector-body");
       chipBody.style.padding = "12px";
-      const mosaic = make(
-        "div",
-        null,
-        `gsorter-avatar-mosaic th-ins-mosaic${mode === "discussion" ? " is-site-grouped" : ""}`
-      );
+      const mosaic = make("div", null, "gsorter-avatar-mosaic th-ins-mosaic is-site-grouped");
       if (mode === "discussion") {
         renderSiteGroupedMiniChips(sortedMembers, mosaic);
       } else {
-        sortedMembers.forEach((m) => mosaic.appendChild(renderRosterMiniChip(m)));
+        renderFieldworkGradGroupedMiniChips(sortedMembers, mosaic, teamColor);
       }
       chipBody.appendChild(mosaic);
       board.appendChild(chipBody);
@@ -4227,12 +4409,15 @@
         stack.appendChild(emp);
         pitch.appendChild(stack);
       } else {
-        const pods = buildFormationSubgroupPods(sortedMembers, mode);
+        const pods = buildFormationSubgroupPods(sortedMembers, mode, teamColor);
         const podGrid = make("div", null, `fm-clusters-grid${pods.length <= 2 ? " is-few-pods" : ""}`);
         pods.forEach((pod, pIdx) => {
           const hasMine = state.myStudent && pod.members.some((m) => m.id === state.myStudent.id);
           const podEl = make("div", null, `fm-squad-pod${hasMine ? " has-mine" : ""}`);
           podEl.style.setProperty("--pod-color", pod.color);
+          podEl.style.setProperty("--pod-rgb", pod.rgb);
+          podEl.style.setProperty("--pod-grad-light", pod.gradLight);
+          podEl.style.setProperty("--pod-grad-deep", pod.gradDeep);
 
           const podHead = make("div", null, "fm-pod-head");
           podHead.innerHTML =
@@ -4248,7 +4433,15 @@
             `fm-pod-members count-${Math.min(6, pod.members.length)}`
           );
           pod.members.forEach((stu, mIdx) => {
-            podMembersWrap.appendChild(buildFormationPlayerNode(stu, mode, pIdx, mIdx));
+            podMembersWrap.appendChild(
+              buildFormationPlayerNode(
+                stu,
+                mode,
+                pIdx,
+                mIdx,
+                pod.memberColors ? pod.memberColors[mIdx] : pod.color
+              )
+            );
           });
 
           podEl.append(podHead, podMembersWrap);
@@ -4291,7 +4484,7 @@
     const tabs = groups.map((g, i) => ({
       id: isDisc ? String(g.id) : g.shortName,
       label: isDisc ? `G${g.id} · ${g.defaultRoom.split(" ")[0]}` : `${g.id}.${g.shortName}`,
-      color: isDisc ? "#ffb81c" : (SITE_PIN_COLORS[g.id] || "#007aff"),
+      color: isDisc ? (DISC_GROUP_COLORS[g.id] || "#007aff") : (SITE_PIN_COLORS[g.id] || "#007aff"),
       active: i === idx,
       onClick: () => {
         if (isDisc) {
@@ -4330,7 +4523,7 @@
           tabs,
           crestKicker: "GROUP",
           crestNum: `G${curObj.id}`,
-          teamColor: "#0b4db3",
+          teamColor: DISC_GROUP_COLORS[curObj.id] || "#0b4db3",
           eyebrowText: `กลุ่มอภิปรายระบบสุขภาพ HS1–HS6`,
           titleText: `Discussion กลุ่มที่ ${curObj.id} · ห้องหลัก ${rot.room || curObj.defaultRoom}`,
           subText: `จัดแถวตามสังกัดโรงพยาบาลภาคสนาม (S1–S9) · คลิกที่การ์ดนักศึกษาเพื่อดูตารางเรียนส่วนตัว`,
