@@ -16828,3 +16828,162 @@ html[data-theme="dark"] .hsd-q-prompt {
   color: #cbd5e1 !important;
 }
 
+/* ==========================================================================
+   6. PROMINENT QUESTION HEADING ("คำถามข้อที่ 1.1") & FIRST-OPEN OPTIMIZED 16:9 FIT
+   ========================================================================== */
+.hsd-q-head.is-clear-question-box,
+.hsd-key-question-recap.is-clear-question-box {
+  background: linear-gradient(90deg, #eef5ff 0%, #f8fbff 100%);
+  border: 1px solid #bfd7ff;
+  border-left: 4.5px solid #0b46a6;
+  border-radius: 9px;
+  padding: 7px 12px 8px;
+  margin-bottom: 2px;
+}
+
+.hsd-q-badge.is-prominent-qnum {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #002d72 0%, #0b46a6 100%);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 13.4px;
+  font-weight: 800;
+  padding: 3.5px 11px;
+  border-radius: 6px;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 6px rgba(11, 70, 166, 0.2);
+}
+
+.hsd-q-badge.is-prominent-qnum::before {
+  content: "●";
+  color: #fbbf24;
+  font-size: 8.5px;
+  line-height: 1;
+}
+
+.hsd-q-title-kicker {
+  color: #0b46a6;
+  font-weight: 800;
+  margin-right: 4px;
+}
+
+html[data-theme="dark"] .hsd-q-head.is-clear-question-box,
+html[data-theme="dark"] .hsd-key-question-recap.is-clear-question-box {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.18) 0%, #0d1729 100%) !important;
+  border-color: rgba(96, 165, 250, 0.36) !important;
+  border-left: 4.5px solid #3b82f6 !important;
+}
+
+html[data-theme="dark"] .hsd-q-badge.is-prominent-qnum {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.38) !important;
+}
+
+html[data-theme="dark"] .hsd-q-title-kicker {
+  color: #93c5fd !important;
+}
+
+/* Optimized First-Open PowerPoint Studio Shell & Unified 16:9 Slide Typography */
+.hsd-slide-shell.is-ppt-app:not(.is-ppt-window-max) {
+  height: calc(100vh - 96px);
+  min-height: 640px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon {
+  padding: 5px 10px;
+  gap: 5px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-ribbon-clickers {
+  gap: 6px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-big-clicker-dock {
+  padding: 4px 8px;
+  gap: 3px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-big-btn,
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-timer-dock-clock-btn {
+  min-height: 30px;
+  height: 30px;
+  padding: 2px 9px;
+  font-size: 12px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-q-select {
+  height: 30px;
+  max-width: 195px;
+  font-size: 12px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-ribbon .ppt-q-counter-badge {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-workspace:not(.is-thumbs-collapsed):not(.is-sorter-mode) {
+  grid-template-columns: 184px minmax(0, 1fr);
+}
+
+.hsd-slide-shell.is-ppt-app .ppt-canvas-stage {
+  padding: 8px 12px;
+}
+
+.ppt-slide-sheet .hsd-slide-left,
+.ppt-slide-sheet .hsd-slide-right {
+  padding: 8px 12px;
+}
+
+.ppt-slide-sheet .hsd-box-zoom-body {
+  gap: 7px;
+}
+
+.ppt-slide-sheet .hsd-case-title,
+.ppt-slide-sheet.is-projected .hsd-case-title {
+  font-size: 19.2px;
+  line-height: 1.28;
+  margin-bottom: 5px;
+}
+
+.ppt-slide-sheet .hsd-scenario-box p,
+.ppt-slide-sheet .hsd-dialogue-item p,
+.ppt-slide-sheet .hsd-callout-case p,
+.ppt-slide-sheet.is-projected .hsd-scenario-box p,
+.ppt-slide-sheet.is-projected .hsd-dialogue-item p,
+.ppt-slide-sheet.is-projected .hsd-callout-case p {
+  font-size: 16.6px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.ppt-slide-sheet .hsd-q-title,
+.ppt-slide-sheet.is-projected .hsd-q-title {
+  font-size: 18.2px;
+  line-height: 1.3;
+  margin: 2px 0 3px;
+}
+
+.ppt-slide-sheet .hsd-q-prompt,
+.ppt-slide-sheet.is-projected .hsd-q-prompt {
+  font-size: 16.2px;
+  line-height: 1.48;
+  margin: 0;
+}
+
+.ppt-slide-sheet .hsd-tk-table th,
+.ppt-slide-sheet .hsd-tk-table td,
+.ppt-slide-sheet .hsd-ws-table th,
+.ppt-slide-sheet .hsd-ws-table td,
+.ppt-slide-sheet.is-projected .hsd-tk-table th,
+.ppt-slide-sheet.is-projected .hsd-tk-table td,
+.ppt-slide-sheet.is-projected .hsd-ws-table th,
+.ppt-slide-sheet.is-projected .hsd-ws-table td {
+  font-size: 15.2px;
+  line-height: 1.42;
+  padding: 6.5px 9px;
+}
