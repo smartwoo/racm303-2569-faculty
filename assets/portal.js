@@ -57,6 +57,9 @@
     hsdModule: "ALL",
     hsdViewMode: localStorage.getItem("racm303_hsd_vmode") || "slide",
     hsdSlideIdx: 0,
+    hsdSlideLayout: localStorage.getItem("racm303_hsd_layout") || (ROLE === "faculty" ? "split-key" : "split-sheet"),
+    hsdSplitPct: Math.min(78, Math.max(22, Number(localStorage.getItem("racm303_hsd_split_pct")) || 48)),
+    hsdRoomConfirmed: sessionStorage.getItem("racm303_hsd_room_confirmed") === "1",
     hsdHideScenario: false,
     hsdTheater: false,
     hsdFacultyMode: "teacher", // teacher | projector | student
@@ -94,9 +97,17 @@
     adminSortAsc: true,
     myTeacherKey: localStorage.getItem("racm303_my_teacher") || "",
     conciergeDateISO: "",
-    conciergeOpen: localStorage.getItem("racm303_concierge_tab_open") === "1",
+    conciergeOpen: localStorage.getItem("racm303_concierge_tab_open") !== "0",
     conciergeTab: "today",
     conciergeTeacherAllDays: false,
+    lastCatSubTab: {
+      "schedule-classroom": "schedule",
+      fieldwork: "fieldwork",
+      knowledge: "textbooks",
+      admin: "submissions"
+    },
+    ramedAuthPhase: "idle",
+    ramedConnectedAt: "",
     mapInspectorStyle: "formation",
     ramedLoginId: localStorage.getItem("racm303_login_uid") || "",
     fieldOverviewStyle: "map", // map | cards
@@ -786,6 +797,7 @@
     updatePersonalBanner();
     refreshCalendarStudioUI();
     if (typeof syncRamedPerUserIdentityUI === "function") syncRamedPerUserIdentityUI();
+    if ($("deliverablesCardsGrid")) renderDeliverablesCards();
     if (state.activeTab === "schedule") renderScheduleCurrent();
     if (state.activeTab === "discussion") renderDiscussionView();
     if (state.activeTab === "hs-discussion") renderHsDiscussionView();
@@ -877,6 +889,126 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  const TAB_TO_NAV_CATEGORY = {
+    schedule: "schedule-classroom",
+    discussion: "schedule-classroom",
+    "hs-discussion": "schedule-classroom",
+    fieldwork: "fieldwork",
+    manual: "knowledge",
+    textbooks: "knowledge",
+    practice: "knowledge",
+    "faculty-docs": "knowledge",
+    submissions: "admin",
+    leave: "admin",
+    audit: "admin"
+  };
+
+  const navScrollShellControllers = [];
+
+  function bindHorizontalScrollShell(shellEl, scrollerEl) {
+    if (!shellEl || !scrollerEl || shellEl._scrollBound) return;
+    shellEl._scrollBound = true;
+    const leftBtn = shellEl.querySelector(":scope > .nav-scroll-btn.is-left");
+    const rightBtn = shellEl.querySelector(":scope > .nav-scroll-btn.is-right");
+
+    const update = () => {
+      const maxScroll = Math.max(0, scrollerEl.scrollWidth - scrollerEl.clientWidth);
+      const canLeft = maxScroll > 6 && scrollerEl.scrollLeft > 4;
+      const canRight = maxScroll > 6 && scrollerEl.scrollLeft < maxScroll - 4;
+      shellEl.classList.toggle("has-scroll-left", canLeft);
+      shellEl.classList.toggle("has-scroll-right", canRight);
+      shellEl.classList.toggle("is-scrollable", maxScroll > 6);
+      if (leftBtn) leftBtn.hidden = !canLeft;
+      if (rightBtn) rightBtn.hidden = !canRight;
+    };
+
+    if (leftBtn) {
+      leftBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const step = Math.max(210, Math.round(scrollerEl.clientWidth * 0.6));
+        scrollerEl.scrollBy({ left: -step, behavior: "smooth" });
+      });
+    }
+    if (rightBtn) {
+      rightBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const step = Math.max(210, Math.round(scrollerEl.clientWidth * 0.6));
+        scrollerEl.scrollBy({ left: step, behavior: "smooth" });
+      });
+    }
+
+    scrollerEl.addEventListener("scroll", update, { passive: true });
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(() => update());
+      ro.observe(scrollerEl);
+    }
+    navScrollShellControllers.push(update);
+    requestAnimationFrame(update);
+  }
+
+  function refreshAllNavScrollShells() {
+    navScrollShellControllers.forEach((fn) => {
+      try {
+        fn();
+      } catch (_) {}
+    });
+  }
+
+  function syncNavHierarchyUI(tabId) {
+    const activeCat = TAB_TO_NAV_CATEGORY[tabId] || "schedule-classroom";
+    if (!state.lastCatSubTab) state.lastCatSubTab = {};
+    state.lastCatSubTab[activeCat] = tabId;
+
+    document.querySelectorAll(".nav-group-btn").forEach((gBtn) => {
+      const isCat = gBtn.dataset.navCat === activeCat;
+      gBtn.classList.toggle("is-active", isCat);
+      gBtn.setAttribute("aria-expanded", isCat ? "true" : "false");
+      if (isCat && typeof gBtn.scrollIntoView === "function") {
+        gBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+      }
+    });
+
+    const subDock = $("secondarySubtabsDock");
+    const subKicker = $("secondarySubtabsKicker");
+    let visibleSubCount = 0;
+
+    document.querySelectorAll(".nav-tab").forEach((btn) => {
+      const active = btn.dataset.tab === tabId;
+      const inCat = (btn.dataset.navCat || TAB_TO_NAV_CATEGORY[btn.dataset.tab]) === activeCat;
+      const showBtn = activeCat !== "fieldwork" && inCat;
+      btn.hidden = !showBtn;
+      if (showBtn) visibleSubCount += 1;
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+      if (active && showBtn && typeof btn.scrollIntoView === "function") {
+        requestAnimationFrame(() => {
+          btn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+        });
+      }
+    });
+
+    if (subDock) {
+      subDock.hidden = visibleSubCount <= 1;
+    }
+    if (subKicker) {
+      const kickerMapTh = {
+        "schedule-classroom": ROLE === "faculty" ? "ตารางสอนและห้องเรียน:" : "ตารางเรียนและห้องเรียน:",
+        knowledge: "คลังความรู้และบทเรียน:",
+        admin: ROLE === "faculty" ? "บริหารและธุรการ:" : "ส่งงานและธุรการ:"
+      };
+      const kickerMapEn = {
+        "schedule-classroom": "Schedule & Classrooms:",
+        knowledge: "Knowledge Content:",
+        admin: "Course Admin:"
+      };
+      subKicker.textContent =
+        state.lang === "en"
+          ? kickerMapEn[activeCat] || "Sub-sections:"
+          : kickerMapTh[activeCat] || "หมวดย่อย:";
+    }
+
+    requestAnimationFrame(refreshAllNavScrollShells);
+  }
+
   function switchTab(tabId, pushHash = true) {
     tabId = normalizeTabId(tabId);
     const validTabs = ROLE === "faculty"
@@ -885,10 +1017,7 @@
     if (!validTabs.includes(tabId)) tabId = "schedule";
 
     state.activeTab = tabId;
-    document.querySelectorAll(".nav-tab").forEach((btn) => {
-      const active = btn.dataset.tab === tabId;
-      btn.setAttribute("aria-selected", active ? "true" : "false");
-    });
+    syncNavHierarchyUI(tabId);
     document.querySelectorAll(".tab-panel").forEach((panel) => {
       panel.hidden = panel.id !== `panel-${tabId}`;
     });
@@ -3018,7 +3147,7 @@
       "ห้องหลัก Discussion",
       "ลำดับพื้นที่",
       "กลุ่มพื้นที่ภาคสนาม",
-      "โรงพยาบาลชุมชน",
+      "โรงพยาบาลภาคสนาม",
       "จังหวัด",
       "อาจารย์ที่ปรึกษา"
     ].join(",");
@@ -3139,7 +3268,7 @@
     searchInput.className = "roster-dock-search-input";
     searchInput.placeholder = isDisc
       ? "ค้นหาด่วนตลอดหน้า: รหัส 7 หลัก, ชื่อ, ชื่อเล่น, พื้นที่, อาจารย์…"
-      : "ค้นหาด่วนตลอดหน้า: รหัส 7 หลัก, ชื่อ, ชื่อเล่น, รพช., อาจารย์ที่ปรึกษา…";
+      : "ค้นหาด่วนตลอดหน้า: รหัส 7 หลัก, ชื่อ, ชื่อเล่น, โรงพยาบาล/พื้นที่, อาจารย์ที่ปรึกษา…";
     searchInput.setAttribute("aria-label", searchInput.placeholder);
 
     const clearSearchBtn = make("button", "✕", "roster-dock-clear-btn");
@@ -3584,7 +3713,7 @@
     const bar = make("div", null, "gsorter-info-bar");
     bar.innerHTML = isDisc
       ? `<span><strong>⊞ Group Sorter (6 กลุ่ม Discussion · จัดกลุ่มย่อยตามพื้นที่แหล่งฝึก 9 แห่ง)</strong> — ย่อ/ขยายด้วยปุ่ม <code>−</code> <code>+</code> หรือ <code>Alt + เลื่อนเมาส์</code> · คลิกชื่อนักศึกษาเพื่อดูตาราง/ตั้งชื่อเล่น</span>`
-      : `<span><strong>⊞ Group Sorter (9 พื้นที่ภาคสนาม)</strong> — เปรียบเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางครบทั้ง 9 รพช. ในมุมสูง · คลิกชื่อนักศึกษาเพื่อดูข้อมูลด่วน</span>`;
+      : `<span><strong>⊞ Group Sorter (9 พื้นที่ภาคสนาม)</strong> — เปรียบเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางครบทั้ง 9 แห่งในมุมสูง · คลิกชื่อนักศึกษาเพื่อดูข้อมูลด่วน</span>`;
     stageEl.appendChild(bar);
 
     const grid = make("div", null, "gsorter-grid");
@@ -4404,8 +4533,7 @@
       pitch.appendChild(buildPitchSvgOverlay());
       if (!sortedMembers.length) {
         const stack = make("div", null, "fm-lines-stack");
-        const emp = make("div", tr("ไม่พบสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "No matching members in this group"), "empty-state");
-        emp.style.background = "rgba(255,255,255,0.92)";
+        const emp = make("div", tr("ไม่พบสมาชิกที่ตรงกับตัวกรองในกลุ่มนี้", "No matching members in this group"), "empty-state fm-pitch-empty");
         stack.appendChild(emp);
         pitch.appendChild(stack);
       } else {
@@ -5806,15 +5934,40 @@
   ];
 
   const SITE_GEO_COORDS = {
-    1: { lat: 16.54, lon: 104.05, region: "ภาคตะวันออกเฉียงเหนือ", dx: 10, dy: 4, anchor: "start" }, // กุฉินารายณ์ จ.กาฬสินธุ์
-    2: { lat: 17.32, lon: 101.15, region: "ภาคตะวันออกเฉียงเหนือตอนบน", dx: 0, dy: -12, anchor: "middle" }, // ด่านซ้าย จ.เลย
-    3: { lat: 8.87, lon: 98.38, region: "ภาคใต้ฝั่งอันดามัน", dx: 12, dy: 4, anchor: "start" }, // ตะกั่วป่า จ.พังงา
-    4: { lat: 19.12, lon: 100.80, region: "ภาคเหนือ", dx: 11, dy: 4, anchor: "start" }, // ท่าวังผา จ.น่าน
-    5: { lat: 16.50, lon: 101.02, region: "ภาคกลางตอนบน", dx: -10, dy: -4, anchor: "end" }, // เพชรบูรณ์ 1
-    6: { lat: 16.12, lon: 101.28, region: "ภาคกลางตอนบน", dx: 11, dy: 8, anchor: "start" }, // เพชรบูรณ์ 2
-    7: { lat: 16.75, lon: 102.63, region: "ภาคตะวันออกเฉียงเหนือ", dx: 0, dy: -12, anchor: "middle" }, // อุบลรัตน์ จ.ขอนแก่น
-    8: { lat: 17.32, lon: 98.18, region: "ภาคตะวันตก (ชายแดนเหนือ)", dx: 11, dy: -2, anchor: "start" }, // ท่าสองยาง จ.ตาก
-    9: { lat: 15.98, lon: 98.86, region: "ภาคตะวันตก (ชายแดนใต้)", dx: 11, dy: 5, anchor: "start" } // อุ้มผาง จ.ตาก
+    1: { lat: 16.54, lon: 104.05, provKey: "kalasin", provEn: "Kalasin", region: "ภาคตะวันออกเฉียงเหนือ", dx: 10, dy: 4, anchor: "start" }, // กุฉินารายณ์ จ.กาฬสินธุ์
+    2: { lat: 17.32, lon: 101.15, provKey: "loei", provEn: "Loei", region: "ภาคตะวันออกเฉียงเหนือตอนบน", dx: 0, dy: -12, anchor: "middle" }, // ด่านซ้าย จ.เลย
+    3: { lat: 8.87, lon: 98.38, provKey: "phangnga", provEn: "Phang Nga", region: "ภาคใต้ฝั่งอันดามัน", dx: 12, dy: 4, anchor: "start" }, // ตะกั่วป่า จ.พังงา
+    4: { lat: 19.12, lon: 100.80, provKey: "nan", provEn: "Nan", region: "ภาคเหนือ", dx: 11, dy: 4, anchor: "start" }, // ท่าวังผา จ.น่าน
+    5: { lat: 16.50, lon: 101.02, provKey: "phetchabun", provEn: "Phetchabun", region: "ภาคกลางตอนบน", dx: -10, dy: -4, anchor: "end" }, // เพชรบูรณ์ 1
+    6: { lat: 16.12, lon: 101.28, provKey: "phetchabun", provEn: "Phetchabun", region: "ภาคกลางตอนบน", dx: 11, dy: 8, anchor: "start" }, // เพชรบูรณ์ 2
+    7: { lat: 16.75, lon: 102.63, provKey: "khonkaen", provEn: "Khon Kaen", region: "ภาคตะวันออกเฉียงเหนือ", dx: 0, dy: -12, anchor: "middle" }, // อุบลรัตน์ จ.ขอนแก่น
+    8: { lat: 17.32, lon: 98.18, provKey: "tak", provEn: "Tak", region: "ภาคตะวันตก (ชายแดนเหนือ)", dx: 11, dy: -2, anchor: "start" }, // ท่าสองยาง จ.ตาก
+    9: { lat: 15.98, lon: 98.86, provKey: "tak", provEn: "Tak", region: "ภาคตะวันตก (ชายแดนใต้)", dx: 11, dy: 5, anchor: "start" } // อุ้มผาง จ.ตาก
+  };
+
+  const PROVINCE_POLYGONS_LATLON = {
+    kalasin: [
+      [16.96, 103.28], [17.02, 103.88], [16.78, 104.35], [16.32, 104.28], [16.18, 103.62], [16.48, 103.22]
+    ],
+    loei: [
+      [17.78, 101.02], [17.55, 101.42], [17.85, 101.78], [18.06, 102.02], [17.42, 102.08], [16.88, 101.85], [16.86, 101.22], [17.18, 100.92]
+    ],
+    phangnga: [
+      [9.32, 98.38], [9.28, 98.66], [8.62, 98.68], [8.22, 98.55], [8.18, 98.32], [8.88, 98.24]
+    ],
+    nan: [
+      [19.62, 100.58], [19.55, 101.08], [19.08, 101.28], [18.42, 101.05], [18.12, 100.85], [18.28, 100.45], [18.95, 100.45]
+    ],
+    phetchabun: [
+      [17.08, 101.05], [17.02, 101.58], [16.45, 101.65], [15.52, 101.38], [15.48, 100.92], [16.18, 100.78], [16.72, 100.85]
+    ],
+    khonkaen: [
+      [17.02, 102.12], [16.98, 102.98], [16.52, 103.12], [15.78, 102.82], [15.75, 102.25], [16.42, 101.88]
+    ],
+    tak: [
+      [17.82, 97.78], [17.65, 98.38], [17.12, 99.18], [16.58, 99.32], [15.95, 99.15], [15.28, 98.88],
+      [15.25, 98.32], [15.65, 98.58], [15.95, 98.65], [16.45, 98.52], [17.05, 98.12], [17.65, 97.72]
+    ]
   };
 
   const SITE_PIN_COLORS = {
@@ -5943,8 +6096,8 @@
     const modeHead = make("div", null, "th-map-topbar");
     const modeInfo = make("div", null, "th-map-topbar-info");
     modeInfo.innerHTML =
-      `<strong>${escapeHtml(tr("🗺 แผนที่โรงพยาบาลชุมชน 9 พื้นที่ภาคสนามทั่วประเทศ (3D Interactive)", "🗺 3D Interactive Thailand Map · 9 Community Hospital Fieldwork Sites"))}</strong>` +
-      `<span>${escapeHtml(tr("เลื่อนเมาส์ชี้ (Hover) บนหมุดจังหวัดในแผนที่เพื่อดูข้อมูลโรงพยาบาล วันเดินทาง และรูปสมาชิกทันที · คลิกที่หมุดเพื่อล็อกกรองรายชื่อด้านล่าง", "Hover over any hospital pin to inspect hospital details, travel dates, and group members · Click pin to lock filter below"))}</span>`;
+      `<strong>${escapeHtml(tr("🗺 แผนที่โรงพยาบาลและพื้นที่ฝึกภาคสนาม 9 แห่งทั่วประเทศ (3D Interactive)", "🗺 3D Interactive Thailand Map · 9 Fieldwork Hospital Sites"))}</strong>` +
+      `<span>${escapeHtml(tr("เลื่อนเมาส์ชี้หรือคลิกเลือกพื้นที่เพื่อยกขอบเขตจังหวัดขึ้นแบบ 3 มิติ พร้อมไฮไลต์ชื่อพื้นที่และป้ายจังหวัดทันที", "Hover or click any fieldwork pin to lift its province in 3D, highlight its name, and inspect hospital & travel details"))}</span>`;
 
     const seg = make("div", null, "reader-mode-seg");
     const mapBtn = make("button", tr("🗺 แผนที่ 3D ประเทศไทย (Hover)", "🗺 3D Thailand Map (Hover)"), "reader-mode-btn");
@@ -6024,12 +6177,15 @@
     const mapCard = make("div", null, "th-map-canvas-card is-3d-map-card");
     const inspector = make("div", null, "th-map-inspector-card");
 
+    const mapHudPill = make("div", null, "th-active-prov-hud");
+    mapCard.appendChild(mapHudPill);
+
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("viewBox", "0 0 440 680");
     svg.setAttribute("class", "th-svg-map is-3d-stage");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", "แผนที่ประเทศไทย 3 มิติแสดงตำแหน่งโรงพยาบาลชุมชน 9 พื้นที่ภาคสนาม");
+    svg.setAttribute("aria-label", "แผนที่ประเทศไทย 3 มิติแสดงจังหวัดและตำแหน่งโรงพยาบาลฝึกภาคสนามทั้ง 9 แห่ง");
 
     // Ocean / Sea labels
     const seaGulf = document.createElementNS(svgNS, "text");
@@ -6084,7 +6240,23 @@
     samui.setAttribute("r", "4.5");
     samui.setAttribute("class", "th-land-poly");
 
-    svg.append(polyExtrude, phuketEx, samuiEx, poly, phuket, samui, seaGulf, seaAndaman);
+    const provBaseGroup = document.createElementNS(svgNS, "g");
+    provBaseGroup.setAttribute("class", "th-prov-base-group");
+    Object.keys(PROVINCE_POLYGONS_LATLON).forEach((pKey) => {
+      const pPts = PROVINCE_POLYGONS_LATLON[pKey].map(([la, lo]) => projectThailandLatLon(la, lo).join(",")).join(" ");
+      const baseP = document.createElementNS(svgNS, "polygon");
+      baseP.setAttribute("points", pPts);
+      baseP.setAttribute("class", "th-prov-base-poly");
+      provBaseGroup.appendChild(baseP);
+    });
+
+    const provRaisedGroup = document.createElementNS(svgNS, "g");
+    provRaisedGroup.setAttribute("class", "th-prov-raised-group");
+
+    const provBadgeOverlayGroup = document.createElementNS(svgNS, "g");
+    provBadgeOverlayGroup.setAttribute("class", "th-prov-badge-overlay");
+
+    svg.append(polyExtrude, phuketEx, samuiEx, poly, phuket, samui, provBaseGroup, provRaisedGroup, seaGulf, seaAndaman);
 
     // Origin Hub: Ramathibodi / CNMI (Bangkok - Samut Prakan)
     const [bx, by] = projectThailandLatLon(13.62, 100.62);
@@ -6122,6 +6294,87 @@
       return sites.find((x) => x.shortName === targetName) || sites[0];
     };
 
+    const renderRaisedProvinceAndBadge = (curSite) => {
+      provRaisedGroup.replaceChildren();
+      provBadgeOverlayGroup.replaceChildren();
+      if (!curSite) return;
+
+      const geo = SITE_GEO_COORDS[curSite.id] || {};
+      const pinColor = SITE_PIN_COLORS[curSite.id] || "#007aff";
+      const rgbTuple = hexToRgbTuple(pinColor);
+      const provCoords = PROVINCE_POLYGONS_LATLON[geo.provKey];
+      const provText = state.lang === "en" && geo.provEn ? `${geo.provEn} Prov.` : curSite.province;
+
+      mapHudPill.style.setProperty("--prov-accent", pinColor);
+      mapHudPill.style.setProperty("--prov-rgb", rgbTuple);
+      mapHudPill.innerHTML =
+        `<span class="th-hud-dot"></span>` +
+        `<span class="th-hud-site">${curSite.id}. ${escapeHtml(curSite.shortName)}</span>` +
+        `<span class="th-hud-prov">${escapeHtml(provText)}</span>` +
+        `<span class="th-hud-hosp">· ${escapeHtml(curSite.hospital)}</span>`;
+
+      if (provCoords && provCoords.length) {
+        const pPts = provCoords.map(([la, lo]) => projectThailandLatLon(la, lo).join(",")).join(" ");
+
+        const shadowP = document.createElementNS(svgNS, "polygon");
+        shadowP.setAttribute("points", pPts);
+        shadowP.setAttribute("transform", "translate(3, 5)");
+        shadowP.setAttribute("class", "th-prov-lift-shadow");
+
+        const wallP = document.createElementNS(svgNS, "polygon");
+        wallP.setAttribute("points", pPts);
+        wallP.setAttribute("transform", "translate(0.5, 1)");
+        wallP.setAttribute("class", "th-prov-lift-wall");
+        wallP.style.setProperty("--prov-color", pinColor);
+        wallP.style.setProperty("--prov-rgb", rgbTuple);
+
+        const topP = document.createElementNS(svgNS, "polygon");
+        topP.setAttribute("points", pPts);
+        topP.setAttribute("transform", "translate(-3, -6)");
+        topP.setAttribute("class", "th-prov-lift-top");
+        topP.style.setProperty("--prov-color", pinColor);
+        topP.style.setProperty("--prov-rgb", rgbTuple);
+
+        provRaisedGroup.append(shadowP, wallP, topP);
+      }
+
+      const [sx, sy] = projectThailandLatLon(geo.lat || 15.0, geo.lon || 101.0);
+      const anchor = geo.anchor || "start";
+      const labelX = sx + (geo.dx || 10) - 3;
+      const baseLabelY = sy + (geo.dy || 4) - 6;
+      const pillW = Math.max(68, provText.length * 7.6 + 20);
+      const pillH = 19;
+      let pillX = labelX;
+      if (anchor === "middle") pillX = labelX - pillW / 2;
+      else if (anchor === "end") pillX = labelX - pillW;
+      pillX = Math.max(8, Math.min(432 - pillW, pillX));
+      const pillY = (geo.dy || 4) < -6 ? baseLabelY - 24 : baseLabelY + 5.5;
+
+      const calloutG = document.createElementNS(svgNS, "g");
+      calloutG.setAttribute("class", "th-prov-callout-g");
+      calloutG.style.pointerEvents = "none";
+
+      const rect = document.createElementNS(svgNS, "rect");
+      rect.setAttribute("x", pillX.toFixed(1));
+      rect.setAttribute("y", pillY.toFixed(1));
+      rect.setAttribute("width", pillW.toFixed(1));
+      rect.setAttribute("height", String(pillH));
+      rect.setAttribute("rx", "9.5");
+      rect.setAttribute("fill", pinColor);
+      rect.setAttribute("stroke", "#ffffff");
+      rect.setAttribute("stroke-width", "1.4");
+
+      const txt = document.createElementNS(svgNS, "text");
+      txt.setAttribute("x", (pillX + pillW / 2).toFixed(1));
+      txt.setAttribute("y", (pillY + 13.2).toFixed(1));
+      txt.setAttribute("text-anchor", "middle");
+      txt.setAttribute("class", "th-prov-callout-txt");
+      txt.textContent = `📍 ${provText}`;
+
+      calloutG.append(rect, txt);
+      provBadgeOverlayGroup.appendChild(calloutG);
+    };
+
     const renderMapInspectorContent = () => {
       const curSite = resolveInspectedSite();
       if (!curSite) return;
@@ -6133,6 +6386,7 @@
         el.classList.toggle("is-focused", el.dataset.mapSite === curSite.shortName);
         el.classList.toggle("is-locked", el.dataset.mapSite === activeAreaVal);
       });
+      renderRaisedProvinceAndBadge(curSite);
 
       inspector.replaceChildren();
       inspector.style.padding = "0";
@@ -6337,7 +6591,7 @@
       pinsGroup.appendChild(pinG);
     });
 
-    svg.append(routesGroup, hubG, pinsGroup);
+    svg.append(routesGroup, hubG, pinsGroup, provBadgeOverlayGroup);
     mapCard.appendChild(svg);
 
     const mapFoot = make("div", null, "th-map-caption");
@@ -6524,6 +6778,8 @@
   }
 
   /* ---------- Tab 4: Separated Submissions Hub & RAMED E-learning Backend Integration ---------- */
+  const RAMED_SRN1_SECTION_URL = "https://elearning.ra.mahidol.ac.th/ramed/course/section.php?id=7820";
+
   const COURSE_DELIVERABLES = [
     {
       id: "srn1",
@@ -6534,8 +6790,10 @@
       dueISO: "2026-12-09T17:00:00+07:00",
       sessionId: "w3-d3-srn1",
       backendType: "ramed",
-      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 1 ในห้องวิชา id=398 ↗" : "ส่งในห้องวิชา RACM 303 (id=398) ↗",
-      prereq: "เงื่อนไขก่อนส่ง: ต้องทำแบบประเมินการเรียนการสอนภาคทฤษฎี (Online) ให้เรียบร้อยก่อนอัปโหลดไฟล์ PDF · อาจารย์ที่ปรึกษาตรวจประเมินตามฟอร์ม 1A และให้ Feedback ระหว่างฝึกภาคสนาม",
+      directUrl: RAMED_SRN1_SECTION_URL,
+      sectionTitle: "Section: แบบประเมิน ครั้งที่ 1 และ Self Reflection Note 1 (id=7820)",
+      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 1 (หน้า Section id=7820) ↗" : "ส่ง SRN 1 & ทำแบบประเมิน ครั้งที่ 1 ↗",
+      prereq: "เงื่อนไขก่อนส่ง: เข้าหน้า Section แบบประเมิน ครั้งที่ 1 และ Self Reflection Note 1 เพื่อทำแบบประเมินภาคทฤษฎีก่อนอัปโหลดไฟล์ PDF ลงกล่องอาจารย์ที่ปรึกษาประจำกลุ่มพื้นที่ของตนเอง",
       manualChapterId: "man-ch-11",
       manualBtnLabel: "เกณฑ์การเขียน SRN (บทที่ 11)",
       srnRound: "SRN1"
@@ -6549,8 +6807,8 @@
       dueISO: "2026-12-30T17:00:00+07:00",
       sessionId: "w6-d3-srn2",
       backendType: "ramed",
-      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 2 ในห้องวิชา id=398 ↗" : "ส่งในห้องวิชา RACM 303 (id=398) ↗",
-      prereq: "เงื่อนไขก่อนส่ง: ทำแบบประเมินพฤติกรรมเพื่อนร่วมกลุ่ม (Peer Evaluation) และแบบประเมินรายวิชาออนไลน์ให้ครบถ้วนก่อนส่งงานในระบบ E-learning",
+      backendLabel: ROLE === "faculty" ? "ตรวจ SRN 2 ตามกลุ่มอาจารย์ ↗" : "ส่ง SRN 2 ตามกลุ่มอาจารย์ที่ปรึกษา ↗",
+      prereq: "เงื่อนไขก่อนส่ง: ทำแบบประเมินพฤติกรรมเพื่อนร่วมกลุ่ม (Peer Evaluation) และแบบประเมินรายวิชาออนไลน์ให้ครบถ้วนก่อนส่งงานในกล่องอาจารย์ที่ปรึกษาประจำกลุ่ม",
       manualChapterId: "man-ch-11",
       manualBtnLabel: "เกณฑ์ SRN & กำหนดส่ง (บทที่ 11)",
       srnRound: "SRN2"
@@ -6624,37 +6882,44 @@
     }
   }
 
-  async function checkRamedBackendReachability() {
-    const badge = $("ramedBackendStatusBadge");
-    if (!badge || state.ramedPinged) return;
-    state.ramedPinged = true;
+  const RAMED_AUTH_SESSION_KEY = "racm303_ramed_auth_v2";
+  let ramedPopupRef = null;
+  let ramedPopupPollTimer = null;
+  let ramedPopupOpenedAt = 0;
 
-    if (typeof fetch !== "function") {
-      badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● ห้องเรียนออนไลน์ RACM 303 พร้อมใช้งาน";
-      return;
-    }
-
-    badge.className = "elearning-status-pill is-checking";
-    badge.textContent = "● กำลังตรวจสอบสถานะห้องเรียนออนไลน์…";
-
-    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), 6500) : null;
+  function loadRamedSessionAuth() {
     try {
-      await fetch(RAMED_COURSE_URL, {
-        method: "GET",
-        mode: "no-cors",
-        cache: "no-store",
-        signal: ctrl ? ctrl.signal : undefined
-      });
-      if (timer) clearTimeout(timer);
-      badge.className = "elearning-status-pill is-online";
-      badge.textContent = "● เชื่อมต่อห้องเรียนออนไลน์ RACM 303 แล้ว";
+      const raw = sessionStorage.getItem(RAMED_AUTH_SESSION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && parsed.status === "connected" ? parsed : null;
     } catch (_) {
-      if (timer) clearTimeout(timer);
-      badge.className = "elearning-status-pill is-checking";
-      badge.textContent = "● ห้องเรียนออนไลน์พร้อมเข้าสู่ระบบตามรหัสผู้ใช้";
+      return null;
     }
+  }
+
+  function saveRamedSessionAuth(uid, connectedAt) {
+    try {
+      sessionStorage.setItem(
+        RAMED_AUTH_SESSION_KEY,
+        JSON.stringify({ status: "connected", uid: uid || "", role: ROLE, connectedAt: connectedAt || "" })
+      );
+    } catch (_) {}
+  }
+
+  function clearRamedSessionAuth() {
+    try {
+      sessionStorage.removeItem(RAMED_AUTH_SESSION_KEY);
+    } catch (_) {}
+  }
+
+  async function checkRamedBackendReachability() {
+    const saved = loadRamedSessionAuth();
+    if (saved && state.ramedAuthPhase === "idle") {
+      state.ramedAuthPhase = "connected";
+      state.ramedConnectedAt = saved.connectedAt || "";
+    }
+    syncRamedAuthStatusUI();
   }
 
   function sanitizeFilenamePart(str) {
@@ -6762,10 +7027,102 @@
     return { text: `กำหนดส่งในอีก ${diffDays} วัน`, cls: "badge cat-SG" };
   }
 
+  function buildSrnGroupAdvisorMatchBox(deliverable, targetSectionUrl) {
+    const sites = SCHED.fieldworkSites || [];
+    const box = make("div", null, "srn-advisor-match-box");
+    const selectedArea = state.srnPreviewArea || (state.myStudent && state.myStudent.area) || "";
+    const tKey = ROLE === "faculty" ? state.myTeacherKey || "" : "";
+
+    let matchedSite = null;
+    if (ROLE === "student" && selectedArea) {
+      matchedSite = sites.find((x) => x.shortName === selectedArea) || null;
+    } else if (ROLE === "faculty") {
+      if (tKey) {
+        matchedSite = sites.find((x) => String(x.advisors || "").includes(tKey)) || null;
+      }
+      if (!matchedSite && state.srnPreviewArea) {
+        matchedSite = sites.find((x) => x.shortName === state.srnPreviewArea) || null;
+      }
+    }
+
+    if (matchedSite) {
+      const matchBanner = make("div", null, "srn-match-active-banner");
+      const advName =
+        ROLE === "student" && state.myStudent && state.myStudent.area === matchedSite.shortName && state.myStudent.advisor
+          ? state.myStudent.advisor
+          : matchedSite.advisors;
+      matchBanner.innerHTML =
+        `<div class="srn-match-info">` +
+        `<span class="area-sub-pill area-site-${matchedSite.id}"><i class="area-dot"></i>กลุ่มที่ ${matchedSite.id}. ${escapeHtml(matchedSite.shortName)}</span>` +
+        `<div>` +
+        `<strong>${ROLE === "faculty" ? "อาจารย์ที่ปรึกษาผู้ตรวจประจำกลุ่ม" : "กล่องส่งงานประจำกลุ่มของคุณ"}: ${escapeHtml(advName)}</strong>` +
+        `<span>${escapeHtml(matchedSite.hospital)} (${escapeHtml(matchedSite.province)}) · นศ. ${matchedSite.count} คน${deliverable.sectionTitle ? " · " + escapeHtml(deliverable.sectionTitle) : ""}</span>` +
+        `</div>` +
+        `</div>`;
+
+      const quickActs = make("div", null, "srn-match-actions");
+      const rosterJump = make("button", `👥 รายชื่อกลุ่ม ${matchedSite.shortName} (${matchedSite.count})`, "btn sm");
+      rosterJump.type = "button";
+      rosterJump.addEventListener("click", () => {
+        if ($("fieldAreaSelect")) $("fieldAreaSelect").value = matchedSite.shortName;
+        state.mapHoverSite = matchedSite.shortName;
+        switchTab("fieldwork");
+      });
+      quickActs.appendChild(rosterJump);
+      matchBanner.appendChild(quickActs);
+      box.appendChild(matchBanner);
+    } else {
+      const promptLine = make(
+        "div",
+        ROLE === "faculty"
+          ? "👨‍⚕️ เลือกกลุ่มพื้นที่เพื่อจับคู่อาจารย์ผู้ตรวจ SRN ประจำกลุ่ม (คลิกเลือกกลุ่มด้านล่าง):"
+          : "🎯 เลือกกลุ่มพื้นที่ของคุณเพื่อจับคู่อาจารย์ที่ปรึกษาประจำกลุ่มก่อนกดส่ง:",
+        "srn-match-kicker"
+      );
+      box.appendChild(promptLine);
+    }
+
+    const pillsWrap = make("div", null, "srn-group-advisor-pills");
+    sites.forEach((st) => {
+      const isSelected = matchedSite && matchedSite.id === st.id;
+      const shortAdv = String(st.advisors || "")
+        .replace(/ผศ\.\s*|รศ\.\s*|ศ\.\s*|อ\.\s*/g, "")
+        .replace(/นพ\.|พญ\./g, "อ.")
+        .split("/")[0]
+        .trim()
+        .split(/\s+/)[0];
+      const pill = make(
+        "button",
+        null,
+        `srn-ga-pill area-site-${st.id}${isSelected ? " is-matched" : ""}`
+      );
+      pill.type = "button";
+      pill.title = `กลุ่ม ${st.id}. ${st.shortName} (${st.hospital}) — อาจารย์ที่ปรึกษา: ${st.advisors}`;
+      pill.innerHTML = `<i class="area-dot"></i><span>${st.id}.${escapeHtml(st.shortName)}</span><small>${escapeHtml(shortAdv)}</small>`;
+      pill.addEventListener("click", () => {
+        state.srnPreviewArea = st.shortName;
+        if ($("srnAreaSelect")) {
+          $("srnAreaSelect").value = st.shortName;
+          updateSrnFilename();
+        }
+        renderDeliverablesCards();
+      });
+      pillsWrap.appendChild(pill);
+    });
+    box.appendChild(pillsWrap);
+
+    return { box, matchedSite };
+  }
+
   function renderDeliverablesCards() {
     const grid = $("deliverablesCardsGrid");
     if (!grid) return;
     grid.replaceChildren();
+
+    const assignIdxBtn = $("openRamedAssignIndexBtn");
+    if (assignIdxBtn) {
+      assignIdxBtn.href = RAMED_SRN1_SECTION_URL;
+    }
 
     COURSE_DELIVERABLES.forEach((d) => {
       const isDone = Boolean(state.submittedMap[d.id]);
@@ -6785,11 +7142,42 @@
       card.appendChild(make("p", `กำหนดส่ง: ${d.dueTH}`, "deliverable-due"));
       card.appendChild(make("p", d.prereq, "deliverable-meta"));
 
+      const ramedTargetUrl = d.directUrl || getActiveRamedTargetUrl();
+      let matchedSiteForBtn = null;
+      if (d.srnRound) {
+        const matchRes = buildSrnGroupAdvisorMatchBox(d, ramedTargetUrl);
+        matchedSiteForBtn = matchRes.matchedSite;
+        card.appendChild(matchRes.box);
+      }
+
       const actions = make("div", null, "header-actions");
-      const backendLink = make("a", d.backendLabel, "btn sm primary");
-      backendLink.href = d.backendType === "ramed" ? getActiveRamedTargetUrl() : GOOGLE_FORM_URL;
+      const isRamedConnected = state.ramedAuthPhase === "connected";
+      let dynamicRamedLabel = d.backendLabel;
+      if (d.srnRound && matchedSiteForBtn) {
+        dynamicRamedLabel =
+          ROLE === "faculty"
+            ? `ตรวจ ${d.code} · กลุ่ม ${matchedSiteForBtn.id}.${matchedSiteForBtn.shortName} ↗`
+            : `ส่ง ${d.code} · กลุ่ม ${matchedSiteForBtn.id}.${matchedSiteForBtn.shortName} ↗`;
+      }
+      const backendBtnLabel =
+        d.backendType === "ramed"
+          ? isRamedConnected
+            ? `✓ เชื่อมแล้ว · ${dynamicRamedLabel}`
+            : `🔐 Login ก่อน · ${dynamicRamedLabel}`
+          : d.backendLabel;
+      const backendLink = make("a", backendBtnLabel, `btn sm ${isRamedConnected && d.backendType === "ramed" ? "teal" : "primary"}`);
+      backendLink.href = d.backendType === "ramed" ? ramedTargetUrl : GOOGLE_FORM_URL;
       backendLink.target = "_blank";
       backendLink.rel = "noopener";
+      if (d.backendType === "ramed" && !isRamedConnected) {
+        backendLink.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          switchTab("submissions");
+          const br = $("ramedBackendBridge");
+          if (br) br.scrollIntoView({ behavior: "smooth", block: "start" });
+          launchRamedAuthPopupFlow(ramedTargetUrl);
+        });
+      }
       actions.appendChild(backendLink);
 
       if (d.srnRound) {
@@ -7009,9 +7397,269 @@
     );
   }
 
+  function openCenteredPopupWindow(url, winName, w = 1020, h = 760) {
+    const dualLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX || 0;
+    const dualTop = window.screenTop !== undefined ? window.screenTop : window.screenY || 0;
+    const vw = window.innerWidth || document.documentElement.clientWidth || screen.width;
+    const vh = window.innerHeight || document.documentElement.clientHeight || screen.height;
+    const left = Math.max(0, Math.round(dualLeft + (vw - w) / 2));
+    const top = Math.max(0, Math.round(dualTop + (vh - h) / 2));
+    const features = `popup=yes,width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+    return window.open(url, winName, features);
+  }
+
+  async function completeRamedAuthSyncTransition(postTargetUrl = "") {
+    if (ramedPopupPollTimer) {
+      clearInterval(ramedPopupPollTimer);
+      ramedPopupPollTimer = null;
+    }
+    if (state.ramedAuthPhase === "redirecting" || state.ramedAuthPhase === "connected") return;
+
+    state.ramedAuthPhase = "redirecting";
+    if (state.activeTab === "submissions") {
+      history.replaceState(null, "", "#submissions?ramed=redirecting");
+    }
+    syncRamedAuthStatusUI();
+
+    const pingPromise =
+      typeof fetch === "function"
+        ? fetch(RAMED_COURSE_URL, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {})
+        : Promise.resolve();
+    const minDelay = new Promise((res) => setTimeout(res, 1150));
+    await Promise.all([pingPromise, minDelay]);
+
+    const nowTime = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const activeUid = (state.myStudent && state.myStudent.id) || state.ramedLoginId || "";
+    state.ramedAuthPhase = "connected";
+    state.ramedConnectedAt = `${nowTime} น.`;
+    saveRamedSessionAuth(activeUid, state.ramedConnectedAt);
+
+    if (state.activeTab === "submissions") {
+      history.replaceState(null, "", "#submissions?ramed=connected");
+    }
+    syncRamedAuthStatusUI();
+    renderDeliverablesCards();
+
+    if (postTargetUrl) {
+      state.ramedPostTargetUrl = postTargetUrl;
+      syncRamedAuthStatusUI();
+    }
+  }
+
+  function launchRamedAuthPopupFlow(postTargetUrl = "") {
+    const activeUid = (state.myStudent && state.myStudent.id) || state.ramedLoginId || "";
+    if (activeUid && navigator.clipboard) {
+      navigator.clipboard.writeText(activeUid).catch(() => {});
+    }
+    const loginUrl = buildRamedPerUserLoginUrl(activeUid);
+    state.ramedPostTargetUrl = postTargetUrl || "";
+    state.ramedAuthPhase = "waiting_popup";
+    ramedPopupOpenedAt = Date.now();
+
+    const win = openCenteredPopupWindow(loginUrl, "RACM303_RAMED_AUTH_WIN", 1020, 760);
+    ramedPopupRef = win || null;
+    if (!win) {
+      window.open(loginUrl, "_blank", "noopener");
+    }
+    syncRamedAuthStatusUI();
+
+    if (ramedPopupPollTimer) clearInterval(ramedPopupPollTimer);
+    ramedPopupPollTimer = setInterval(() => {
+      if (state.ramedAuthPhase !== "waiting_popup") {
+        clearInterval(ramedPopupPollTimer);
+        ramedPopupPollTimer = null;
+        return;
+      }
+      if (ramedPopupRef && ramedPopupRef.closed) {
+        completeRamedAuthSyncTransition(state.ramedPostTargetUrl || "");
+      }
+    }, 500);
+  }
+
+  function bindRamedWindowReturnFocusOnce() {
+    if (window._ramedReturnFocusBound) return;
+    window._ramedReturnFocusBound = true;
+    const onReturn = () => {
+      if (state.ramedAuthPhase !== "waiting_popup") return;
+      const elapsed = Date.now() - ramedPopupOpenedAt;
+      if ((ramedPopupRef && ramedPopupRef.closed) || elapsed > 3200) {
+        completeRamedAuthSyncTransition(state.ramedPostTargetUrl || "");
+      }
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") onReturn();
+    });
+  }
+
+  function syncRamedAuthStatusUI() {
+    const badge = $("ramedBackendStatusBadge");
+    const banner = $("ramedAuthFlowBanner");
+    const launchBtn = $("ramedLaunchWithMyIdBtn");
+    const primaryCourseBtn = $("openRamedLoginPrimaryBtn");
+    const assignIndexBtn = $("openRamedAssignIndexBtn");
+    const activeUid = (state.myStudent && state.myStudent.id) || state.ramedLoginId || "";
+    const phase = state.ramedAuthPhase || "idle";
+
+    if (badge) {
+      if (phase === "connected") {
+        badge.className = "elearning-status-pill is-online";
+        badge.textContent = `● เชื่อมต่อ E-learning รามาแล้ว${activeUid ? " (รหัส " + activeUid + ")" : ""}`;
+      } else if (phase === "redirecting") {
+        badge.className = "elearning-status-pill is-redirecting";
+        badge.textContent = "↻ กำลัง Redirect & ซิงค์สถานะการเชื่อมต่อ…";
+      } else if (phase === "waiting_popup") {
+        badge.className = "elearning-status-pill is-authenticating";
+        badge.textContent = "🔐 เปิดหน้าต่าง Login แล้ว · รอรับการเข้าสู่ระบบ…";
+      } else {
+        badge.className = "elearning-status-pill is-pending-auth";
+        badge.textContent = "○ ยังไม่ได้ Login · กดเปิดหน้าต่างใหม่เพื่อ Login ก่อนส่งงาน";
+      }
+    }
+
+    if (launchBtn) {
+      if (phase === "connected") {
+        launchBtn.textContent = activeUid ? `✓ เชื่อมรหัส ${activeUid} แล้ว (เปิดซ้ำ ↗)` : "✓ เชื่อมต่อแล้ว (เปิดหน้า Login ↗)";
+        launchBtn.classList.remove("primary");
+        launchBtn.classList.add("teal");
+      } else {
+        launchBtn.textContent = activeUid
+          ? `🔐 1. เปิดหน้าต่างใหม่ไป Login (รหัส ${activeUid}) ↗`
+          : ROLE === "faculty"
+            ? "🔐 1. เปิดหน้าต่างใหม่ไป Login อาจารย์ ↗"
+            : "🔐 1. เปิดหน้าต่างใหม่ไป Login E-learning ↗";
+        launchBtn.classList.add("primary");
+        launchBtn.classList.remove("teal");
+      }
+    }
+
+    if (primaryCourseBtn) {
+      primaryCourseBtn.classList.toggle("is-connected-cta", phase === "connected");
+    }
+    if (assignIndexBtn) {
+      assignIndexBtn.classList.toggle("is-connected-cta", phase === "connected");
+    }
+
+    if (!banner) return;
+    banner.className = `ramed-auth-flow-banner phase-${phase}`;
+
+    const stepsHtml = `
+      <div class="raf-steps" aria-label="ขั้นตอนการเชื่อมต่อระบบ E-learning รามาธิบดี">
+        <span class="raf-step ${phase === "idle" ? "is-current" : "is-done"}"><b>1</b> เปิดหน้าต่างใหม่ Login E-learning รามา</span>
+        <span class="raf-arrow">→</span>
+        <span class="raf-step ${phase === "waiting_popup" || phase === "redirecting" ? "is-current" : phase === "connected" ? "is-done" : ""}"><b>2</b> หน้าเดิม Redirect ซิงค์สถานะ</span>
+        <span class="raf-arrow">→</span>
+        <span class="raf-step ${phase === "connected" ? "is-current is-done" : ""}"><b>3</b> เชื่อมต่อแล้ว · พร้อมส่งงาน</span>
+      </div>
+    `;
+
+    if (phase === "waiting_popup") {
+      banner.innerHTML = `
+        ${stepsHtml}
+        <div class="raf-live-card is-waiting">
+          <div class="raf-live-main">
+            <span class="raf-spinner" aria-hidden="true"></span>
+            <div>
+              <strong>กำลังรอการ Login จากหน้าต่าง E-learning รามาธิบดีที่เพิ่งเปิดใหม่…</strong>
+              <p>กรุณาล็อกอินด้วย <code>LOGIN with AD</code>${activeUid ? ` (คัดลอกรหัส <code>${escapeHtml(activeUid)}</code> ให้แล้ว)` : ""} — เมื่อล็อกอินเสร็จแล้ว <strong>คลิกกลับมาที่หน้านี้</strong> หรือปิดหน้าต่างป๊อปอัป หน้าเดิมนี้จะ Redirect อัปเดตสถานะเป็นเชื่อมต่อแล้วอัตโนมัติ</p>
+            </div>
+          </div>
+          <div class="raf-live-actions">
+            <button type="button" class="btn sm teal" id="rafConfirmLoggedBtn">✓ ฉัน Login เสร็จแล้ว · ซิงค์สถานะทันที</button>
+            <button type="button" class="btn sm" id="rafReopenPopupBtn">↗ เปิดหน้าต่าง Login อีกครั้ง</button>
+            <button type="button" class="btn sm" id="rafCancelWaitBtn">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+      const confBtn = $("rafConfirmLoggedBtn");
+      if (confBtn) confBtn.addEventListener("click", () => completeRamedAuthSyncTransition(state.ramedPostTargetUrl || ""));
+      const reBtn = $("rafReopenPopupBtn");
+      if (reBtn) reBtn.addEventListener("click", () => launchRamedAuthPopupFlow(state.ramedPostTargetUrl || ""));
+      const canBtn = $("rafCancelWaitBtn");
+      if (canBtn) {
+        canBtn.addEventListener("click", () => {
+          if (ramedPopupPollTimer) clearInterval(ramedPopupPollTimer);
+          state.ramedAuthPhase = "idle";
+          syncRamedAuthStatusUI();
+        });
+      }
+      return;
+    }
+
+    if (phase === "redirecting") {
+      banner.innerHTML = `
+        ${stepsHtml}
+        <div class="raf-live-card is-redirecting">
+          <div class="raf-live-main">
+            <span class="raf-spinner is-fast" aria-hidden="true"></span>
+            <div>
+              <strong>กำลัง Redirect &amp; ซิงค์สถานะการเชื่อมต่อกับห้องเรียนออนไลน์ RACM 303…</strong>
+              <p>ตรวจรับเซสชันกลับสู่หน้าพอร์ทัลหลักและปลดล็อกทางลัดส่งงาน${activeUid ? ` สำหรับรหัส <code>${escapeHtml(activeUid)}</code>` : ""}</p>
+            </div>
+          </div>
+          <div class="raf-progress-bar"><span class="raf-progress-fill"></span></div>
+        </div>
+      `;
+      return;
+    }
+
+    if (phase === "connected") {
+      const targetCourse = getActiveRamedTargetUrl();
+      banner.innerHTML = `
+        ${stepsHtml}
+        <div class="raf-live-card is-connected">
+          <div class="raf-live-main">
+            <span class="raf-check-badge" aria-hidden="true">✓</span>
+            <div>
+              <strong>เชื่อมต่อระบบ E-learning รามาธิบดีแล้ว${activeUid ? ` · รหัส ${escapeHtml(activeUid)}` : ""}${state.ramedConnectedAt ? ` (ซิงค์เมื่อ ${escapeHtml(state.ramedConnectedAt)})` : ""}</strong>
+              <p>${ROLE === "faculty" ? "เซสชันพร้อมตรวจให้คะแนน SRN 1 ตามกลุ่มอาจารย์ที่ปรึกษาและจัดการห้องวิชา RACM 303 ทันที" : "เซสชันพร้อมเข้าห้องเรียนและอัปโหลดไฟล์ส่งงาน SRN 1 / แบบประเมิน ครั้งที่ 1 ตามกลุ่มอาจารย์ที่ปรึกษาได้ทันที"}</p>
+            </div>
+          </div>
+          <div class="raf-live-actions">
+            <a class="btn sm teal" href="${escapeHtml(RAMED_SRN1_SECTION_URL)}" target="_blank" rel="noopener">${ROLE === "faculty" ? "🚀 เปิด Section ตรวจ SRN 1 & แบบประเมิน 1 (id=7820) ↗" : "🚀 ไปหน้าส่ง SRN 1 & แบบประเมิน 1 ตามกลุ่มอาจารย์ ↗"}</a>
+            <a class="btn sm" href="${escapeHtml(RAMED_ASSIGN_INDEX_URL)}" target="_blank" rel="noopener">📋 รวมช่องส่งงานทั้งหมด ↗</a>
+            <a class="btn sm primary" href="${escapeHtml(targetCourse)}" target="_blank" rel="noopener">📂 หน้าหลักห้องวิชา RACM 303 ↗</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Default idle step guide
+    banner.innerHTML = `
+      ${stepsHtml}
+      <div class="raf-live-card is-idle">
+        <div class="raf-live-main">
+          <span class="raf-idle-ico" aria-hidden="true">🔑</span>
+          <div>
+            <strong>แนะนำ: กดปุ่มเปิดหน้าต่างใหม่เพื่อ Login เข้าระบบ E-learning รามาธิบดีก่อนเป็นอันดับแรก</strong>
+            <p>เมื่อ Login ในหน้าต่างใหม่เรียบร้อยแล้ว พอกลับมาที่หน้านี้ ระบบจะ Redirect อัปเดตสถานะว่า <strong>เชื่อมต่อแล้ว</strong> พร้อมเปิดปุ่มส่งงานให้ทันที</p>
+          </div>
+        </div>
+        <div class="raf-live-actions">
+          <button type="button" class="btn sm primary" id="rafPrimaryOpenPopupBtn">🔐 เปิดหน้าต่างใหม่ไป Login เดี๋ยวนี้ ↗</button>
+        </div>
+      </div>
+    `;
+    const openNowBtn = $("rafPrimaryOpenPopupBtn");
+    if (openNowBtn) {
+      openNowBtn.addEventListener("click", () => launchRamedAuthPopupFlow());
+    }
+  }
+
   function ensureRamedPerUserIdentityUI() {
     const bridge = $("ramedBackendBridge");
     if (!bridge || $("ramedPerUserBar")) return;
+
+    bindRamedWindowReturnFocusOnce();
+    const savedSession = loadRamedSessionAuth();
+    if (savedSession && state.ramedAuthPhase === "idle") {
+      state.ramedAuthPhase = "connected";
+      state.ramedConnectedAt = savedSession.connectedAt || "";
+    }
+
+    const flowBanner = make("div", null, "ramed-auth-flow-banner phase-idle");
+    flowBanner.id = "ramedAuthFlowBanner";
 
     const bar = make("div", null, "ramed-per-user-bar");
     bar.id = "ramedPerUserBar";
@@ -7023,8 +7671,8 @@
             <label for="ramedMyLoginIdInput">🔑 เข้าห้องเรียนออนไลน์ด้วยรหัสนักศึกษาของฉัน (รหัสใคร รหัสมัน):</label>
             <div class="rpu-input-row">
               <input id="ramedMyLoginIdInput" list="studentLookupList" type="search" placeholder="พิมพ์รหัสนักศึกษา 7 หลักของตัวเอง (เช่น 6702006)…">
-              <a class="btn primary sm" id="ramedLaunchWithMyIdBtn" href="${escapeHtml(RAMED_LOGIN_URL)}" target="_blank" rel="noopener">ล็อกอินด้วยรหัสของฉัน ↗</a>
-              <a class="btn sm" id="ramedSwitchAccountBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/logout.php" target="_blank" rel="noopener" title="กดเพื่อออกจากบัญชีเดิมหากเครื่องนี้ค้างรหัสอาจารย์หรือเพื่อนคนอื่นอยู่">🔄 สลับบัญชีผู้ใช้งาน</a>
+              <button class="btn primary sm" id="ramedLaunchWithMyIdBtn" type="button">🔐 1. เปิดหน้าต่างใหม่ไป Login E-learning ↗</button>
+              <button class="btn sm" id="ramedSwitchAccountBtn" type="button" title="กดเพื่อออกจากบัญชีเดิมหากเครื่องนี้ค้างรหัสอาจารย์หรือเพื่อนคนอื่นอยู่">🔄 สลับบัญชีผู้ใช้งาน</button>
             </div>
           </div>
           <div class="rpu-status-box" id="ramedMyIdentityStatus">ยังไม่ได้ระบุรหัสนักศึกษา · พิมพ์รหัส 7 หลักเพื่อให้ปุ่มเข้าห้องเรียนและชื่อไฟล์ SRN ผูกเป็นรหัสของคุณเอง</div>
@@ -7040,8 +7688,8 @@
               <select id="ramedTeacherPairSelect" class="rpu-teacher-select" aria-label="เลือกชื่ออาจารย์คู่กับรหัสบุคลากร">
                 <option value="">— ผูกชื่ออาจารย์ผู้สอน —</option>
               </select>
-              <a class="btn primary sm" id="ramedLaunchWithMyIdBtn" href="${escapeHtml(RAMED_LOGIN_URL)}" target="_blank" rel="noopener">ล็อกอินด้วยรหัสอาจารย์ ↗</a>
-              <a class="btn sm" id="ramedSwitchAccountBtn" href="https://elearning.ra.mahidol.ac.th/ramed/login/logout.php" target="_blank" rel="noopener" title="ออกจากรหัสเดิมที่ค้างในเบราว์เซอร์ เพื่อล็อกอินด้วยรหัสของอาจารย์ท่านอื่น">🔄 สลับบัญชีในระบบ</a>
+              <button class="btn primary sm" id="ramedLaunchWithMyIdBtn" type="button">🔐 1. เปิดหน้าต่างใหม่ไป Login อาจารย์ ↗</button>
+              <button class="btn sm" id="ramedSwitchAccountBtn" type="button" title="ออกจากรหัสเดิมที่ค้างในเบราว์เซอร์ เพื่อล็อกอินด้วยรหัสของอาจารย์ท่านอื่น">🔄 สลับบัญชีในระบบ</button>
             </div>
           </div>
           <div class="rpu-status-box" id="ramedMyIdentityStatus">กรอกรหัสบุคลากร 6 หลัก / C-life ของท่านเองเพื่อเข้าโหมดอาจารย์ตามสิทธิ์จริงรายบุคคล</div>
@@ -7062,8 +7710,10 @@
     const topHead = bridge.querySelector(".elearning-bridge-top");
     if (topHead && topHead.nextSibling) {
       bridge.insertBefore(bar, topHead.nextSibling);
+      bridge.insertBefore(flowBanner, bar);
     } else {
       bridge.prepend(bar);
+      bridge.prepend(flowBanner);
     }
 
     const uidInp = $("ramedMyLoginIdInput");
@@ -7107,12 +7757,34 @@
     const launchBtn = $("ramedLaunchWithMyIdBtn");
     if (launchBtn) {
       launchBtn.addEventListener("click", () => {
-        const activeId = (state.myStudent && state.myStudent.id) || state.ramedLoginId || "";
-        if (activeId && navigator.clipboard) {
-          navigator.clipboard.writeText(activeId).catch(() => {});
-        }
+        launchRamedAuthPopupFlow();
       });
     }
+
+    const switchAccBtn = $("ramedSwitchAccountBtn");
+    if (switchAccBtn) {
+      switchAccBtn.addEventListener("click", () => {
+        clearRamedSessionAuth();
+        state.ramedAuthPhase = "idle";
+        state.ramedConnectedAt = "";
+        openCenteredPopupWindow("https://elearning.ra.mahidol.ac.th/ramed/login/logout.php", "RACM303_RAMED_AUTH_WIN", 920, 680);
+        syncRamedAuthStatusUI();
+        renderDeliverablesCards();
+      });
+    }
+
+    ["subHeaderRamedLoginBtn", "openRamedLoginPrimaryBtn", "openRamedAssignIndexBtn"].forEach((btnId) => {
+      const el = $(btnId);
+      if (!el || el._ramedAuthHooked) return;
+      el._ramedAuthHooked = true;
+      el.addEventListener("click", (ev) => {
+        if (state.ramedAuthPhase !== "connected") {
+          ev.preventDefault();
+          const postUrl = btnId === "openRamedAssignIndexBtn" ? RAMED_ASSIGN_INDEX_URL : getActiveRamedTargetUrl();
+          launchRamedAuthPopupFlow(postUrl);
+        }
+      });
+    });
 
     if ($("exportMoodle169CsvBtn")) {
       $("exportMoodle169CsvBtn").addEventListener("click", exportMoodleEnrolmentCsv);
@@ -7123,7 +7795,6 @@
     ensureRamedPerUserIdentityUI();
     const uidInp = $("ramedMyLoginIdInput");
     const statusBox = $("ramedMyIdentityStatus");
-    const launchBtn = $("ramedLaunchWithMyIdBtn");
     const primaryCourseBtn = $("openRamedLoginPrimaryBtn");
     const topNavRamedLink = $(ROLE === "faculty" ? "facRamedTopLink" : "studentElearningLink");
     const loginCardLink = $("ramedLinkLogin");
@@ -7142,12 +7813,6 @@
     }
 
     const loginUrl = buildRamedPerUserLoginUrl(rawUid);
-    if (launchBtn) {
-      launchBtn.href = loginUrl;
-      launchBtn.textContent = rawUid
-        ? `🔑 ล็อกอินรหัส ${rawUid} ↗`
-        : "🔑 ล็อกอินด้วยรหัสตัวเอง ↗";
-    }
     if (loginCardLink) {
       loginCardLink.href = loginUrl;
     }
@@ -7157,7 +7822,7 @@
         if (statusBox) {
           statusBox.innerHTML =
             `<strong>✓ กำลังเข้าใช้งานฝั่งนักศึกษา รหัส <code>${escapeHtml(activeStudent.id)}</code> (${escapeHtml(activeStudent.fullName)})</strong> · ` +
-            `กลุ่มพื้นที่ ${escapeHtml(activeStudent.area)} · Discussion ${activeStudent.disc} — กดปุ่มล็อกอินเพื่อส่งงาน SRN และดูคะแนนเฉพาะรหัสของคุณ`;
+            `กลุ่มพื้นที่ ${escapeHtml(activeStudent.area)} · Discussion ${activeStudent.disc} — กดปุ่มเปิดหน้าต่าง Login ด้านบนเพื่อเชื่อมเซสชันส่วนตัวของคุณ`;
         }
         if (primaryCourseBtn) primaryCourseBtn.textContent = `เข้าห้องเรียน RACM 303 (รหัส ${activeStudent.id}) ↗`;
         if (topNavRamedLink) topNavRamedLink.textContent = `ห้องเรียน E-learning (${activeStudent.id}) ↗`;
@@ -7175,7 +7840,7 @@
       if (rawUid || tShort) {
         const whoParts = [rawUid ? `รหัส <code>${escapeHtml(rawUid)}</code>` : "", tShort ? escapeHtml(tShort) : ""].filter(Boolean).join(" · ");
         if (statusBox) {
-          statusBox.innerHTML = `<strong>✓ กำลังเข้าใช้งานฝั่งอาจารย์/บุคลากร (${whoParts})</strong> — ลิงก์ Login ตั้งค่ารหัสของท่านไว้พร้อมเข้าจัดการห้องเรียนรายบุคคล`;
+          statusBox.innerHTML = `<strong>✓ กำลังเข้าใช้งานฝั่งอาจารย์/บุคลากร (${whoParts})</strong> — กดปุ่มเปิดหน้าต่าง Login เพื่อเชื่อมเซสชันอาจารย์รายบุคคล`;
         }
         if (primaryCourseBtn) {
           primaryCourseBtn.textContent = `เข้าจัดการห้องเรียน (${rawUid || state.myTeacherKey}) ↗`;
@@ -7192,6 +7857,7 @@
         if (topNavRamedLink) topNavRamedLink.textContent = "ห้องเรียน E-learning ↗";
       }
     }
+    syncRamedAuthStatusUI();
   }
 
   function renderSubmissionsView() {
@@ -8940,8 +9606,13 @@
       rb.setAttribute("aria-pressed", rm.id === curRoom ? "true" : "false");
       rb.addEventListener("click", () => {
         LIVE.setRoom(rm.id, false);
+        state.hsdRoomConfirmed = true;
+        try {
+          sessionStorage.setItem("racm303_hsd_room_confirmed", "1");
+        } catch (_) {}
         renderHsLiveClassroomBar();
         renderHsDiscussionContextBar();
+        if (ROLE === "student") renderHsDiscussionView();
         if (ROLE === "faculty" && typeof refreshAllVisibleLiveWalls === "function") {
           refreshAllVisibleLiveWalls();
         }
@@ -8949,6 +9620,20 @@
       roomPills.appendChild(rb);
     });
     left.appendChild(roomPills);
+
+    if (ROLE === "student" && state.hsdRoomConfirmed) {
+      const switchRoomGateBtn = make("button", tr("🚪 เปลี่ยนห้อง", "🚪 Switch Room"), "hsd-tbtn");
+      switchRoomGateBtn.type = "button";
+      switchRoomGateBtn.title = tr("เปิดหน้าเมนูเลือกห้องกลุ่มย่อย 1–6 ใหม่", "Re-open room selection menu");
+      switchRoomGateBtn.addEventListener("click", () => {
+        state.hsdRoomConfirmed = false;
+        try {
+          sessionStorage.removeItem("racm303_hsd_room_confirmed");
+        } catch (_) {}
+        renderHsDiscussionView();
+      });
+      left.appendChild(switchRoomGateBtn);
+    }
 
     const presPill = make("span", "", "hsd-presence-pill");
     presPill.id = "hsdPresencePill";
@@ -9445,13 +10130,13 @@
       }
       if (state.activeTab !== "hs-discussion" || state.hsdViewMode !== "slide") return;
       const tag = (e.target && e.target.tagName) || "";
-      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
-      if (e.key === "ArrowRight") {
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT" || (e.target && e.target.isContentEditable)) return;
+      if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
-        stepHsSlide(1);
-      } else if (e.key === "ArrowLeft") {
+        clickerAdvanceHsSlide(1);
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault();
-        stepHsSlide(-1);
+        clickerAdvanceHsSlide(-1);
       }
     });
 
@@ -9979,8 +10664,34 @@
     });
   }
 
+  function getEffectiveHsdSlideLayout() {
+    const raw = state.hsdSlideLayout || (ROLE === "faculty" ? "split-key" : "split-sheet");
+    if (ROLE !== "faculty" && raw === "split-key") return "split-sheet";
+    if (!["scenario", "sheet", "split-sheet", "split-key"].includes(raw)) {
+      return ROLE === "faculty" ? "split-key" : "split-sheet";
+    }
+    return raw;
+  }
+
+  function setHsdSlideLayout(nextLayout, nextSplitPct) {
+    state.hsdSlideLayout = nextLayout;
+    try {
+      localStorage.setItem("racm303_hsd_layout", nextLayout);
+    } catch (_) {}
+    if (typeof nextSplitPct === "number" && Number.isFinite(nextSplitPct)) {
+      state.hsdSplitPct = Math.min(78, Math.max(22, Math.round(nextSplitPct)));
+      try {
+        localStorage.setItem("racm303_hsd_split_pct", String(state.hsdSplitPct));
+      } catch (_) {}
+    }
+    renderHsDiscussionView();
+  }
+
   function buildHsSlideDeckItems(matchedCases) {
     const items = [];
+    const layout = getEffectiveHsdSlideLayout();
+    const includeSeparateKeySlide =
+      ROLE === "faculty" && state.hsdFacultyMode !== "student" && layout !== "split-key";
     matchedCases.forEach((c) => {
       const mod = (HSD_DATA.modules || []).find((m) => m.id === c.module) || {
         id: c.module,
@@ -9989,7 +10700,7 @@
       };
       (c.questions || []).forEach((qObj) => {
         items.push({ kind: "question", mod, caseObj: c, qObj });
-        if (ROLE === "faculty" && state.hsdFacultyMode !== "student") {
+        if (includeSeparateKeySlide) {
           items.push({ kind: "key", mod, caseObj: c, qObj });
         }
       });
@@ -9997,11 +10708,262 @@
     return items;
   }
 
-  function stepHsSlide(delta) {
+  function clickerAdvanceHsSlide(delta) {
+    const stageEl = document.querySelector(".hsd-slide-stage.is-16x9-canvas, .hsd-key-slide-stage.is-16x9-canvas");
+    if (stageEl) {
+      const layout = getEffectiveHsdSlideLayout();
+      let scrollTarget = null;
+      if (stageEl.classList.contains("hsd-key-slide-stage")) {
+        scrollTarget = stageEl;
+      } else if (layout === "scenario") {
+        scrollTarget = stageEl.querySelector(".hsd-slide-left");
+      } else if (layout === "sheet") {
+        scrollTarget = stageEl.querySelector(".hsd-slide-right");
+      }
+      if (scrollTarget) {
+        const maxScroll = scrollTarget.scrollHeight - scrollTarget.clientHeight;
+        if (maxScroll > 20) {
+          if (delta > 0 && scrollTarget.scrollTop < maxScroll - 18) {
+            const stepPx = Math.max(180, Math.round(scrollTarget.clientHeight * 0.72));
+            scrollTarget.scrollBy({ top: stepPx, behavior: "smooth" });
+            return;
+          }
+          if (delta < 0 && scrollTarget.scrollTop > 18) {
+            const stepPx = Math.max(180, Math.round(scrollTarget.clientHeight * 0.72));
+            scrollTarget.scrollBy({ top: -stepPx, behavior: "smooth" });
+            return;
+          }
+        }
+      }
+    }
     manualStepHsSlide(delta);
   }
 
+  function stepHsSlide(delta) {
+    clickerAdvanceHsSlide(delta);
+  }
+
+  function renderHsStudentRoomGateCard(container) {
+    const gate = make("div", null, "hsd-room-gate-card");
+    const myGroup = state.myStudent ? Number(state.myStudent.disc) : 0;
+    const curRoom = LIVE ? LIVE.getRoomId() : myGroup || 1;
+    const activeMod = state.hsdModule !== "ALL" ? state.hsdModule : "HS1";
+
+    const head = make("div", null, "hsd-room-gate-head");
+    head.innerHTML =
+      `<div class="hsd-rg-badge">🚪 ขั้นตอนก่อนเริ่มอภิปรายกลุ่มย่อย</div>` +
+      `<h3>เลือกห้องเรียน Discussion ของคุณก่อนเข้าทำใบงานสด (กลุ่ม 1–6)</h3>` +
+      `<p>เมื่อเลือกห้องเรียนแล้ว คำตอบที่คุณพิมพ์และส่งในตารางจะซิงค์ขึ้นหน้าจออาจารย์และนาฬิกานับถอยหลังของห้องนั้นทันที</p>`;
+    gate.appendChild(head);
+
+    if (!state.myStudent) {
+      const quickRow = make("div", null, "hsd-rg-identity-row");
+      const idIn = document.createElement("input");
+      idIn.type = "search";
+      idIn.setAttribute("list", "studentLookupList");
+      idIn.placeholder = "ระบุรหัสนักศึกษา 7 หลัก หรือชื่อเล่น (เพื่อให้ระบบแนะนำห้องกลุ่มของคุณอัตโนมัติ)…";
+      idIn.addEventListener("change", () => {
+        const found = findStudentByQuery(idIn.value);
+        if (found) {
+          applyMyStudent(found, true);
+          renderHsDiscussionView();
+        } else if (LIVE && idIn.value.trim()) {
+          LIVE.setCustomDisplayName(idIn.value.trim());
+        }
+      });
+      quickRow.appendChild(idIn);
+      gate.appendChild(quickRow);
+    } else {
+      const myBanner = make("div", null, "hsd-rg-my-banner");
+      myBanner.innerHTML = `<span>★ ข้อมูลของคุณ: <strong>${escapeHtml(state.myStudent.id)} ${escapeHtml(state.myStudent.fullName)}</strong> — อยู่ <strong>กลุ่ม Discussion ที่ ${state.myStudent.disc}</strong></span>`;
+      gate.appendChild(myBanner);
+    }
+
+    const roomsGrid = make("div", null, "hsd-rg-grid");
+    const roomsList = LIVE && LIVE.rooms ? LIVE.rooms : [1, 2, 3, 4, 5, 6].map((n) => ({ id: n, roomCode: `1C1-0${n + 1}` }));
+    roomsList.forEach((rm) => {
+      const rot = (SCHED.hsRotation || []).find((r) => r.group === rm.id) || {};
+      const modCell = rot[activeMod] || {};
+      const roomName = modCell.room || rot.room || rm.roomCode || "";
+      const instName = modCell.instructor || "อาจารย์ประจำกลุ่มหมุนเวียน";
+      const isMine = myGroup === rm.id;
+      const isCur = curRoom === rm.id;
+
+      const btn = make(
+        "button",
+        null,
+        `hsd-rg-room-btn${isMine ? " is-my-room" : ""}${isCur ? " is-selected" : ""}`
+      );
+      btn.type = "button";
+      btn.innerHTML =
+        `<div class="hsd-rg-top">` +
+        `<span class="hsd-rg-num">กลุ่มที่ ${rm.id}</span>` +
+        `${isMine ? `<span class="hsd-rg-mine-pill">★ ห้องของคุณ</span>` : `<span class="hsd-rg-code">ห้อง ${escapeHtml(roomName)}</span>`}` +
+        `</div>` +
+        `<strong class="hsd-rg-room">📍 ห้องเรียน ${escapeHtml(roomName)}</strong>` +
+        `<span class="hsd-rg-inst">อาจารย์ (${escapeHtml(activeMod)}): ${escapeHtml(instName)}</span>` +
+        `<span class="hsd-rg-enter">เข้าห้องเรียนกลุ่มที่ ${rm.id} →</span>`;
+
+      btn.addEventListener("click", () => {
+        if (LIVE) LIVE.setRoom(rm.id, false);
+        state.hsdRoomConfirmed = true;
+        try {
+          sessionStorage.setItem("racm303_hsd_room_confirmed", "1");
+        } catch (_) {}
+        renderHsLiveClassroomBar();
+        renderHsDiscussionView();
+      });
+      roomsGrid.appendChild(btn);
+    });
+
+    gate.appendChild(roomsGrid);
+    container.appendChild(gate);
+  }
+
+  function bindHsdSplitAndSnapInteractions(stageEl, leftPane, rightPane, resizerEl) {
+    if (!stageEl) return;
+
+    // Snap zone overlay (Windows 11 / macOS edge-drag snap preview)
+    const snapOverlay = make("div", null, "hsd-snap-drop-overlay");
+    snapOverlay.hidden = true;
+    const snapZones = [
+      { id: "scenario", label: "📖 โจทย์เต็มจอ 16:9", cls: "zone-full-left", layout: "scenario" },
+      { id: "split-65", label: "◧ โจทย์ 65 : เฉลย/ใบงาน 35", cls: "zone-split-65", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 65 },
+      { id: "split-50", label: ROLE === "faculty" ? "◫ โจทย์ + Answer Key 50:50" : "◫ โจทย์ + Answer Sheet 50:50", cls: "zone-split-50", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 50 },
+      { id: "split-35", label: "◨ โจทย์ 35 : เฉลย/ใบงาน 65", cls: "zone-split-35", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 35 },
+      { id: "sheet", label: "▦ Answer Sheet เต็มจอ 16:9", cls: "zone-full-right", layout: "sheet" }
+    ];
+    snapZones.forEach((z) => {
+      const zEl = make("div", z.label, `hsd-snap-zone ${z.cls}`);
+      zEl.dataset.snapZoneId = z.id;
+      snapOverlay.appendChild(zEl);
+    });
+    stageEl.appendChild(snapOverlay);
+
+    // 1. Center vertical drag resizer (+ snap to full when dragged to far left/right edge!)
+    if (resizerEl && leftPane && rightPane) {
+      const ratioPill = resizerEl.querySelector(".hsd-resizer-pill");
+      resizerEl.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        resizerEl.setPointerCapture(ev.pointerId);
+        stageEl.classList.add("is-resizing-split");
+        let pendingSnap = "";
+
+        const onMove = (mev) => {
+          const rect = stageEl.getBoundingClientRect();
+          if (!rect.width) return;
+          const rawPct = ((mev.clientX - rect.left) / rect.width) * 100;
+          if (rawPct < 13) {
+            pendingSnap = "sheet";
+            if (ratioPill) ratioPill.textContent = "ปล่อยเพื่อขยายขวาเต็มจอ";
+            stageEl.dataset.edgeSnapHint = "right-full";
+            return;
+          }
+          if (rawPct > 87) {
+            pendingSnap = "scenario";
+            if (ratioPill) ratioPill.textContent = "ปล่อยเพื่อขยายโจทย์เต็มจอ";
+            stageEl.dataset.edgeSnapHint = "left-full";
+            return;
+          }
+          pendingSnap = "";
+          delete stageEl.dataset.edgeSnapHint;
+          const clamped = Math.min(78, Math.max(22, Math.round(rawPct)));
+          state.hsdSplitPct = clamped;
+          stageEl.style.setProperty("--hsd-left-pct", `${clamped}%`);
+          if (ratioPill) ratioPill.textContent = `${clamped}:${100 - clamped}`;
+        };
+
+        const onUp = () => {
+          stageEl.classList.remove("is-resizing-split");
+          delete stageEl.dataset.edgeSnapHint;
+          resizerEl.removeEventListener("pointermove", onMove);
+          resizerEl.removeEventListener("pointerup", onUp);
+          resizerEl.removeEventListener("pointercancel", onUp);
+          if (pendingSnap) {
+            setHsdSlideLayout(pendingSnap);
+            return;
+          }
+          try {
+            localStorage.setItem("racm303_hsd_split_pct", String(state.hsdSplitPct));
+          } catch (_) {}
+          if (ratioPill) ratioPill.textContent = "⋮";
+        };
+
+        resizerEl.addEventListener("pointermove", onMove);
+        resizerEl.addEventListener("pointerup", onUp);
+        resizerEl.addEventListener("pointercancel", onUp);
+      });
+    }
+
+    // 2. Drag pane header handle to screen edges/corners to snap layout (Windows 11 / macOS style)
+    stageEl.querySelectorAll("[data-pane-snap-drag]").forEach((handleEl) => {
+      handleEl.addEventListener("pointerdown", (ev) => {
+        if (ev.target.closest("button, select, input, a")) return;
+        const startX = ev.clientX;
+        const startY = ev.clientY;
+        let dragging = false;
+        let hoveredZone = null;
+
+        const onMove = (mev) => {
+          if (!dragging && Math.hypot(mev.clientX - startX, mev.clientY - startY) > 10) {
+            dragging = true;
+            snapOverlay.hidden = false;
+            stageEl.classList.add("is-snap-dragging");
+          }
+          if (!dragging) return;
+          hoveredZone = null;
+          snapOverlay.querySelectorAll(".hsd-snap-zone").forEach((zEl) => {
+            const r = zEl.getBoundingClientRect();
+            const hit =
+              mev.clientX >= r.left &&
+              mev.clientX <= r.right &&
+              mev.clientY >= r.top &&
+              mev.clientY <= r.bottom;
+            zEl.classList.toggle("is-hot", hit);
+            if (hit) hoveredZone = snapZones.find((z) => z.id === zEl.dataset.snapZoneId) || null;
+          });
+        };
+
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onUp);
+          snapOverlay.hidden = true;
+          stageEl.classList.remove("is-snap-dragging");
+          if (dragging && hoveredZone) {
+            setHsdSlideLayout(hoveredZone.layout, hoveredZone.pct);
+          }
+        };
+
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+      });
+    });
+  }
+
+  function attachClickerScrollHintMonitor(paneEl, hintText) {
+    if (!paneEl) return;
+    const hint = make("button", hintText || "⬇ ยังมีเนื้อหาด้านล่าง · กด Clicker ▶ เพื่อเลื่อนอ่านต่อ", "hsd-clicker-scroll-pill hsd-no-print");
+    hint.type = "button";
+    hint.hidden = true;
+    hint.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      clickerAdvanceHsSlide(1);
+    });
+    paneEl.appendChild(hint);
+
+    const check = () => {
+      const rem = paneEl.scrollHeight - paneEl.clientHeight - paneEl.scrollTop;
+      hint.hidden = rem <= 20;
+    };
+    paneEl.addEventListener("scroll", check, { passive: true });
+    requestAnimationFrame(check);
+    setTimeout(check, 180);
+  }
+
   function renderHsSlideDeckMode(container, matchedCases) {
+    const layout = getEffectiveHsdSlideLayout();
     const slides = buildHsSlideDeckItems(matchedCases);
     if (!slides.length) return;
     if (state.hsdSlideIdx >= slides.length) state.hsdSlideIdx = slides.length - 1;
@@ -10016,29 +10978,29 @@
       LIVE.broadcastTeacherQuestionPointer(cur.mod.id, cur.caseObj.id, cur.qObj.id);
     }
 
-    const shell = make("div", null, "hsd-slide-shell");
+    const shell = make("div", null, `hsd-slide-shell is-16x9-shell layout-${layout}`);
     const topbar = make("div", null, "hsd-slide-topbar hsd-no-print");
 
     const leftNav = make("div", null, "hsd-slide-nav-group");
-    const prevBtn = make("button", tr("◀ ข้อก่อนหน้า", "◀ Prev"), "btn sm");
+    const prevBtn = make("button", tr("◀ Clicker ย้อน", "◀ Prev"), "btn sm");
     prevBtn.type = "button";
-    prevBtn.disabled = state.hsdSlideIdx === 0;
-    prevBtn.addEventListener("click", () => manualStepHsSlide(-1));
+    prevBtn.title = "กดย้อนกลับ (รองรับรีโมต Clicker ปุ่ม ◀ / PageUp)";
+    prevBtn.addEventListener("click", () => clickerAdvanceHsSlide(-1));
 
     const counter = make("span", `${state.hsdSlideIdx + 1} / ${slides.length}`, "hsd-slide-counter");
 
     const nextLabel =
       nextSlide && nextSlide.kind === "key"
-        ? `สไลด์ถัดไป: เฉลย ${cur.qObj.label} ★ →`
-        : tr("ข้อถัดไป ▶", "Next ▶");
+        ? `Clicker ▶ เฉลย ${cur.qObj.label} ★`
+        : tr("Clicker ถัดไป ▶", "Next ▶");
     const nextBtn = make(
       "button",
       nextLabel,
       nextSlide && nextSlide.kind === "key" ? "btn sm hsd-next-key-btn" : "btn sm primary"
     );
     nextBtn.type = "button";
-    nextBtn.disabled = state.hsdSlideIdx >= slides.length - 1;
-    nextBtn.addEventListener("click", () => manualStepHsSlide(1));
+    nextBtn.title = "กดเลื่อนสไลด์หรือเลื่อนอ่านโจทย์ต่อ (รองรับรีโมต Clicker ปุ่ม ▶ / PageDown / Space)";
+    nextBtn.addEventListener("click", () => clickerAdvanceHsSlide(1));
 
     const picker = document.createElement("select");
     picker.className = "hsd-slide-select";
@@ -10064,7 +11026,67 @@
 
     leftNav.append(prevBtn, counter, nextBtn, picker);
 
-    const rightNav = make("div", null, "hsd-slide-nav-group");
+    // Center/Right Layout Switcher + Windows-11 Snap Layout Popover!
+    const rightNav = make("div", null, "hsd-slide-nav-group hsd-layout-controls");
+    const layoutSeg = make("div", null, "hsd-layout-seg");
+    const layoutOpts =
+      ROLE === "faculty"
+        ? [
+            { id: "scenario", label: "📖 โจทย์อย่างเดียว" },
+            { id: "sheet", label: "▦ Answer Sheet" },
+            { id: "split-key", label: "◫ โจทย์ + เฉลย ★" },
+            { id: "split-sheet", label: "◫ โจทย์ + คำตอบสด" }
+          ]
+        : [
+            { id: "scenario", label: "📖 โจทย์อย่างเดียว" },
+            { id: "sheet", label: "▦ Answer Sheet" },
+            { id: "split-sheet", label: "◫ โจทย์คู่ใบงาน" }
+          ];
+    layoutOpts.forEach((opt) => {
+      const lb = make("button", opt.label, `hsd-layout-btn${layout === opt.id ? " is-active" : ""}`);
+      lb.type = "button";
+      lb.setAttribute("aria-pressed", layout === opt.id ? "true" : "false");
+      lb.addEventListener("click", () => setHsdSlideLayout(opt.id));
+      layoutSeg.appendChild(lb);
+    });
+    rightNav.appendChild(layoutSeg);
+
+    // Snap Layout Visual Preset Popover (50:50 / 65:35 / 35:65 / Full)
+    const snapMenuWrap = make("div", null, "hsd-snap-menu-wrap");
+    const snapMenuBtn = make("button", "⊞ Snap 16:9 ▾", "btn sm");
+    snapMenuBtn.type = "button";
+    snapMenuBtn.title = "เลือกสัดส่วนหน้าจอ 16:9 หรือลากแถบหัวกล่องไปขอบจอเพื่อ Snap";
+    const snapPopover = make("div", null, "hsd-snap-popover");
+    snapPopover.hidden = true;
+    [
+      { label: "▣ โจทย์เต็มจอ 16:9 (Clicker เลื่อนอ่านได้)", layout: "scenario" },
+      { label: "▦ Answer Sheet เต็มจอ 16:9", layout: "sheet" },
+      { label: ROLE === "faculty" ? "◫ คู่กัน 50:50 (โจทย์ + Answer Key ★)" : "◫ คู่กัน 50:50 (โจทย์ + Answer Sheet)", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 50 },
+      { label: "◧ โจทย์กว้าง 65% : ขวา 35%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 65 },
+      { label: "◨ โจทย์ 35% : เฉลย/ใบงานกว้าง 65%", layout: ROLE === "faculty" ? "split-key" : "split-sheet", pct: 35 }
+    ].forEach((p) => {
+      const pb = make("button", p.label, "hsd-snap-pop-item");
+      pb.type = "button";
+      pb.addEventListener("click", () => {
+        snapPopover.hidden = true;
+        setHsdSlideLayout(p.layout, p.pct);
+      });
+      snapPopover.appendChild(pb);
+    });
+    snapMenuBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      snapPopover.hidden = !snapPopover.hidden;
+    });
+    document.addEventListener(
+      "click",
+      () => {
+        snapPopover.hidden = true;
+      },
+      { once: true }
+    );
+    snapMenuWrap.append(snapMenuBtn, snapPopover);
+    rightNav.appendChild(snapMenuWrap);
+
     if (cur.mod && cur.mod.conciseDocId) {
       const docBtn = make("button", `${tr("บทเรียน", "Study")} ${cur.mod.code}`, "btn sm teal");
       docBtn.type = "button";
@@ -10085,21 +11107,56 @@
     shell.appendChild(topbar);
 
     if (cur.kind === "key" && ROLE === "faculty" && typeof renderFacultyKeySlideStage === "function") {
-      shell.appendChild(renderFacultyKeySlideStage(cur.qObj, cur.caseObj, cur.mod));
+      const keyStage = renderFacultyKeySlideStage(cur.qObj, cur.caseObj, cur.mod);
+      keyStage.classList.add("is-16x9-canvas");
+      attachClickerScrollHintMonitor(keyStage, "⬇ กด Clicker ▶ เพื่อเลื่อนดูเฉลยต่อ");
+      shell.appendChild(keyStage);
     } else {
+      const isSplit = layout === "split-key" || layout === "split-sheet";
       const stage = make(
         "div",
         null,
-        `hsd-slide-stage${state.hsdHideScenario ? " is-full-right" : ""}`
+        `hsd-slide-stage is-16x9-canvas is-layout-${layout}`
       );
+      stage.style.setProperty("--hsd-left-pct", `${state.hsdSplitPct || 48}%`);
+
       const leftPane = make("div", null, "hsd-slide-left");
+      const leftDragBar = make("div", null, "hsd-pane-snap-bar hsd-no-print");
+      leftDragBar.setAttribute("data-pane-snap-drag", "left");
+      leftDragBar.innerHTML = `<span class="hsd-drag-dots">⠿</span><span>📖 โจทย์กรณีศึกษา (ลากแถบนี้ไปขอบจอเพื่อ Snap Layout)</span>`;
+      leftPane.appendChild(leftDragBar);
       leftPane.appendChild(buildScenarioPaneContent(cur.caseObj));
+      if (layout === "scenario" || layout === "split-key") {
+        const qRecapWrap = make("div", null, "hsd-scen-question-inline");
+        qRecapWrap.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
+        leftPane.appendChild(qRecapWrap);
+      }
+
+      const resizer = make("div", null, "hsd-split-resizer hsd-no-print");
+      resizer.title = "ลากซ้าย-ขวาเพื่อปรับขนาด หรือลากชิดขอบจอเพื่อขยายเต็ม 16:9";
+      resizer.innerHTML = `<span class="hsd-resizer-pill">⋮</span>`;
+      resizer.hidden = !isSplit;
 
       const rightPane = make("div", null, "hsd-slide-right");
-      rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
+      const rightDragBar = make("div", null, "hsd-pane-snap-bar hsd-no-print");
+      rightDragBar.setAttribute("data-pane-snap-drag", "right");
+      rightDragBar.innerHTML =
+        layout === "split-key" && ROLE === "faculty"
+          ? `<span class="hsd-drag-dots">⠿</span><span>★ แนวคำตอบอาจารย์ &amp; เกณฑ์คะแนน (ลากไปขอบจอเพื่อ Snap)</span>`
+          : `<span class="hsd-drag-dots">⠿</span><span>▦ กระดาษคำตอบ Answer Sheet (ลากไปขอบจอเพื่อ Snap)</span>`;
+      rightPane.appendChild(rightDragBar);
 
-      // On Faculty Portal: Live Wall renders the exact Answer Sheet Table with per-cell live answers!
+      if (layout !== "split-key") {
+        rightPane.appendChild(buildQuestionHeaderDOM(cur.qObj, cur.caseObj));
+      }
+
       if (
+        layout === "split-key" &&
+        ROLE === "faculty" &&
+        typeof buildFacultyTeacherKeyPanelDOM === "function"
+      ) {
+        rightPane.appendChild(buildFacultyTeacherKeyPanelDOM(cur.qObj, cur.mod));
+      } else if (
         ROLE === "faculty" &&
         state.hsdFacultyMode !== "student" &&
         typeof renderFacultyLiveWallForQuestion === "function"
@@ -10109,7 +11166,17 @@
         rightPane.appendChild(buildWideWorksheetTableDOM(cur.qObj, ROLE === "faculty"));
       }
 
-      stage.append(leftPane, rightPane);
+      leftPane.hidden = layout === "sheet";
+      rightPane.hidden = layout === "scenario";
+
+      if (layout === "scenario") {
+        attachClickerScrollHintMonitor(leftPane, "⬇ โจทย์ยังมีต่อด้านล่าง · กด Clicker ▶ / Space เพื่อเลื่อนอ่านต่อ");
+      } else if (layout === "sheet") {
+        attachClickerScrollHintMonitor(rightPane, "⬇ ตารางคำตอบยังมีต่อ · กด Clicker ▶ เพื่อเลื่อนดูต่อ");
+      }
+
+      stage.append(leftPane, resizer, rightPane);
+      bindHsdSplitAndSnapInteractions(stage, leftPane, rightPane, resizer);
       shell.appendChild(stage);
     }
 
@@ -10175,7 +11242,7 @@
         hLeft.appendChild(make("h4", c.title, "hsd-case-title"));
 
         const hRight = make("div", null, "header-actions hsd-no-print");
-        const slideJumpBtn = make("button", "▣ เปิดเป็นสไลด์ข้อนี้", "btn sm teal");
+        const slideJumpBtn = make("button", "▣ เปิดเป็นสไลด์ 16:9 ข้อนี้", "btn sm teal");
         slideJumpBtn.type = "button";
         slideJumpBtn.addEventListener("click", () => {
           state.hsdViewMode = "slide";
@@ -10283,6 +11350,12 @@
     }
 
     container.replaceChildren();
+    if (ROLE === "student" && !state.hsdRoomConfirmed) {
+      renderHsStudentRoomGateCard(container);
+      syncLiveBarQuestionPickerDOM(matchedCases);
+      return;
+    }
+
     if (!matchedCases.length) {
       container.appendChild(make("div", "ไม่พบกรณีศึกษาที่ตรงกับตัวกรองหรือคำค้นหา", "empty-state"));
       syncLiveBarQuestionPickerDOM(matchedCases);
@@ -10431,7 +11504,77 @@
 
     updatePersonalBanner();
     refreshCalendarStudioUI();
+    if ($("deliverablesCardsGrid")) renderDeliverablesCards();
     if (state.activeTab === "schedule") renderScheduleCurrent();
+  }
+
+  function buildAgendaPresetLabel(iso, todayBkk, teacherHas) {
+    const [, m, d] = String(iso || "").split("-").map(Number);
+    const shortDate = d && m ? `${d} ${TH_MONTHS_SHORT[m]}` : iso;
+    const daySessions = (SCHED.sessions || []).filter(
+      (s) => s.dateISO === iso && (ROLE === "faculty" || s.studentVisible !== false)
+    );
+    let tag = "";
+    if (iso === "2026-11-25") tag = "เปิดวิชา";
+    else if (iso === "2026-12-08") tag = "สอบ EP";
+    else if (iso === "2026-12-09") tag = "SRN1·ออกพื้นที่";
+    else if (iso === "2026-12-22") tag = "สอบ HS";
+    else if (iso === "2026-12-29") tag = "นำเสนอ 3A";
+    else if (iso === "2026-12-30") tag = "🏁 เส้นชัย";
+    else if (daySessions.length) {
+      const codes = [...new Set(daySessions.map((s) => String(s.code || "").replace(/-DISC$/, "·Disc")))];
+      tag = codes.slice(0, 2).join("/");
+    } else if (iso >= "2026-12-10" && iso <= "2026-12-20") {
+      tag = "ภาคสนาม";
+    }
+    const star = teacherHas ? "★ " : "";
+    const todayMark = iso === todayBkk ? "📍 " : "";
+    return `${todayMark}${star}${shortDate}${tag ? ` · ${tag}` : ""}`;
+  }
+
+  function populateAllAgendaDateChips(presetsRow, curDate, todayBkk, tKey) {
+    if (!presetsRow) return;
+    presetsRow.replaceChildren();
+    const agendaDates = getCourseDistinctDates();
+    const allDates = agendaDates.includes(todayBkk) ? agendaDates : [todayBkk, ...agendaDates].sort();
+    let activeChip = null;
+
+    if (ROLE === "faculty" && tKey) {
+      const clearTBtn = make("button", `✕ ล้างตัวกรอง อ.${tKey}`, "concierge-preset-chip is-clear");
+      clearTBtn.type = "button";
+      clearTBtn.addEventListener("click", () => selectActiveTeacher("", false));
+      presetsRow.appendChild(clearTBtn);
+    }
+
+    allDates.forEach((iso) => {
+      const teacherHas =
+        Boolean(tKey) &&
+        (SCHED.sessions || []).some(
+          (s) => sessionOccursOnDate(s, iso, {}) && sessionMatchesTeacher(s, tKey, getSessionAssignments(s))
+        );
+      const isAct = !(ROLE === "faculty" && state.conciergeTeacherAllDays && tKey) && curDate === iso;
+      const chip = make(
+        "button",
+        buildAgendaPresetLabel(iso, todayBkk, teacherHas),
+        `concierge-preset-chip${isAct ? " is-active" : ""}${teacherHas ? " has-teacher-slot" : ""}${iso === todayBkk ? " is-real-today" : ""}`
+      );
+      chip.type = "button";
+      chip.dataset.dateIso = iso;
+      chip.addEventListener("click", () => {
+        state.conciergeTeacherAllDays = false;
+        state.conciergeDateISO = iso;
+        renderRoleConcierge();
+      });
+      if (isAct) activeChip = chip;
+      presetsRow.appendChild(chip);
+    });
+
+    requestAnimationFrame(() => {
+      refreshAllNavScrollShells();
+      if (activeChip && typeof activeChip.scrollIntoView === "function") {
+        activeChip.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    });
   }
 
   function initRoleConcierge() {
@@ -10523,20 +11666,20 @@
       whoInline.appendChild(sInput);
     }
 
-    // 2. Concise Clickable Tabs (Tab กด ชื่อแบบกระชับ)
+    // 2. Concise Clickable Tabs (แจ้งเตือนวันนี้·พรุ่งนี้ & เส้นชัย + ห้อง Discussion + กลุ่มพื้นที่)
     const tabsWrap = make("div", null, "concierge-tabs");
     tabsWrap.setAttribute("role", "tablist");
     const tabDefs =
       ROLE === "faculty"
         ? [
-            { id: "today", label: "คาบสอน" },
-            { id: "disc", label: "คุม Discussion" },
-            { id: "field", label: "ที่ปรึกษา รพช." }
+            { id: "today", label: "🔔 วันนี้·พรุ่งนี้ & เส้นชัย" },
+            { id: "disc", label: "🏫 คุม Discussion" },
+            { id: "field", label: "🏥 ที่ปรึกษาภาคสนาม" }
           ]
         : [
-            { id: "today", label: "คาบเรียน" },
-            { id: "disc", label: "ห้อง Discussion" },
-            { id: "field", label: "กลุ่มพื้นที่" }
+            { id: "today", label: "🔔 วันนี้·พรุ่งนี้ & เส้นชัย" },
+            { id: "disc", label: "🏫 ห้อง Discussion" },
+            { id: "field", label: "🏥 กลุ่มพื้นที่" }
           ];
 
     tabDefs.forEach((td) => {
@@ -10544,7 +11687,7 @@
       btn.type = "button";
       btn.dataset.ctab = td.id;
       btn.setAttribute("role", "tab");
-      btn.innerHTML = `<span>${escapeHtml(td.label)}</span><span class="ctab-pill" data-ctab-pill="${td.id}"></span>`;
+      btn.innerHTML = `<span data-ctab-label="${td.id}">${escapeHtml(td.label)}</span><span class="ctab-pill" data-ctab-pill="${td.id}"></span>`;
       btn.addEventListener("click", () => {
         if (state.conciergeOpen && state.conciergeTab === td.id) {
           state.conciergeOpen = false;
@@ -10581,12 +11724,12 @@
     barRight.append(spotTriggerBtn, toggleOpenBtn);
     tabBar.append(whoInline, tabsWrap, barRight);
 
-    // Compact Drawer Body (renders only the 1 active tab when open)
+    // Compact Drawer Body (renders active tab when open)
     const bodyWrap = make("div", null, "concierge-body");
     bodyWrap.id = "conciergeBodyWrap";
     bodyWrap.hidden = !state.conciergeOpen;
 
-    // Date bar (shown only inside "today" tab)
+    // Date bar (shown inside "today" briefing & countdown tab)
     const dayToolbar = make("div", null, "cq-compact-toolbar");
     dayToolbar.id = "conciergeDayToolbar";
     const dayWrap = make("div", null, "concierge-day-wrap");
@@ -10594,7 +11737,8 @@
     prevDayBtn.type = "button";
     prevDayBtn.title = "วันก่อนหน้า";
     prevDayBtn.addEventListener("click", () => {
-      const dates = getCourseDistinctDates();
+      const bkk = getBangkokTodayISO();
+      const dates = [...new Set([bkk, ...getCourseDistinctDates()])].sort();
       const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
       state.conciergeDateISO = dates[(curIdx - 1 + dates.length) % dates.length];
       state.conciergeTeacherAllDays = false;
@@ -10604,7 +11748,7 @@
     const dateSel = document.createElement("select");
     dateSel.id = "conciergeDateSelect";
     dateSel.className = "concierge-date-select";
-    dateSel.setAttribute("aria-label", "เลือกวันที่");
+    dateSel.setAttribute("aria-label", "เลือกวันอ้างอิง");
     dateSel.addEventListener("change", () => {
       state.conciergeDateISO = dateSel.value;
       state.conciergeTeacherAllDays = false;
@@ -10615,16 +11759,28 @@
     nextDayBtn.type = "button";
     nextDayBtn.title = "วันถัดไป";
     nextDayBtn.addEventListener("click", () => {
-      const dates = getCourseDistinctDates();
+      const bkk = getBangkokTodayISO();
+      const dates = [...new Set([bkk, ...getCourseDistinctDates()])].sort();
       const curIdx = Math.max(0, dates.indexOf(state.conciergeDateISO));
       state.conciergeDateISO = dates[(curIdx + 1) % dates.length];
       state.conciergeTeacherAllDays = false;
       renderRoleConcierge();
     });
-    dayWrap.append(prevDayBtn, dateSel, nextDayBtn);
+
+    const resetRealTodayBtn = make("button", "↺ วันนี้จริง", "btn sm");
+    resetRealTodayBtn.id = "conciergeResetTodayBtn";
+    resetRealTodayBtn.type = "button";
+    resetRealTodayBtn.hidden = true;
+    resetRealTodayBtn.addEventListener("click", () => {
+      state.conciergeDateISO = getBangkokTodayISO();
+      state.conciergeTeacherAllDays = false;
+      renderRoleConcierge();
+    });
+
+    dayWrap.append(prevDayBtn, dateSel, nextDayBtn, resetRealTodayBtn);
 
     if (ROLE === "faculty") {
-      const allDaysBtn = make("button", "รวมทุกวัน", "btn sm");
+      const allDaysBtn = make("button", "รวมทุกวันสอน", "btn sm");
       allDaysBtn.id = "conciergeToggleAllDaysBtn";
       allDaysBtn.type = "button";
       allDaysBtn.addEventListener("click", () => {
@@ -10634,9 +11790,22 @@
       dayWrap.appendChild(allDaysBtn);
     }
 
+    const presetsScrollShell = make("div", null, "nav-scroll-shell is-presets-strip");
+    presetsScrollShell.id = "conciergePresetsScrollShell";
+    const pLeftBtn = make("button", "‹", "nav-scroll-btn is-left");
+    pLeftBtn.type = "button";
+    pLeftBtn.hidden = true;
+    pLeftBtn.setAttribute("aria-label", "เลื่อนดูวันก่อนหน้า");
     const presetsRow = make("div", null, "concierge-presets-row");
     presetsRow.id = "conciergePresetsRow";
-    dayToolbar.append(dayWrap, presetsRow);
+    const pRightBtn = make("button", "เลื่อนวัน ›", "nav-scroll-btn is-right");
+    pRightBtn.type = "button";
+    pRightBtn.hidden = true;
+    pRightBtn.setAttribute("aria-label", "เลื่อนดูวันที่มีตารางถัดไป");
+    presetsScrollShell.append(pLeftBtn, presetsRow, pRightBtn);
+
+    dayToolbar.append(dayWrap, presetsScrollShell);
+    bindHorizontalScrollShell(presetsScrollShell, presetsRow);
 
     const cardsStage = make("div", null, "concierge-cards-stage");
     cardsStage.id = "conciergeCardsStage";
@@ -10648,12 +11817,456 @@
     renderRoleConcierge();
   }
 
+  function addDaysISO(isoStr, deltaDays) {
+    const m = String(isoStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return isoStr;
+    const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDays));
+    const y = dt.getUTCFullYear();
+    const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const da = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y}-${mo}-${da}`;
+  }
+
+  function diffDaysBetweenISO(targetISO, baseISO) {
+    const m1 = String(targetISO || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const m2 = String(baseISO || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m1 || !m2) return 0;
+    const t1 = Date.UTC(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3]));
+    const t2 = Date.UTC(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+    return Math.round((t1 - t2) / 86400000);
+  }
+
+  function getCourseMilestoneNodes(studentObj) {
+    const areaNote = studentObj && studentObj.area ? `พื้นที่ ${studentObj.area}` : "9 พื้นที่ภาคสนาม (7–9 คืน)";
+    return [
+      {
+        id: "ms-orient",
+        startISO: "2026-11-25",
+        endISO: "2026-11-25",
+        kind: "start",
+        tagTh: "เปิดวิชา",
+        tagEn: "Kickoff",
+        titleTh: "เปิดรายวิชา & Orientation",
+        titleEn: "Course Kickoff & Orientation",
+        subTh: "พ. 25 พ.ย. · 09.00 น. ห้อง 2C2-03",
+        subEn: "Wed 25 Nov · 09:00 Rm 2C2-03",
+        actionTab: "schedule",
+        jumpISO: "2026-11-25"
+      },
+      {
+        id: "ms-exam-ep",
+        startISO: "2026-12-08",
+        endISO: "2026-12-08",
+        kind: "exam",
+        tagTh: "สอบทฤษฎี",
+        tagEn: "Exam",
+        titleTh: "สอบระบาดวิทยา (EP1–EP9)",
+        titleEn: "Epidemiology Exam (EP1–EP9)",
+        subTh: "อ. 8 ธ.ค. · 09.00–12.00 น. (2C2-02/03)",
+        subEn: "Tue 8 Dec · 09:00–12:00",
+        actionTab: "schedule",
+        jumpISO: "2026-12-08"
+      },
+      {
+        id: "ms-srn1",
+        startISO: "2026-12-09",
+        endISO: "2026-12-09",
+        kind: "deadline",
+        deliverableId: "srn1",
+        tagTh: "ส่งงาน",
+        tagEn: "Deadline",
+        titleTh: "ส่งบันทึกสะท้อนคิด SRN ครั้งที่ 1",
+        titleEn: "Submit Self-Reflection Note 1 (SRN 1)",
+        subTh: "พ. 9 ธ.ค. · ภายใน 17.00 น. (E-learning)",
+        subEn: "Wed 9 Dec · By 17:00 (E-learning)",
+        actionTab: "submissions"
+      },
+      {
+        id: "ms-fieldwork",
+        startISO: "2026-12-09",
+        endISO: "2026-12-20",
+        kind: "fieldwork",
+        tagTh: "ภาคสนาม",
+        tagEn: "Fieldwork",
+        titleTh: "ฝึกปฏิบัติงานภาคสนามชุมชน",
+        titleEn: "Fieldwork Hospital Rotation (9 Sites)",
+        subTh: `9–20 ธ.ค. · ${areaNote}`,
+        subEn: `9–20 Dec · ${areaNote}`,
+        actionTab: "fieldwork"
+      },
+      {
+        id: "ms-exam-hs",
+        startISO: "2026-12-22",
+        endISO: "2026-12-22",
+        kind: "exam",
+        tagTh: "สอบ Open Note",
+        tagEn: "Exam",
+        titleTh: "สอบระบบสุขภาพ (HS1–HS6)",
+        titleEn: "Health Systems Open-Note Exam",
+        subTh: "อ. 22 ธ.ค. · 09.00–12.00 น. (A4 ลายมือ 1 แผ่น)",
+        subEn: "Tue 22 Dec · 09:00–12:00 (1-sheet A4)",
+        actionTab: "textbooks",
+        jumpISO: "2026-12-22"
+      },
+      {
+        id: "ms-oral-hs",
+        startISO: "2026-12-29",
+        endISO: "2026-12-29",
+        kind: "presentation",
+        tagTh: "นำเสนอ 3A",
+        tagEn: "Oral 3A",
+        titleTh: "นำเสนอภาคสนาม ระบบสุขภาพ",
+        titleEn: "Fieldwork Oral: Health Systems (3A)",
+        subTh: "อ. 29 ธ.ค. · 08.30–15.30 น. ห้อง 2C2-03",
+        subEn: "Tue 29 Dec · 08:30–15:30 Rm 2C2-03",
+        actionTab: "schedule",
+        jumpISO: "2026-12-29"
+      },
+      {
+        id: "ms-finish",
+        startISO: "2026-12-30",
+        endISO: "2026-12-30",
+        kind: "finish",
+        deliverableId: "srn2",
+        tagTh: "🏁 เส้นชัย",
+        tagEn: "🏁 Finish",
+        titleTh: "นำเสนอระบาด (4A) & ส่ง SRN 2 / Survey",
+        titleEn: "Epidemiology Oral (4A) & Final Submissions",
+        subTh: "พ. 30 ธ.ค. · ปิดรายวิชา & ส่งงานภายใน 17.00 น.",
+        subEn: "Wed 30 Dec · Final Day & Due 17:00",
+        actionTab: "submissions",
+        jumpISO: "2026-12-30"
+      }
+    ];
+  }
+
+  function evaluateMilestoneStatus(ms, refISO) {
+    const isSubmitted = ms.deliverableId && Boolean(state.submittedMap && state.submittedMap[ms.deliverableId]);
+    const dStart = diffDaysBetweenISO(ms.startISO, refISO);
+    const dEnd = diffDaysBetweenISO(ms.endISO, refISO);
+
+    if (isSubmitted && dEnd >= 0) {
+      return { state: "done", pillTh: "✓ ส่งแล้ว", pillEn: "✓ Submitted", badgeCls: "is-done", daysLeft: dStart };
+    }
+    if (dEnd < 0) {
+      return { state: "done", pillTh: "✓ ผ่านแล้ว", pillEn: "✓ Completed", badgeCls: "is-done", daysLeft: dEnd };
+    }
+    if (dStart <= 0 && dEnd >= 0) {
+      return {
+        state: "active",
+        pillTh: ms.startISO !== ms.endISO ? `🔥 กำลังดำเนินการ (เหลือ ${dEnd + 1} วัน)` : "🔥 วันนี้!",
+        pillEn: ms.startISO !== ms.endISO ? `🔥 In Progress` : "🔥 Today!",
+        badgeCls: "is-today",
+        daysLeft: 0
+      };
+    }
+    if (dStart === 1) {
+      return { state: "urgent", pillTh: "⚡ พรุ่งนี้!", pillEn: "⚡ Tomorrow!", badgeCls: "is-urgent", daysLeft: 1 };
+    }
+    if (dStart <= 3) {
+      return { state: "urgent", pillTh: `⚡ อีก ${dStart} วัน`, pillEn: `⚡ In ${dStart}d`, badgeCls: "is-urgent", daysLeft: dStart };
+    }
+    if (dStart <= 10) {
+      return { state: "soon", pillTh: `⏳ อีก ${dStart} วัน`, pillEn: `⏳ In ${dStart}d`, badgeCls: "is-soon", daysLeft: dStart };
+    }
+    return { state: "upcoming", pillTh: `🗓️ อีก ${dStart} วัน`, pillEn: `🗓️ In ${dStart}d`, badgeCls: "is-upcoming", daysLeft: dStart };
+  }
+
+  function buildMilestoneFinishTrackElement(refISO, studentObj) {
+    const milestones = getCourseMilestoneNodes(studentObj);
+    const evaluated = milestones.map((m, idx) => ({ ...m, stepNum: idx + 1, ev: evaluateMilestoneStatus(m, refISO) }));
+    const doneCount = evaluated.filter((x) => x.ev.state === "done").length;
+    const nextMs = evaluated.find((x) => x.ev.state !== "done") || evaluated[evaluated.length - 1];
+
+    // Course progress % from 25 Nov to 30 Dec (35 days span)
+    const spanDays = Math.max(1, diffDaysBetweenISO("2026-12-30", "2026-11-25"));
+    const elapsedDays = diffDaysBetweenISO(refISO, "2026-11-25");
+    let pct = 0;
+    if (elapsedDays < 0) pct = 4;
+    else if (elapsedDays >= spanDays) pct = 100;
+    else pct = Math.max(8, Math.min(98, Math.round((elapsedDays / spanDays) * 100)));
+
+    const wrap = make("div", null, "ms-finish-track-box");
+
+    const head = make("div", null, "ms-track-head");
+    const headLeft = make("div", null, "ms-track-head-left");
+    const titleSpan = make(
+      "strong",
+      tr("🏁 เส้นทางสู่เส้นชัย & นับถอยหลัง (Milestone Countdown)", "🏁 Course Finish-Line & Milestone Countdown"),
+      "ms-track-heading"
+    );
+    headLeft.appendChild(titleSpan);
+
+    if (nextMs) {
+      const nextChip = make("span", null, `ms-next-callout ${nextMs.ev.badgeCls}`);
+      nextChip.textContent =
+        nextMs.ev.state === "done"
+          ? tr("🎉 ครบทุกด่านสำคัญของรายวิชาแล้ว!", "🎉 All course milestones completed!")
+          : tr(
+              `🎯 ด่านถัดไป: ${nextMs.titleTh} · ${nextMs.ev.pillTh}`,
+              `🎯 Next: ${nextMs.titleEn} · ${nextMs.ev.pillEn}`
+            );
+      headLeft.appendChild(nextChip);
+    }
+
+    const progLabel = make(
+      "span",
+      tr(`สำเร็จ ${doneCount}/${evaluated.length} ด่าน · ${elapsedDays < 0 ? "เตรียมเปิดวิชา" : pct + "% สู่เส้นชัย 30 ธ.ค."}`, `${doneCount}/${evaluated.length} Milestones · ${pct}%`),
+      "ms-track-pct-pill"
+    );
+    head.append(headLeft, progLabel);
+
+    const rail = make("div", null, "ms-progress-rail");
+    const fill = make("div", null, "ms-progress-fill");
+    fill.style.width = `${pct}%`;
+    rail.appendChild(fill);
+
+    const scrollShell = make("div", null, "nav-scroll-shell is-ms-track");
+    const leftBtn = make("button", "‹", "nav-scroll-btn is-left");
+    leftBtn.type = "button";
+    leftBtn.hidden = true;
+    leftBtn.setAttribute("aria-label", tr("เลื่อนดูด่านก่อนหน้า", "Scroll milestones left"));
+
+    const rightBtn = make("button", tr("เลื่อน ›", "More ›"), "nav-scroll-btn is-right");
+    rightBtn.type = "button";
+    rightBtn.hidden = true;
+    rightBtn.setAttribute("aria-label", tr("เลื่อนดูด่านถัดไปถึงเส้นชัย", "Scroll milestones right"));
+
+    const scroller = make("div", null, "ms-steps-scroller");
+    let highlightedCard = null;
+
+    evaluated.forEach((m) => {
+      const isNext = nextMs && nextMs.id === m.id && m.ev.state !== "done";
+      const card = make(
+        "button",
+        null,
+        `ms-step-card kind-${m.kind} state-${m.ev.state}${isNext ? " is-next-focus" : ""}`
+      );
+      card.type = "button";
+      const numLabel = m.kind === "finish" ? "🏁" : String(m.stepNum);
+      card.innerHTML =
+        `<div class="ms-step-top">` +
+        `<span class="ms-step-num">${numLabel}</span>` +
+        `<span class="ms-step-kind">${escapeHtml(tr(m.tagTh, m.tagEn))}</span>` +
+        `<span class="ms-countdown-pill ${m.ev.badgeCls}">${escapeHtml(tr(m.ev.pillTh, m.ev.pillEn))}</span>` +
+        `</div>` +
+        `<strong class="ms-step-title">${escapeHtml(tr(m.titleTh, m.titleEn))}</strong>` +
+        `<span class="ms-step-sub">${escapeHtml(tr(m.subTh, m.subEn))}</span>`;
+
+      card.addEventListener("click", () => {
+        if (m.jumpISO && m.actionTab === "schedule") {
+          state.schedFocusDate = m.jumpISO;
+          state.schedSubView = "daily";
+          switchTab("schedule");
+          return;
+        }
+        switchTab(m.actionTab || "schedule");
+      });
+
+      if (isNext) highlightedCard = card;
+      scroller.appendChild(card);
+    });
+
+    scrollShell.append(leftBtn, scroller, rightBtn);
+    wrap.append(head, rail, scrollShell);
+
+    bindHorizontalScrollShell(scrollShell, scroller);
+    if (highlightedCard) {
+      requestAnimationFrame(() => {
+        if (highlightedCard.offsetLeft > scroller.clientWidth * 0.55) {
+          scroller.scrollLeft = Math.max(0, highlightedCard.offsetLeft - 24);
+        }
+      });
+    }
+
+    return { wrap, nextMs };
+  }
+
+  function renderCompactBriefingSessionCard(sess, personalCtx, tKey, includeDatePrefix = false) {
+    if (ROLE === "faculty") {
+      const roleInfo = tKey
+        ? describeTeacherRoleForSession(sess, tKey)
+        : { roleBadge: sess.code, badgeCls: `cat-${sess.category}`, roomText: sess.room || "-", assignment: null };
+      const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
+      const datePrefix = includeDatePrefix ? `${formatCourseDateOptionLabel(sess.dateISO).replace(" 2569", "")} · ` : "";
+      const topLine = make("div", null, "cq-sess-top");
+      topLine.innerHTML = `<span class="cq-time">${escapeHtml(datePrefix + (sess.timeLabel || "ตลอดวัน"))}</span><span class="badge ${roleInfo.badgeCls}">${escapeHtml(roleInfo.roleBadge)}</span>`;
+      const roomLine = make("div", `📍 ${roleInfo.roomText}`, "cq-room-line-strong");
+      const titleEl = make("strong", sess.title, "cq-sess-title");
+      item.append(topLine, roomLine, titleEl);
+
+      const actRow = make("div", null, "cq-mini-actions");
+      if (roleInfo.assignment) {
+        const rosterBtn = make("button", "👥 ผังรูป นศ. ↗", "cq-link-btn is-primary");
+        rosterBtn.type = "button";
+        rosterBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          jumpToClassRoster(sess, roleInfo.assignment);
+        });
+        actRow.appendChild(rosterBtn);
+      }
+      if (sess.zoom && sess.zoom.url) {
+        const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
+        zLink.href = sess.zoom.url;
+        zLink.target = "_blank";
+        zLink.rel = "noopener";
+        actRow.appendChild(zLink);
+      }
+      if (actRow.childElementCount) item.appendChild(actRow);
+      item.addEventListener("click", () => openEventModal(sess));
+      return item;
+    }
+
+    const eff = resolveEffectiveSessionDetails(sess, personalCtx);
+    const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
+    const roomShort = eff.room || sess.room || "-";
+    const datePrefix = includeDatePrefix ? `${formatCourseDateOptionLabel(sess.dateISO).replace(" 2569", "")} · ` : "";
+    const topLine = make("div", null, "cq-sess-top");
+    topLine.innerHTML = `<span class="cq-time">${escapeHtml(datePrefix + (sess.timeLabel || "ตลอดวัน"))}</span><span class="cq-room-pill">📍 ${escapeHtml(roomShort)}</span>`;
+    const titleEl = make("strong", eff.title, "cq-sess-title");
+    const lecEl = make("span", `ผู้สอน: ${eff.lecturer || sess.lecturers || "-"}`, "cq-sess-lec");
+    item.append(topLine, titleEl, lecEl);
+
+    const actRow = make("div", null, "cq-mini-actions");
+    if (sess.zoom && sess.zoom.url) {
+      const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
+      zLink.href = sess.zoom.url;
+      zLink.target = "_blank";
+      zLink.rel = "noopener";
+      actRow.appendChild(zLink);
+    }
+    if (sess.conciseLink || sess.docLink) {
+      const readBtn = make("button", `สรุป ${sess.code.replace("-DISC", "")} →`, "cq-link-btn");
+      readBtn.type = "button";
+      readBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openTextbookDoc(sess.conciseLink || sess.docLink);
+      });
+      actRow.appendChild(readBtn);
+    }
+    if (actRow.childElementCount) item.appendChild(actRow);
+    item.addEventListener("click", () => openEventModal(sess));
+    return item;
+  }
+
+  function renderTodayTomorrowBriefingSplit(curDate, todayBkk, personalCtx, tKey) {
+    const tomorrowISO = addDaysISO(curDate, 1);
+    const filterForDate = (iso) =>
+      (SCHED.sessions || []).filter((sess) => {
+        if (!sessionOccursOnDate(sess, iso, ROLE === "faculty" ? {} : personalCtx)) return false;
+        if (ROLE === "faculty" && tKey) {
+          return sessionMatchesTeacher(sess, tKey, getSessionAssignments(sess));
+        }
+        return true;
+      });
+
+    const todaySessions = filterForDate(curDate);
+    const tomorrowSessions = filterForDate(tomorrowISO);
+    const milestones = getCourseMilestoneNodes(state.myStudent);
+
+    const split = make("div", null, "cq-briefing-split");
+
+    // 1. TODAY PANEL
+    const todayCol = make("div", null, "cq-day-noti-col is-today-col");
+    const todayHead = make("div", null, "cq-day-noti-head");
+    const isRealToday = curDate === todayBkk;
+    todayHead.innerHTML =
+      `<div class="cq-day-noti-title">` +
+      `<span class="cq-day-badge is-today">${isRealToday ? tr("📍 วันนี้", "📍 Today") : tr("👁️ วันอ้างอิง", "👁️ Selected Day")}</span>` +
+      `<strong>${escapeHtml(formatCourseDateOptionLabel(curDate))}</strong>` +
+      `</div>` +
+      `<span class="cq-day-cnt-pill">${todaySessions.length ? `${todaySessions.length} ${tr("รายการ", "items")}` : tr("ไม่มีคาบ", "No class")}</span>`;
+    todayCol.appendChild(todayHead);
+
+    const todayUrgentMs = milestones.filter((m) => m.startISO === curDate || (m.kind !== "fieldwork" && m.endISO === curDate));
+    todayUrgentMs.forEach((m) => {
+      const alertEl = make("div", null, `cq-urgent-banner kind-${m.kind}`);
+      alertEl.innerHTML = `<strong>🔔 สำคัญวันนี้: ${escapeHtml(tr(m.titleTh, m.titleEn))}</strong><span>${escapeHtml(tr(m.subTh, m.subEn))}</span>`;
+      todayCol.appendChild(alertEl);
+    });
+
+    if (todaySessions.length) {
+      const list = make("div", null, "cq-day-sess-stack");
+      todaySessions.forEach((sess) => list.appendChild(renderCompactBriefingSessionCard(sess, personalCtx, tKey, false)));
+      todayCol.appendChild(list);
+    } else {
+      const emptyBox = make("div", null, "cq-day-calm-box");
+      if (curDate < "2026-11-25") {
+        const dOpen = diffDaysBetweenISO("2026-11-25", curDate);
+        emptyBox.innerHTML =
+          `<strong>🎓 อีก ${dOpen} วันเปิดรายวิชา RACM 303 (พุธที่ 25 พ.ย. 2569)</strong>` +
+          `<p>วันนี้ยังไม่มีคาบเรียน · แนะนำตรวจสอบกลุ่ม Discussion ห้องเรียน และกดซิงค์ปฏิทิน iCal ล่วงหน้า</p>`;
+        const previewBtn = make("button", "ดูคาบเรียนวันแรก (25 พ.ย.) →", "btn sm");
+        previewBtn.type = "button";
+        previewBtn.addEventListener("click", () => {
+          state.conciergeDateISO = "2026-11-25";
+          renderRoleConcierge();
+        });
+        emptyBox.appendChild(previewBtn);
+      } else if (curDate > "2026-12-30") {
+        emptyBox.innerHTML = `<strong>🏁 สิ้นสุดตารางเรียนรายวิชา RACM 303 ปีการศึกษา 2569 แล้ว</strong><p>ตรวจสอบสถานะการส่งงานครบทั้ง 4 ชิ้นได้ที่หมวดส่งงานและธุรการ</p>`;
+      } else {
+        emptyBox.innerHTML =
+          `<strong>🌿 วันนี้ไม่มีคาบเรียนในตาราง${ROLE === "faculty" && tKey ? ` ของ อ.${escapeHtml(tKey)}` : ""}</strong>` +
+          `<p>สามารถใช้เวลาอ่านบทเรียนฉบับย่อ เตรียมกระดาษโน้ต A4 หรือเตรียมงานตามด่านเส้นชัยด้านล่าง</p>`;
+      }
+      todayCol.appendChild(emptyBox);
+    }
+
+    // 2. TOMORROW (+ UP-NEXT FALLBACK) PANEL
+    const tmrCol = make("div", null, "cq-day-noti-col is-tomorrow-col");
+    const tmrHead = make("div", null, "cq-day-noti-head");
+    tmrHead.innerHTML =
+      `<div class="cq-day-noti-title">` +
+      `<span class="cq-day-badge is-tomorrow">${tr("⏭️ พรุ่งนี้", "⏭️ Tomorrow")}</span>` +
+      `<strong>${escapeHtml(formatCourseDateOptionLabel(tomorrowISO))}</strong>` +
+      `</div>` +
+      `<span class="cq-day-cnt-pill">${tomorrowSessions.length ? `${tomorrowSessions.length} ${tr("รายการ", "items")}` : tr("ไม่มีคาบ", "No class")}</span>`;
+    tmrCol.appendChild(tmrHead);
+
+    const tmrUrgentMs = milestones.filter((m) => m.startISO === tomorrowISO);
+    tmrUrgentMs.forEach((m) => {
+      const alertEl = make("div", null, `cq-urgent-banner is-tmr-warn kind-${m.kind}`);
+      alertEl.innerHTML = `<strong>⚡ เตรียมตัวพรุ่งนี้: ${escapeHtml(tr(m.titleTh, m.titleEn))}</strong><span>${escapeHtml(tr(m.subTh, m.subEn))}</span>`;
+      tmrCol.appendChild(alertEl);
+    });
+
+    if (tomorrowSessions.length) {
+      const list = make("div", null, "cq-day-sess-stack");
+      tomorrowSessions.forEach((sess) => list.appendChild(renderCompactBriefingSessionCard(sess, personalCtx, tKey, false)));
+      tmrCol.appendChild(list);
+    } else {
+      const allDates = getCourseDistinctDates();
+      const nextActiveDate = allDates.find((d) => d > tomorrowISO && filterForDate(d).length > 0);
+      const calmNote = make("div", null, "cq-day-calm-box is-compact");
+      if (nextActiveDate) {
+        const dNext = diffDaysBetweenISO(nextActiveDate, curDate);
+        calmNote.innerHTML =
+          `<strong>พรุ่งนี้ไม่มีคาบเรียน · วันที่มีคาบถัดไปคือ ${escapeHtml(formatCourseDateOptionLabel(nextActiveDate))} (อีก ${dNext} วัน)</strong>`;
+        tmrCol.appendChild(calmNote);
+        const previewSessions = filterForDate(nextActiveDate).slice(0, 2);
+        const upNextStack = make("div", null, "cq-day-sess-stack is-upnext-preview");
+        previewSessions.forEach((sess) =>
+          upNextStack.appendChild(renderCompactBriefingSessionCard(sess, personalCtx, tKey, true))
+        );
+        tmrCol.appendChild(upNextStack);
+      } else {
+        calmNote.innerHTML = `<strong>ไม่มีคาบเรียนเพิ่มเติมหลังวันพรุ่งนี้</strong><p>ตรวจสอบกำหนดส่งงานสุดท้ายในแถบเส้นชัยด้านล่าง</p>`;
+        tmrCol.appendChild(calmNote);
+      }
+    }
+
+    split.append(todayCol, tmrCol);
+    return split;
+  }
+
   function renderRoleConcierge() {
     const shell = $("roleConciergeShell");
     const bodyWrap = $("conciergeBodyWrap");
     const stage = $("conciergeCardsStage");
     const toggleBtn = $("conciergeToggleOpenBtn");
     const dateSel = $("conciergeDateSelect");
+    const resetTodayBtn = $("conciergeResetTodayBtn");
     const presetsRow = $("conciergePresetsRow");
     const dayToolbar = $("conciergeDayToolbar");
     if (!shell || !bodyWrap || !stage) return;
@@ -10669,27 +12282,30 @@
       b.setAttribute("aria-selected", sel ? "true" : "false");
     });
 
-    const allDates = getCourseDistinctDates();
-    if (!state.conciergeDateISO || !allDates.includes(state.conciergeDateISO)) {
-      const bkk = getBangkokTodayISO();
-      state.conciergeDateISO = allDates.find((d) => d >= bkk) || allDates[0] || "2026-11-25";
+    const todayBkk = getBangkokTodayISO();
+    const courseDates = getCourseDistinctDates();
+    const selectableDates = [...new Set([todayBkk, ...courseDates])].sort();
+
+    if (!state.conciergeDateISO || !selectableDates.includes(state.conciergeDateISO)) {
+      state.conciergeDateISO = todayBkk;
     }
     const curDate = state.conciergeDateISO;
-    const todayBkk = getBangkokTodayISO();
+    if (resetTodayBtn) {
+      resetTodayBtn.hidden = curDate === todayBkk;
+    }
 
     if (dateSel) {
       const tKey = ROLE === "faculty" ? state.myTeacherKey : "";
       dateSel.replaceChildren();
-      allDates.forEach((d) => {
+      selectableDates.forEach((d) => {
         const sampleS = (SCHED.sessions || []).find((x) => x.dateISO === d);
         const shortTopic = sampleS ? sampleS.code : "";
         const teacherHas =
           tKey &&
           (SCHED.sessions || []).some((s) => sessionOccursOnDate(s, d, {}) && sessionMatchesTeacher(s, tKey, getSessionAssignments(s)));
-        const prefix = d === todayBkk ? "📍 วันนี้ · " : teacherHas ? "★ " : "";
-        dateSel.add(
-          new Option(`${prefix}${formatCourseDateOptionLabel(d)}${shortTopic ? " (" + shortTopic + ")" : ""}`, d, d === curDate, d === curDate)
-        );
+        const prefix = d === todayBkk ? "📍 วันนี้จริง · " : teacherHas ? "★ " : "";
+        const labelTxt = `${prefix}${formatCourseDateOptionLabel(d)}${shortTopic ? " (" + shortTopic + ")" : d === todayBkk ? " (เช็กนับถอยหลัง)" : ""}`;
+        dateSel.add(new Option(labelTxt, d, d === curDate, d === curDate));
       });
     }
 
@@ -10724,82 +12340,34 @@
       siteObj
     };
     const daySessions = (SCHED.sessions || []).filter((sess) => sessionOccursOnDate(sess, curDate, personalCtx));
+    const msTrack = buildMilestoneFinishTrackElement(curDate, s);
+    const nextPillTxt =
+      daySessions.length > 0
+        ? `วันนี้ ${daySessions.length} คาบ`
+        : msTrack.nextMs && msTrack.nextMs.ev.state !== "done"
+          ? msTrack.nextMs.ev.pillTh.replace(/^[^\s]+\s*/, "")
+          : "ครบทุกด่าน";
 
     // Always update concise tab pills on the 1-line bar
-    setConciergeTabPill("today", `${daySessions.length} คาบ`);
+    setConciergeTabPill("today", nextPillTxt);
     setConciergeTabPill("disc", s && rotObj ? `G${s.disc} · ${rotObj.room}` : "6 ห้อง");
-    setConciergeTabPill("field", s ? `${siteId}.${s.area}` : "9 รพช.");
+    setConciergeTabPill("field", s ? `${siteId}.${s.area}` : "9 พื้นที่");
 
     if (!state.conciergeOpen) return;
 
     stage.replaceChildren();
 
     if (activeTab === "today") {
-      if (presetsRow) {
-        presetsRow.replaceChildren();
-        [
-          { iso: "2026-11-25", label: "25 พ.ย." },
-          { iso: "2026-11-26", label: "26 พ.ย. (HS1)" },
-          { iso: "2026-11-30", label: "30 พ.ย. (HS2–3)" },
-          { iso: "2026-12-01", label: "1 ธ.ค. (HS4–5)" },
-          { iso: "2026-12-04", label: "4 ธ.ค. (HS6)" },
-          { iso: "2026-12-08", label: "8 ธ.ค. (สอบ EP)" },
-          { iso: "2026-12-22", label: "22 ธ.ค. (สอบ HS)" }
-        ].forEach((qd) => {
-          const b = make("button", qd.label, `concierge-preset-chip${curDate === qd.iso ? " is-active" : ""}`);
-          b.type = "button";
-          b.addEventListener("click", () => {
-            state.conciergeDateISO = qd.iso;
-            renderRoleConcierge();
-          });
-          presetsRow.appendChild(b);
-        });
-      }
-
-      if (!daySessions.length) {
-        stage.appendChild(make("p", "ไม่มีคาบเรียนในวันที่เลือก", "cq-empty"));
-        return;
-      }
-      const sessGrid = make("div", null, "cq-compact-sess-grid");
-      daySessions.forEach((sess) => {
-        const eff = resolveEffectiveSessionDetails(sess, personalCtx);
-        const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
-        const roomShort = eff.room || sess.room || "-";
-        const topLine = make("div", null, "cq-sess-top");
-        topLine.innerHTML = `<span class="cq-time">${escapeHtml(sess.timeLabel || "ตลอดวัน")}</span><span class="cq-room-pill">📍 ${escapeHtml(roomShort)}</span>`;
-        const titleEl = make("strong", eff.title, "cq-sess-title");
-        const lecEl = make("span", `ผู้สอน: ${eff.lecturer || sess.lecturers || "-"}`, "cq-sess-lec");
-        item.append(topLine, titleEl, lecEl);
-
-        const actRow = make("div", null, "cq-mini-actions");
-        if (sess.zoom && sess.zoom.url) {
-          const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
-          zLink.href = sess.zoom.url;
-          zLink.target = "_blank";
-          zLink.rel = "noopener";
-          actRow.appendChild(zLink);
-        }
-        if (sess.conciseLink || sess.docLink) {
-          const readBtn = make("button", `สรุป ${sess.code.replace("-DISC", "")} →`, "cq-link-btn");
-          readBtn.type = "button";
-          readBtn.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            openTextbookDoc(sess.conciseLink || sess.docLink);
-          });
-          actRow.appendChild(readBtn);
-        }
-        if (actRow.childElementCount) item.appendChild(actRow);
-        item.addEventListener("click", () => openEventModal(sess));
-        sessGrid.appendChild(item);
-      });
-      stage.appendChild(sessGrid);
+      populateAllAgendaDateChips(presetsRow, curDate, todayBkk, "");
+      stage.appendChild(renderTodayTomorrowBriefingSplit(curDate, todayBkk, personalCtx, ""));
+      stage.appendChild(msTrack.wrap);
       return;
     }
 
     if (activeTab === "disc") {
       if (s && rotObj) {
         const sumBar = make("div", null, "cq-compact-bar-summary");
-        sumBar.innerHTML = `<div><strong>Discussion กลุ่มที่ ${s.disc} · ห้องหลัก ${escapeHtml(rotObj.room)}</strong> (${rotObj.count} คน)${s.disc === 6 ? " · <span style='color:#b45309'>HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03</span>" : ""}</div>`;
+        sumBar.innerHTML = `<div><strong>Discussion กลุ่มที่ ${s.disc} · ห้องหลัก ${escapeHtml(rotObj.room)}</strong> (${rotObj.count} คน)${s.disc === 6 ? " · <span style='color:var(--amber)'>HS4 เช้า 1 ธ.ค. ใช้ห้อง 2C2-03</span>" : ""}</div>`;
         const openBtn = make("button", `เปิดผังกลุ่ม G${s.disc} →`, "btn sm primary");
         openBtn.type = "button";
         openBtn.addEventListener("click", () => {
@@ -10889,7 +12457,7 @@
       $("personalTeacherSelect").value = tKey;
     }
     if ($("conciergeToggleAllDaysBtn")) {
-      $("conciergeToggleAllDaysBtn").textContent = state.conciergeTeacherAllDays ? "รายวัน" : "รวมทุกวัน";
+      $("conciergeToggleAllDaysBtn").textContent = state.conciergeTeacherAllDays ? "กลับมุมมองวันนี้·พรุ่งนี้" : "รวมทุกวันสอน";
       $("conciergeToggleAllDaysBtn").classList.toggle("primary", state.conciergeTeacherAllDays);
     }
 
@@ -10903,98 +12471,44 @@
     const advisedSites = tKey
       ? (SCHED.fieldworkSites || []).filter((st) => String(st.advisors || "").includes(tKey))
       : [];
+    const msTrack = buildMilestoneFinishTrackElement(curDate, null);
 
     setConciergeTabPill(
       "today",
-      `${state.conciergeTeacherAllDays && tKey ? teacherAllSessions.length : daySessions.length} คาบ`
+      state.conciergeTeacherAllDays && tKey
+        ? `${teacherAllSessions.length} คาบ`
+        : daySessions.length
+          ? `วันนี้ ${daySessions.length} คาบ`
+          : msTrack.nextMs && msTrack.nextMs.ev.state !== "done"
+            ? msTrack.nextMs.ev.pillTh.replace(/^[^\s]+\s*/, "")
+            : "ครบทุกด่าน"
     );
     setConciergeTabPill("disc", "HS1–HS6");
-    setConciergeTabPill("field", advisedSites.length ? advisedSites.map((x) => x.shortName).join(",") : "9 รพช.");
+    setConciergeTabPill("field", advisedSites.length ? advisedSites.map((x) => x.shortName).join(",") : "9 พื้นที่");
 
     if (!state.conciergeOpen) return;
 
     stage.replaceChildren();
 
     if (activeTab === "today") {
-      if (presetsRow) {
-        presetsRow.replaceChildren();
-        if (!tKey) {
-          allTeachers.slice(0, 10).forEach((t) => {
-            const chip = make("button", `อ.${t.key}`, "concierge-preset-chip");
-            chip.type = "button";
-            chip.addEventListener("click", () => selectActiveTeacher(t.key, true));
-            presetsRow.appendChild(chip);
-          });
-        } else {
-          const teachingDates = [...new Set(teacherAllSessions.map((s) => s.dateISO))].sort();
-          teachingDates.forEach((d) => {
-            const chip = make(
-              "button",
-              formatCourseDateOptionLabel(d).replace(" 2569", ""),
-              `concierge-preset-chip${!state.conciergeTeacherAllDays && curDate === d ? " is-active" : ""}`
-            );
-            chip.type = "button";
-            chip.addEventListener("click", () => {
-              state.conciergeTeacherAllDays = false;
-              state.conciergeDateISO = d;
-              renderRoleConcierge();
-            });
-            presetsRow.appendChild(chip);
-          });
-          const clearTBtn = make("button", "✕ ล้าง", "concierge-preset-chip is-clear");
-          clearTBtn.type = "button";
-          clearTBtn.addEventListener("click", () => selectActiveTeacher("", false));
-          presetsRow.appendChild(clearTBtn);
-        }
-      }
+      populateAllAgendaDateChips(presetsRow, curDate, todayBkk, tKey);
 
-      const shownSessions = state.conciergeTeacherAllDays && tKey ? teacherAllSessions : daySessions;
-      if (!shownSessions.length) {
-        stage.appendChild(
-          make(
-            "p",
-            tKey ? `ไม่มีคาบสอนของ อ.${tKey} ในวันที่ ${formatCourseDateOptionLabel(curDate)}` : "ไม่มีคาบในวันที่เลือก",
-            "cq-empty"
-          )
-        );
+      if (state.conciergeTeacherAllDays && tKey) {
+        if (!teacherAllSessions.length) {
+          stage.appendChild(make("p", `ไม่พบคาบสอนของ อ.${tKey}`, "cq-empty"));
+        } else {
+          const sessGrid = make("div", null, "cq-compact-sess-grid");
+          teacherAllSessions.forEach((sess) =>
+            sessGrid.appendChild(renderCompactBriefingSessionCard(sess, {}, tKey, true))
+          );
+          stage.appendChild(sessGrid);
+        }
+        stage.appendChild(msTrack.wrap);
         return;
       }
 
-      const sessGrid = make("div", null, "cq-compact-sess-grid");
-      shownSessions.forEach((sess) => {
-        const roleInfo = tKey
-          ? describeTeacherRoleForSession(sess, tKey)
-          : { roleBadge: sess.code, badgeCls: `cat-${sess.category}`, roomText: sess.room || "-", assignment: null };
-        const item = make("div", null, `cq-session-item cat-left-${sess.category}`);
-        const datePrefix = state.conciergeTeacherAllDays ? `${formatCourseDateOptionLabel(sess.dateISO).replace(" 2569", "")} · ` : "";
-        const topLine = make("div", null, "cq-sess-top");
-        topLine.innerHTML = `<span class="cq-time">${escapeHtml(datePrefix + (sess.timeLabel || "ตลอดวัน"))}</span><span class="badge ${roleInfo.badgeCls}">${escapeHtml(roleInfo.roleBadge)}</span>`;
-        const roomLine = make("div", `📍 ${roleInfo.roomText}`, "cq-room-line-strong");
-        const titleEl = make("strong", sess.title, "cq-sess-title");
-        item.append(topLine, roomLine, titleEl);
-
-        const actRow = make("div", null, "cq-mini-actions");
-        if (roleInfo.assignment) {
-          const rosterBtn = make("button", "👥 ผังรูป นศ. ↗", "cq-link-btn is-primary");
-          rosterBtn.type = "button";
-          rosterBtn.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            jumpToClassRoster(sess, roleInfo.assignment);
-          });
-          actRow.appendChild(rosterBtn);
-        }
-        if (sess.zoom && sess.zoom.url) {
-          const zLink = make("a", "Zoom ↗", "cq-link-btn is-zoom");
-          zLink.href = sess.zoom.url;
-          zLink.target = "_blank";
-          zLink.rel = "noopener";
-          actRow.appendChild(zLink);
-        }
-        if (actRow.childElementCount) item.appendChild(actRow);
-        item.addEventListener("click", () => openEventModal(sess));
-        sessGrid.appendChild(item);
-      });
-      stage.appendChild(sessGrid);
+      stage.appendChild(renderTodayTomorrowBriefingSplit(curDate, todayBkk, {}, tKey));
+      stage.appendChild(msTrack.wrap);
       return;
     }
 
@@ -11096,7 +12610,7 @@
         }
       },
       {
-        title: "กระดาน Group Sorter — 9 พื้นที่ฝึกภาคสนาม (9 รพช.)",
+        title: "กระดาน Group Sorter — 9 พื้นที่ฝึกภาคสนาม (9 โรงพยาบาล)",
         sub: "ซูมย่อ-ขยายเทียบสมาชิก อาจารย์ที่ปรึกษา และวันเดินทางทั้ง 9 พื้นที่",
         badge: "Group Sorter",
         defaultShow: true,
@@ -11342,8 +12856,8 @@
       inp.className = "spotlight-input";
       inp.placeholder =
         ROLE === "faculty"
-          ? "ค้นหานักศึกษา 169 คน, ชื่ออาจารย์, ห้องคุม Discussion, รพช., คาบสอน, หรือลิงก์ต้นฉบับ…"
-          : "ค้นหารหัสนักศึกษา, ชื่อเพื่อน, ห้องเรียน, กลุ่ม Discussion, รพช., อาจารย์, หรือบทเรียน HS…";
+          ? "ค้นหานักศึกษา 169 คน, ชื่ออาจารย์, ห้องคุม Discussion, พื้นที่ภาคสนาม, คาบสอน, หรือลิงก์ต้นฉบับ…"
+          : "ค้นหารหัสนักศึกษา, ชื่อเพื่อน, ห้องเรียน, กลุ่ม Discussion, พื้นที่ภาคสนาม, อาจารย์, หรือบทเรียน HS…";
       const escBtn = make("button", "Esc", "spotlight-esc-btn");
       escBtn.type = "button";
       escBtn.addEventListener("click", () => {
@@ -11355,7 +12869,7 @@
       const cats = [
         { id: "all", label: "ทั้งหมด" },
         { id: "students", label: "นักศึกษา (169)" },
-        { id: "groups", label: "กลุ่ม & รพช. (15)" },
+        { id: "groups", label: "กลุ่ม & พื้นที่ (15)" },
         { id: "teachers", label: "อาจารย์ & คาบเรียน" },
         { id: "docs", label: ROLE === "faculty" ? "บทเรียน & Admin" : "บทเรียน & คู่มือ" }
       ];
@@ -11449,7 +12963,7 @@
     listEl.replaceChildren();
 
     if (!entries.length) {
-      listEl.appendChild(make("div", "ไม่พบรายการที่ตรงกับคำค้นหา · ลองค้นด้วยรหัสนักศึกษา ชื่อเล่น ชื่อ รพช. หรือชื่ออาจารย์", "spotlight-empty"));
+      listEl.appendChild(make("div", "ไม่พบรายการที่ตรงกับคำค้นหา · ลองค้นด้วยรหัสนักศึกษา ชื่อเล่น พื้นที่ภาคสนาม หรือชื่ออาจารย์", "spotlight-empty"));
       return;
     }
 
@@ -12369,9 +13883,9 @@
       {
         cat: "เครื่องมือด่วน & แบบฟอร์ม",
         icon: "🗺",
-        title: "แผนที่ประเทศไทย 9 พื้นที่ภาคสนาม (Hover ดูข้อมูล รพช. & สมาชิก)",
-        sub: "สำรวจตำแหน่งโรงพยาบาลชุมชนทั่วประเทศและอาจารย์ที่ปรึกษา",
-        hay: "แผนที่ ประเทศไทย ภาคสนาม โรงพยาบาลชุมชน รพช map",
+        title: "แผนที่ประเทศไทย 9 พื้นที่ภาคสนาม (Hover ยกจังหวัด & ดูข้อมูลสมาชิก)",
+        sub: "สำรวจตำแหน่งโรงพยาบาลภาคสนามทั่วประเทศและอาจารย์ที่ปรึกษา",
+        hay: "แผนที่ ประเทศไทย ภาคสนาม โรงพยาบาล รพช รพร map",
         run: () => {
           state.fieldOverviewStyle = "map";
           switchTab("fieldwork");
@@ -13959,6 +15473,7 @@
     }
   }
 
+  /* ---------- Bootstrap ---------- */
   /* ---------- Faculty-Only: Live Answer Sheet Block View & Next-Slide Teacher Answer Key ---------- */
   function getFacultyKeySearchText(qId) {
     const tk = (HSD_KEY.keys || {})[qId];
@@ -14712,7 +16227,7 @@
       setTranslatedText(mastH1, "Community Medicine & Health Systems Science (3rd-Year Medical Students)");
       setTranslatedText(
         mastSub,
-        "Wed 25 Nov – Wed 30 Dec 2026 · Chakri Naruebodindra Medical Institute (CNMI) & 9 Community Hospitals"
+        "Wed 25 Nov – Wed 30 Dec 2026 · Chakri Naruebodindra Medical Institute (CNMI) & 9 Fieldwork Hospital Sites"
       );
       setTranslatedText($("studentQuickLeaveTopBtn"), "📝 Leave Request");
       setTranslatedText($("studentElearningLink"), "E-learning ↗");
@@ -14729,21 +16244,52 @@
     );
     setTranslatedText($("clearPersonalBtn"), "Clear");
 
-    // Navigation Tabs (preserving dynamic #leaveNavCountBadge if present)
+    // Primary Category Hierarchy + Secondary Sub-tabs (Cohesive TH / EN)
+    const primaryCatMap = {
+      "schedule-classroom": {
+        title: ROLE === "faculty" ? "Schedule & Classrooms" : "Schedule & Classrooms",
+        pill: "3 Sections",
+        sub: ROLE === "faculty" ? "Teaching Calendar · 6 Groups · HS Cases & Key" : "Calendar · 6 Small Groups · HS Case Studio"
+      },
+      fieldwork: {
+        title: "Fieldwork Groups",
+        pill: "9 Sites",
+        sub: ROLE === "faculty" ? "Fieldwork Hospitals · Advisors · 3D Map" : "9 Fieldwork Hospitals · 3D Map"
+      },
+      knowledge: {
+        title: "Knowledge Content",
+        pill: ROLE === "faculty" ? "4 Sections" : "3 Sections",
+        sub: ROLE === "faculty" ? "Manual · HS1–6 · Practice · Instructor Guide" : "Course Manual · HS1–6 Study · 82 Practice Qs"
+      },
+      admin: {
+        title: "Course Admin",
+        pill: ROLE === "faculty" ? "3 Sections" : "2 Sections",
+        sub: ROLE === "faculty" ? "Submissions · Student Leave · Schedule Audit" : "E-learning Submissions · e-Sign Leave"
+      }
+    };
+    document.querySelectorAll(".nav-group-btn").forEach((gBtn) => {
+      const cat = gBtn.dataset.navCat;
+      const spec = primaryCatMap[cat];
+      if (!spec) return;
+      setTranslatedText(gBtn.querySelector(".ngb-title"), spec.title);
+      setTranslatedText(gBtn.querySelector(".ngb-pill"), spec.pill);
+      setTranslatedText(gBtn.querySelector(".ngb-sub"), spec.sub);
+    });
+
     const tabMap = {
-      schedule: ROLE === "faculty" ? `Teaching Schedule` : `Schedule & Calendar`,
+      schedule: ROLE === "faculty" ? `Teaching Schedule & Slides` : `Schedule & Calendar`,
       fieldwork: `Fieldwork Groups <span class="tab-count">9 Sites</span>`,
-      discussion: `Discussion Groups <span class="tab-count">6 Groups</span>`,
+      discussion: `Group Rooms <span class="tab-count">6 Groups</span>`,
       "hs-discussion":
         ROLE === "faculty"
-          ? `HS Cases & Key <span class="tab-count">HS1–HS6 · Key</span>`
-          : `HS Case Discussion <span class="tab-count">HS1–HS6</span>`,
-      submissions: ROLE === "faculty" ? `Submissions & E-learning` : `Submissions <span class="tab-count">4 Tasks</span>`,
-      audit: `Schedule Audit <span class="tab-count">6 Checks</span>`,
-      "faculty-docs": `Instructor Guide & Docs`,
+          ? `Case Studio & Key <span class="tab-count">HS1–HS6 · Key</span>`
+          : `Case Discussion <span class="tab-count">HS1–HS6</span>`,
+      submissions: ROLE === "faculty" ? `Submissions & E-learning` : `Submissions & E-learning <span class="tab-count">4 Tasks</span>`,
+      audit: `Schedule Audit & Sync <span class="tab-count">6 Checks</span>`,
+      "faculty-docs": `Instructor Guide & Sources`,
       manual: `Course Manual <span class="tab-count">17 Ch</span>`,
-      textbooks: `Health Systems Study Materials (HS1–HS6)`,
-      practice: `Flashcards & Q&A <span class="tab-count">82 Qs</span>`
+      textbooks: `Health Systems Study <span class="tab-count">HS1–HS6</span>`,
+      practice: `Flashcards & Practice <span class="tab-count">82 Qs</span>`
     };
     Object.keys(tabMap).forEach((tKey) => {
       const btn = document.querySelector(`.nav-tab[data-tab="${tKey}"]`);
@@ -14765,6 +16311,7 @@
         setTranslatedHtml(leaveTabBtn, `Leave Request <span class="tab-count" id="leaveNavCountBadge">e-Sign</span>`);
       }
     }
+    syncNavHierarchyUI(state.activeTab || "schedule");
 
     // Section Headers
     const secHeaders = {
@@ -14777,8 +16324,8 @@
           : "Check in up to 15 min before class · Export personal or group schedules to Apple iCal (.ics) & Google Calendar (.csv) with embedded Zoom links."
       ],
       "panel-fieldwork": [
-        "Fieldwork Groups by Community Hospital (9 Fieldwork Sites)",
-        "Explore all 9 community hospitals across Thailand in 3D, inspect advisors, small-group rooms, travel dates, and student rosters."
+        "Fieldwork Groups by Hospital Site (9 Fieldwork Sites)",
+        "Explore all 9 fieldwork hospitals across Thailand in 3D, inspect advisors, small-group rooms, travel dates, and student rosters."
       ],
       "panel-discussion": [
         "Health Systems Discussion Groups (Groups 1–6 · Sorted by Fieldwork Site)",
@@ -14902,9 +16449,25 @@
   }
 
   function init() {
+    const defaultCatTabs = {
+      "schedule-classroom": "schedule",
+      fieldwork: "fieldwork",
+      knowledge: "textbooks",
+      admin: "submissions"
+    };
+    document.querySelectorAll(".nav-group-btn").forEach((gBtn) => {
+      gBtn.addEventListener("click", () => {
+        const cat = gBtn.dataset.navCat || "schedule-classroom";
+        const remembered = state.lastCatSubTab && state.lastCatSubTab[cat];
+        switchTab(remembered || defaultCatTabs[cat] || "schedule");
+      });
+    });
     document.querySelectorAll(".nav-tab").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
     });
+    bindHorizontalScrollShell($("primaryNavScrollShell"), $("primaryCategoryBar"));
+    bindHorizontalScrollShell($("secondaryNavScrollShell"), $("secondaryNavTabs"));
+    window.addEventListener("resize", refreshAllNavScrollShells);
 
     const lb = $("imageLightbox");
     if (lb) {

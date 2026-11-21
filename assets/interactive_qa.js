@@ -816,7 +816,7 @@
           <button type="button" class="iq-btn is-ai" id="iqSaveKeyBtn">บันทึกการตั้งค่า</button>
           <button type="button" class="iq-btn" id="iqClearKeyBtn">ล้างค่า API Key</button>
         </div>
-        <div id="iqKeyStatusMsg" style="margin-top:8px;font-size:13px;color:#0f5c54;font-weight:600"></div>
+        <div id="iqKeyStatusMsg" style="margin-top:8px;font-size:13px;color:var(--teal-deep);font-weight:600"></div>
       </div>
     `;
     const inp = bodyEl.querySelector("#iqGeminiKeyInput");

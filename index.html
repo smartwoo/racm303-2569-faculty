@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>(function(){try{var t=localStorage.getItem("racm303_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");var l=localStorage.getItem("racm303_lang");if(l==="en"){document.documentElement.lang="en";document.documentElement.setAttribute("data-lang","en");}}catch(_){}})();</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20261121a">
+  <link rel="stylesheet" href="assets/styles.css?v=20261121b">
 </head>
 <body>
   <header class="masthead faculty-masthead">
@@ -35,7 +35,7 @@
       <div class="personal-bar universal-search-bar" aria-label="ค้นหาทุกอย่างในรายวิชาตามคำสำคัญ">
         <label for="personalStudentInput">🔍 ค้นหาด่วน:</label>
         <div class="personal-input-wrap omnibox-wrap" id="universalOmniboxWrap">
-          <input id="personalStudentInput" type="search" autocomplete="off" placeholder="ค้นหาได้ทุกอย่างตาม Keyword — ชื่ออาจารย์, นศ. 169 คน, คาบสอน, Slide, เอกสาร HS1–HS6, คู่มือ, รพช., ใบลา…">
+          <input id="personalStudentInput" type="search" autocomplete="off" placeholder="ค้นหาได้ทุกอย่างตาม Keyword — ชื่ออาจารย์, นศ. 169 คน, คาบสอน, Slide, เอกสาร HS1–HS6, คู่มือ, พื้นที่ภาคสนาม, ใบลา…">
           <datalist id="studentLookupList"></datalist>
           <div class="omnibox-dropdown" id="universalOmniboxDropdown" hidden></div>
         </div>
@@ -43,19 +43,51 @@
         <button class="personal-clear" id="clearPersonalBtn" type="button" hidden>ล้างค่า</button>
       </div>
 
-      <nav class="nav-tabs" role="tablist" aria-label="หมวดเนื้อหาสำหรับคณาจารย์">
-        <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" aria-selected="true" type="button">ปฏิทินสอน &amp; Slide</button>
-        <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" aria-selected="false" type="button">กลุ่มตามพื้นที่ภาคสนาม <span class="tab-count">9 แห่ง</span></button>
-        <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" aria-selected="false" type="button">กลุ่ม Discussion <span class="tab-count">6 กลุ่ม</span></button>
-        <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" aria-selected="false" type="button">Discussion ระบบสุขภาพ &amp; เฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
-        <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" aria-selected="false" type="button">ระบบรับงาน &amp; E-learning</button>
-        <button class="nav-tab" id="fTabLeave" role="tab" data-tab="leave" aria-selected="false" type="button">ใบลานักศึกษา &amp; แจ้งเตือน <span class="tab-count" id="leaveNavCountBadge">0 รายการ</span></button>
-        <button class="nav-tab" id="fTabAudit" role="tab" data-tab="audit" aria-selected="false" type="button">ตรวจตาราง &amp; ซิงค์ชีต <span class="tab-count">6 จุด</span></button>
-        <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" aria-selected="false" type="button">คู่มือผู้สอน &amp; ต้นฉบับ</button>
-        <button class="nav-tab" id="fTabManual" role="tab" data-tab="manual" aria-selected="false" type="button">คู่มือรายวิชา 2569</button>
-        <button class="nav-tab" id="fTabTextbooks" role="tab" data-tab="textbooks" aria-selected="false" type="button">เอกสารประกอบการสอบ Health Systems (HS1–HS6)</button>
-        <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" aria-selected="false" type="button">คำศัพท์ &amp; โจทย์ 82 ข้อ</button>
-      </nav>
+      <div class="nav-hierarchy-dock" id="mainNavHierarchyDock">
+        <div class="nav-scroll-shell" id="primaryNavScrollShell">
+          <button class="nav-scroll-btn is-left" type="button" aria-label="เลื่อนหมวดหมู่ไปทางซ้าย" hidden>‹</button>
+          <div class="nav-primary-bar" id="primaryCategoryBar" role="menubar" aria-label="หมวดเนื้อหาหลักสำหรับคณาจารย์">
+            <button class="nav-group-btn" type="button" data-nav-cat="schedule-classroom" aria-expanded="true">
+              <span class="ngb-top"><span class="ngb-ico">📅</span><span class="ngb-title">ตารางสอนและห้องเรียน</span><span class="ngb-pill">3 หมวด</span></span>
+              <span class="ngb-sub">ปฏิทินสอน · ผัง 6 กลุ่ม · โจทย์และเฉลย HS</span>
+            </button>
+            <button class="nav-group-btn" type="button" data-nav-cat="fieldwork" aria-expanded="false">
+              <span class="ngb-top"><span class="ngb-ico">🏥</span><span class="ngb-title">กลุ่มพื้นที่ภาคสนาม</span><span class="ngb-pill">9 แห่ง</span></span>
+              <span class="ngb-sub">โรงพยาบาลภาคสนาม · ที่ปรึกษา · แผนที่ 3D</span>
+            </button>
+            <button class="nav-group-btn" type="button" data-nav-cat="knowledge" aria-expanded="false">
+              <span class="ngb-top"><span class="ngb-ico">📚</span><span class="ngb-title">คลังความรู้และบทเรียน</span><span class="ngb-pill">4 หมวด</span></span>
+              <span class="ngb-sub">คู่มือวิชา · HS1–6 · โจทย์ · คู่มือผู้สอน</span>
+            </button>
+            <button class="nav-group-btn" type="button" data-nav-cat="admin" aria-expanded="false">
+              <span class="ngb-top"><span class="ngb-ico">🗂️</span><span class="ngb-title">บริหารและธุรการ</span><span class="ngb-pill" id="adminGroupCatPill">3 หมวด</span></span>
+              <span class="ngb-sub">รับงาน · ใบลานักศึกษา · ตรวจตาราง</span>
+            </button>
+          </div>
+          <button class="nav-scroll-btn is-right" type="button" aria-label="เลื่อนหมวดหมู่ไปทางขวา" hidden>เลื่อน ›</button>
+        </div>
+
+        <div class="nav-subtabs-dock" id="secondarySubtabsDock">
+          <span class="nav-subtabs-kicker" id="secondarySubtabsKicker">หมวดย่อย:</span>
+          <div class="nav-scroll-shell is-sub" id="secondaryNavScrollShell">
+            <button class="nav-scroll-btn is-left" type="button" aria-label="เลื่อนแท็บย่อยไปทางซ้าย" hidden>‹</button>
+            <nav class="nav-tabs" id="secondaryNavTabs" role="tablist" aria-label="หมวดเนื้อหาย่อยสำหรับคณาจารย์">
+              <button class="nav-tab" id="fTabSchedule" role="tab" data-tab="schedule" data-nav-cat="schedule-classroom" aria-selected="true" type="button">ปฏิทินสอนและสไลด์</button>
+              <button class="nav-tab" id="fTabDiscussion" role="tab" data-tab="discussion" data-nav-cat="schedule-classroom" aria-selected="false" type="button">ผังกลุ่มและห้องเรียน <span class="tab-count">6 กลุ่ม</span></button>
+              <button class="nav-tab" id="fTabHsDiscussion" role="tab" data-tab="hs-discussion" data-nav-cat="schedule-classroom" aria-selected="false" type="button">อภิปรายกรณีศึกษาและเฉลย <span class="tab-count">HS1–HS6 · Key</span></button>
+              <button class="nav-tab" id="fTabFieldwork" role="tab" data-tab="fieldwork" data-nav-cat="fieldwork" aria-selected="false" type="button" hidden>กลุ่มพื้นที่ภาคสนาม <span class="tab-count">9 แห่ง</span></button>
+              <button class="nav-tab" id="fTabManual" role="tab" data-tab="manual" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คู่มือรายวิชา 2569 <span class="tab-count">17 บท</span></button>
+              <button class="nav-tab" id="fTabTextbooks" role="tab" data-tab="textbooks" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>บทเรียนระบบสุขภาพ <span class="tab-count">HS1–HS6</span></button>
+              <button class="nav-tab" id="fTabPractice" role="tab" data-tab="practice" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คำศัพท์และโจทย์ฝึกหัด <span class="tab-count">82 ข้อ</span></button>
+              <button class="nav-tab" id="fTabFacultyDocs" role="tab" data-tab="faculty-docs" data-nav-cat="knowledge" aria-selected="false" type="button" hidden>คู่มือผู้สอนและต้นฉบับ</button>
+              <button class="nav-tab" id="fTabSubmissions" role="tab" data-tab="submissions" data-nav-cat="admin" aria-selected="false" type="button" hidden>ระบบรับงานและ E-learning</button>
+              <button class="nav-tab" id="fTabLeave" role="tab" data-tab="leave" data-nav-cat="admin" aria-selected="false" type="button" hidden>ใบลานักศึกษาและแจ้งเตือน <span class="tab-count" id="leaveNavCountBadge">0 รายการ</span></button>
+              <button class="nav-tab" id="fTabAudit" role="tab" data-tab="audit" data-nav-cat="admin" aria-selected="false" type="button" hidden>ตรวจตารางและซิงค์ข้อมูล <span class="tab-count">6 จุด</span></button>
+            </nav>
+            <button class="nav-scroll-btn is-right" type="button" aria-label="เลื่อนแท็บย่อยไปทางขวา" hidden>เลื่อน ›</button>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -430,8 +462,8 @@
     <section class="tab-panel" id="panel-fieldwork" aria-labelledby="fTabFieldwork" hidden>
       <div class="section-header">
         <div>
-          <h2>กลุ่มแบ่งตามพื้นที่ฝึกภาคสนาม เจ้าหน้าที่ประสานงาน และแผนที่โรงพยาบาลชุมชน (9 แห่ง)</h2>
-          <p>สำรวจเส้นทางและตำแหน่งโรงพยาบาลชุมชนทั้ง 9 พื้นที่บนแผนที่ 3 มิติ (Hover ดูอาจารย์ที่ปรึกษา เจ้าหน้าที่ประสานงาน และรูปถ่ายนักศึกษาได้ทันที) พร้อมพิมพ์ใบรูปถ่าย 1 หน้า A4</p>
+          <h2>กลุ่มแบ่งตามพื้นที่ฝึกภาคสนาม เจ้าหน้าที่ประสานงาน และแผนที่โรงพยาบาลทั้ง 9 แห่ง</h2>
+          <p>สำรวจเส้นทาง จังหวัด และตำแหน่งโรงพยาบาลฝึกภาคสนามทั้ง 9 พื้นที่บนแผนที่ 3 มิติ (Hover ดูอาจารย์ที่ปรึกษา เจ้าหน้าที่ประสานงาน และรูปถ่ายนักศึกษาได้ทันที) พร้อมพิมพ์ใบรูปถ่าย 1 หน้า A4</p>
         </div>
         <div class="header-actions">
           <button class="btn" id="toggleSitesOverviewBtn" type="button">ซ่อนแผนที่ 9 พื้นที่</button>
@@ -487,7 +519,7 @@
           <div>
             <h3 class="elearning-bridge-title">ห้องจัดการรายวิชา 3/2569 RACM 303 Community Medicine I (สำหรับคณาจารย์และผู้ประสานงาน)</h3>
           </div>
-          <span class="elearning-status-pill is-checking" id="ramedBackendStatusBadge">● กำลังตรวจสอบสถานะห้องเรียนออนไลน์…</span>
+          <span class="elearning-status-pill is-pending-auth" id="ramedBackendStatusBadge">○ ยังไม่ได้เปิดหน้าต่าง Login ระบบ E-learning รามา</span>
         </div>
 
         <div class="elearning-role-grid" aria-label="การเข้าใช้งานตามสิทธิ์รหัสผู้ใช้งาน">
@@ -798,7 +830,7 @@
   <script src="assets/data_hs_discussion.js?v=20261120w"></script>
   <script src="assets/data_hs_discussion_key.js?v=20261120w"></script>
   <script src="assets/data_faculty.js?v=20261120w"></script>
-  <script src="assets/interactive_qa.js?v=20261120w"></script>
-  <script src="assets/portal.js?v=20261121a"></script>
+  <script src="assets/interactive_qa.js?v=20261121b"></script>
+  <script src="assets/portal.js?v=20261121b"></script>
 </body>
 </html>
