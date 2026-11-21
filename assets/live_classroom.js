@@ -47,6 +47,22 @@
     } catch (_) {}
   }
 
+  function safeGetSession(key, fallback) {
+    try {
+      const v = sessionStorage.getItem(key);
+      return v !== null ? v : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function safeSetSession(key, val) {
+    try {
+      if (val === null) sessionStorage.removeItem(key);
+      else sessionStorage.setItem(key, val);
+    } catch (_) {}
+  }
+
   function clampRoom(n) {
     const num = Number(n);
     return num >= 1 && num <= 6 ? Math.floor(num) : 1;
@@ -78,10 +94,19 @@
     role: window.PORTAL_ROLE === "faculty" ? "faculty" : "student",
     roomId: clampRoom(safeGetStorage("racm303_live_room_v1", "1")),
     participantId: persistentPid,
+    sessionJoined:
+      window.PORTAL_ROLE === "faculty" ||
+      safeGetSession("racm303_hsd_session_joined_v1", "0") === "1",
     studentId: "",
+    fullName: "",
     displayName: safeGetStorage("racm303_live_name_v1", ""),
     nickname: "",
     area: "",
+    disc: 0,
+    photoId: "",
+    activeModule: "",
+    activeQuestionId: "",
+    joinedWallMs: 0,
     followTeacher: safeGetStorage("racm303_live_follow_v1", "1") !== "0",
     anonymousWall: safeGetStorage("racm303_live_anon_v1", "0") === "1",
     soundMuted: safeGetStorage("racm303_live_mute_v1", "0") === "1",
@@ -113,6 +138,8 @@
       module: "",
       caseId: "",
       questionId: "",
+      splitOrient: "",
+      forceSync: false,
       sentWallMs: 0
     },
 
@@ -120,7 +147,7 @@
     responsesByQuestion: new Map(),
     clearedAtByQuestion: new Map(),
 
-    // Presence: Map<participantId, { role, name, lastSeenMs }>
+    // Presence: Map<participantId, PresenceRecord>
     presence: new Map()
   };
 
@@ -362,6 +389,8 @@
         module: String(msg.module || "").slice(0, 12),
         caseId: String(msg.caseId || "").slice(0, 24),
         questionId: String(msg.questionId || "").slice(0, 24),
+        splitOrient: msg.splitOrient === "horizontal" || msg.splitOrient === "vertical" ? msg.splitOrient : "",
+        forceSync: Boolean(msg.forceSync) && !isRetained,
         sentWallMs: Number(msg.sentWallMs) || Date.now()
       };
       emit("pointer", Object.assign({}, state.teacherPointer));
@@ -443,25 +472,84 @@
         });
       }
 
-      // Also refresh presence from active typing!
-      state.presence.set(pid, {
+      // Refresh presence from active typing while preserving rich student metadata
+      const prevPres = state.presence.get(pid) || {};
+      state.presence.set(pid, Object.assign({}, prevPres, {
         participantId: pid,
         role: "student",
-        name: String(msg.displayName || "นักศึกษา").slice(0, 60),
+        joined: true,
+        studentId: String(msg.studentId || prevPres.studentId || "").slice(0, 16),
+        nickname: String(msg.nickname || prevPres.nickname || "").slice(0, 32),
+        area: String(msg.area || prevPres.area || "").slice(0, 40),
+        name: String(msg.displayName || prevPres.name || "นักศึกษา").slice(0, 80),
+        activeQuestionId: qid,
         lastSeenMs: Date.now()
-      });
+      }));
       emit("responses", { questionId: qid, participantId: pid });
       emit("presence", getPresenceSummary());
+      return;
+    }
+
+    if (msg.type === "who_is_here") {
+      if (isRetained) return;
+      if (state.role === "faculty" || state.sessionJoined) {
+        publishPresence();
+      }
+      if (state.role === "faculty" && state.teacherPointer.questionId) {
+        publishPacket(
+          "slide",
+          Object.assign(
+            {
+              type: "slide",
+              seq: state.teacherPointer.seq,
+              module: state.teacherPointer.module,
+              caseId: state.teacherPointer.caseId,
+              questionId: state.teacherPointer.questionId,
+              splitOrient: state.teacherPointer.splitOrient || "",
+              forceSync: false
+            },
+            {}
+          ),
+          true
+        );
+      }
       return;
     }
 
     if (msg.type === "presence") {
       const pid = String(msg.participantId || "").slice(0, 48);
       if (!pid) return;
+      if (msg.left) {
+        if (state.presence.delete(pid)) {
+          emit("presence", getPresenceSummary());
+        }
+        return;
+      }
+      // Ignore stale retained MQTT presence from previous class sessions (> 90 min old)
+      if (isRetained && msg.sentWallMs && Date.now() - Number(msg.sentWallMs) > 90 * 60 * 1000) {
+        return;
+      }
+      if (msg.role !== "faculty" && msg.joined === false) {
+        if (state.presence.delete(pid)) {
+          emit("presence", getPresenceSummary());
+        }
+        return;
+      }
+      const prevPres = state.presence.get(pid) || {};
       state.presence.set(pid, {
         participantId: pid,
         role: msg.role === "faculty" ? "faculty" : "student",
-        name: String(msg.name || "ผู้เข้าร่วม").slice(0, 60),
+        joined: msg.role === "faculty" ? true : Boolean(msg.joined !== false),
+        studentId: String(msg.studentId || prevPres.studentId || "").slice(0, 16),
+        fullName: String(msg.fullName || prevPres.fullName || "").slice(0, 80),
+        nickname: String(msg.nickname || prevPres.nickname || "").slice(0, 32),
+        area: String(msg.area || prevPres.area || "").slice(0, 40),
+        disc: Number(msg.disc || prevPres.disc || 0) || 0,
+        photoId: String(msg.photoId || prevPres.photoId || "").slice(0, 40),
+        activeModule: String(msg.activeModule || prevPres.activeModule || "").slice(0, 12),
+        activeQuestionId: String(msg.activeQuestionId || prevPres.activeQuestionId || "").slice(0, 32),
+        name: String(msg.name || prevPres.name || "ผู้เข้าร่วม").slice(0, 80),
+        joinedWallMs: Number(msg.joinedWallMs || prevPres.joinedWallMs || msg.sentWallMs || Date.now()),
         lastSeenMs: Date.now()
       });
       emit("presence", getPresenceSummary());
@@ -594,7 +682,7 @@
         peer.on("connection", (conn) => {
           state.peerConns.set(conn.peer, conn);
           conn.on("open", () => {
-            // Send current timer & slide pointer immediately to newly connected student
+            // Send current timer, slide pointer, & active room presence immediately to newly connected student
             try {
               conn.send({
                 subpath: "timer",
@@ -617,6 +705,12 @@
                   msg: Object.assign({ type: "slide", msgId: randomId("sync"), roomId: state.roomId }, state.teacherPointer)
                 });
               }
+              state.presence.forEach((pRec) => {
+                conn.send({
+                  subpath: `presence/${pRec.participantId}`,
+                  msg: Object.assign({ type: "presence", msgId: randomId("sync"), roomId: state.roomId, sentWallMs: Date.now() }, pRec)
+                });
+              });
             } catch (_) {}
           });
           conn.on("data", (data) => {
@@ -640,7 +734,8 @@
             conn.on("open", () => {
               state.connectedTransports.add("peer");
               updateConnectionBadge();
-              publishPresence();
+              if (state.sessionJoined) publishPresence();
+              requestRoomSnapshot();
             });
             conn.on("data", (data) => {
               if (data && data.msg) handleIncomingPacket(data.subpath || "", data.msg, false);
@@ -660,23 +755,46 @@
     } catch (_) {}
   }
 
-  function publishPresence() {
-    const myName = getEffectiveDisplayName();
-    state.presence.set(state.participantId, {
-      participantId: state.participantId,
-      role: state.role,
-      name: myName,
-      lastSeenMs: Date.now()
-    });
+  function requestRoomSnapshot() {
     publishPacket(
-      `presence/${state.participantId}`,
+      "who_is_here",
       {
-        type: "presence",
-        participantId: state.participantId,
-        role: state.role,
-        name: myName
+        type: "who_is_here",
+        participantId: state.participantId
       },
       false
+    );
+  }
+
+  function publishPresence() {
+    // Students on the pre-login lobby screen have not joined yet — do not count them as joined until login
+    if (state.role !== "faculty" && !state.sessionJoined) {
+      emit("presence", getPresenceSummary());
+      return;
+    }
+    const myName = getEffectiveDisplayName();
+    if (!state.joinedWallMs) state.joinedWallMs = Date.now();
+    const myRec = {
+      participantId: state.participantId,
+      role: state.role,
+      joined: true,
+      studentId: state.studentId || "",
+      fullName: state.fullName || "",
+      nickname: state.nickname || "",
+      area: state.area || "",
+      disc: state.disc || state.roomId,
+      photoId: state.photoId || "",
+      activeModule: state.activeModule || "",
+      activeQuestionId: state.activeQuestionId || "",
+      name: myName,
+      joinedWallMs: state.joinedWallMs,
+      lastSeenMs: Date.now()
+    };
+    state.presence.set(state.participantId, myRec);
+    publishPacket(
+      `presence/${state.participantId}`,
+      Object.assign({ type: "presence" }, myRec),
+      true
     );
     emit("presence", getPresenceSummary());
   }
@@ -685,16 +803,27 @@
     let students = 0;
     let teachers = 0;
     const list = [];
+    const joinedStudents = [];
     state.presence.forEach((p) => {
-      if (p.role === "faculty") teachers += 1;
-      else students += 1;
-      list.push(p);
+      if (p.role === "faculty") {
+        teachers += 1;
+        list.push(p);
+      } else if (p.joined !== false) {
+        students += 1;
+        list.push(p);
+        joinedStudents.push(p);
+      }
+    });
+    joinedStudents.sort((a, b) => {
+      if (a.studentId && b.studentId) return String(a.studentId).localeCompare(String(b.studentId));
+      return (a.joinedWallMs || 0) - (b.joinedWallMs || 0);
     });
     return {
       total: students + teachers,
       students,
       teachers,
-      list
+      list,
+      joinedStudents
     };
   }
 
@@ -708,20 +837,81 @@
     return `นศพ. กลุ่ม ${state.roomId} (#${state.participantId.slice(-4)})`;
   }
 
-  function setStudentProfile(studentObj) {
+  function setStudentProfile(studentObj, opts) {
     if (studentObj && studentObj.id) {
+      const prevPid = state.participantId;
       state.studentId = String(studentObj.id);
       state.participantId = `sid_${studentObj.id}`;
+      if (prevPid && prevPid !== state.participantId) {
+        state.presence.delete(prevPid);
+      }
       const nick = String(studentObj.nickname || studentObj.nick || "").trim();
       state.nickname = nick;
+      state.fullName = String(studentObj.fullName || studentObj.name || "").trim();
       state.area = studentObj.area || "";
+      state.disc = Number(studentObj.disc) || 0;
+      state.photoId = String(studentObj.photoId || "");
       const baseName = studentObj.name || studentObj.fullName || studentObj.id;
       state.displayName = nick ? `${nick} (${baseName})` : `${studentObj.id} ${baseName}`;
-      if (studentObj.disc >= 1 && studentObj.disc <= 6) {
+      const skipAutoRoom = Boolean(opts && opts.keepCurrentRoom);
+      if (!skipAutoRoom && studentObj.disc >= 1 && studentObj.disc <= 6) {
         setRoom(studentObj.disc, true);
       }
     }
+    if (state.sessionJoined) {
+      publishPresence();
+    } else {
+      emit("presence", getPresenceSummary());
+    }
+  }
+
+  function joinSessionWithStudent(studentObj, roomNumOpt, activeModuleOpt) {
+    state.sessionJoined = true;
+    state.joinedWallMs = Date.now();
+    safeSetSession("racm303_hsd_session_joined_v1", "1");
+    if (activeModuleOpt) state.activeModule = String(activeModuleOpt);
+    if (studentObj && studentObj.id) {
+      setStudentProfile(studentObj, { keepCurrentRoom: Boolean(roomNumOpt) });
+    }
+    if (roomNumOpt) {
+      setRoom(roomNumOpt, false);
+    }
     publishPresence();
+    requestRoomSnapshot();
+  }
+
+  function logoutStudentSession() {
+    if (state.role === "faculty") return;
+    const oldPid = state.participantId;
+    state.sessionJoined = false;
+    state.joinedWallMs = 0;
+    safeSetSession("racm303_hsd_session_joined_v1", null);
+    if (oldPid) {
+      state.presence.delete(oldPid);
+      publishPacket(
+        `presence/${oldPid}`,
+        {
+          type: "presence",
+          participantId: oldPid,
+          role: "student",
+          joined: false,
+          left: true
+        },
+        true
+      );
+    }
+    emit("presence", getPresenceSummary());
+  }
+
+  function setActiveStudentSlide(moduleId, questionId) {
+    const nextMod = String(moduleId || "");
+    const nextQ = String(questionId || "");
+    if (state.activeModule === nextMod && state.activeQuestionId === nextQ) return;
+    state.activeModule = nextMod;
+    state.activeQuestionId = nextQ;
+    if (state.role !== "faculty" && state.sessionJoined) {
+      publishPresence();
+    }
   }
 
   function setCustomDisplayName(nameStr) {
@@ -736,6 +926,32 @@
     const prev = state.roomId;
     if (next === prev && state.presence.size > 0) return;
 
+    // Notify previous room if student was actively joined there
+    if (next !== prev && state.role !== "faculty" && state.sessionJoined && state.participantId) {
+      const leaveMsg = {
+        type: "presence",
+        msgId: randomId("pkt"),
+        roomId: prev,
+        senderCli: clientInstanceId,
+        sentWallMs: Date.now(),
+        participantId: state.participantId,
+        role: "student",
+        joined: false,
+        left: true
+      };
+      if (state.bc) {
+        try {
+          state.bc.postMessage({ subpath: `presence/${state.participantId}`, msg: leaveMsg, retained: false });
+        } catch (_) {}
+      }
+      const prevTopic = `${TOPIC_NS}/room-${prev}/presence/${state.participantId}`;
+      state.mqttClients.forEach((c) => {
+        try {
+          if (c && c.connected) c.publish(prevTopic, JSON.stringify(leaveMsg), { qos: 0, retain: true });
+        } catch (_) {}
+      });
+    }
+
     state.mqttClients.forEach((c) => unsubscribeRoomMqtt(c, prev));
     state.roomId = next;
     if (!silentSave) safeSetStorage("racm303_live_room_v1", String(next));
@@ -744,6 +960,15 @@
     state.responsesByQuestion.clear();
     state.clearedAtByQuestion.clear();
     state.presence.clear();
+    state.teacherPointer = {
+      seq: 0,
+      module: "",
+      caseId: "",
+      questionId: "",
+      splitOrient: "",
+      forceSync: false,
+      sentWallMs: 0
+    };
     state.timer = {
       seq: 0,
       running: false,
@@ -761,6 +986,7 @@
     state.mqttClients.forEach((c) => subscribeCurrentRoomMqtt(c));
     initPeerForRoom();
     publishPresence();
+    requestRoomSnapshot();
     emit("timer", getTimerSnapshot());
     emit("responses", { questionId: "*" });
   }
@@ -900,13 +1126,31 @@
     emit("timer", getTimerSnapshot());
   }
 
-  function broadcastTeacherQuestionPointer(moduleId, caseId, questionId) {
-    if (state.role !== "faculty") return;
+  function broadcastTeacherQuestionPointer(moduleId, caseId, questionId, opts) {
+    if (state.role !== "faculty" || !questionId) return;
+    const orient =
+      opts && (opts.splitOrient === "horizontal" || opts.splitOrient === "vertical")
+        ? opts.splitOrient
+        : state.teacherPointer.splitOrient || "";
+    const forceSync = Boolean(opts && opts.forceSync);
+    const now = Date.now();
+    if (
+      !forceSync &&
+      state.teacherPointer.module === (moduleId || "") &&
+      state.teacherPointer.caseId === (caseId || "") &&
+      state.teacherPointer.questionId === questionId &&
+      state.teacherPointer.splitOrient === orient &&
+      now - (state.teacherPointer.sentWallMs || 0) < 900
+    ) {
+      return;
+    }
     state.teacherPointer.seq += 1;
     state.teacherPointer.module = moduleId || "";
     state.teacherPointer.caseId = caseId || "";
     state.teacherPointer.questionId = questionId || "";
-    state.teacherPointer.sentWallMs = Date.now();
+    state.teacherPointer.splitOrient = orient;
+    state.teacherPointer.forceSync = forceSync;
+    state.teacherPointer.sentWallMs = now;
     publishPacket(
       "slide",
       {
@@ -914,9 +1158,11 @@
         seq: state.teacherPointer.seq,
         module: state.teacherPointer.module,
         caseId: state.teacherPointer.caseId,
-        questionId: state.teacherPointer.questionId
+        questionId: state.teacherPointer.questionId,
+        splitOrient: orient,
+        forceSync
       },
-      true
+      !forceSync
     );
   }
 
@@ -1175,6 +1421,7 @@
     initMqttBrokers();
     initPeerForRoom();
     publishPresence();
+    requestRoomSnapshot();
   }
 
   window.RACM_LIVE_CLASSROOM = {
@@ -1185,6 +1432,11 @@
     getRoomDef: (id) => ROOM_DEFS.find((r) => r.id === clampRoom(id || state.roomId)) || ROOM_DEFS[0],
     setRoom,
     setStudentProfile,
+    joinSessionWithStudent,
+    logoutStudentSession,
+    isSessionJoined: () => Boolean(state.sessionJoined),
+    setActiveStudentSlide,
+    requestRoomSnapshot,
     setCustomDisplayName,
     getDisplayName: getEffectiveDisplayName,
     getParticipantId: () => state.participantId,
